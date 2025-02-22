@@ -16,6 +16,54 @@ class Catalog:
         self.H = hnx.Hypergraph([])
         self.config = config
 
+    def get_nodes(self):
+        nodes = self.H.nodes.dataframe.rename_axis("nodes")
+        nodes["name"] = nodes.index
+        return nodes
+
+    def get_edges(self):
+        edges = self.H.edges.dataframe.rename_axis("edges")
+        edges["name"] = edges.index
+        return edges
+
+    def get_incidences(self):
+        incidences = self.H.incidences.dataframe
+        return incidences
+
+    def get_ids(self):
+        nodes = self.get_nodes()
+        ids = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Identifier')]
+        return ids
+
+    def get_attributes(self):
+        nodes = self.get_nodes()
+        attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
+        return attributes
+
+    def get_phantoms(self):
+        nodes = self.get_nodes()
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
+        return phantoms
+
+    def get_classes(self):
+        edges = self.get_edges()
+        classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
+        return classes
+
+    def get_relationships(self):
+        edges = self.get_edges()
+        relationships = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Relationship')]
+        return relationships
+    def get_inbounds(self):
+        incidences = self.get_incidences()
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
+        return inbounds
+
+    def get_outbounds(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
+        return outbounds
+
     def add_class(self, class_name, cardinality, att_list):
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
@@ -23,8 +71,8 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logging.info("Adding class "+class_name)
-        if class_name in self.H.edges.dataframe.index:
-            raise ValueError(f"The class '{class_name}' already exists")
+        if class_name in self.get_edges()["name"]:
+            raise ValueError(f"Some edge called '{class_name}' already exists")
         self.H.add_edge(class_name, Kind='Class', Count=cardinality)
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
@@ -32,8 +80,8 @@ class Catalog:
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(class_name, class_name+'_ID', {'Direction': 'Inbound'})]
         for att in att_list:
-            if att['name'] in self.H.nodes.dataframe.index:
-                raise ValueError(f"The attribute '{att['name']}' already exists")
+            if att['name'] in self.get_nodes()["name"]:
+                raise ValueError(f"Some node called '{att['name']}' already exists")
             prop = att['prop']
             prop['Kind'] = 'Attribute'
             nodes.append((att['name'], prop))
@@ -48,8 +96,10 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logging.info("Adding relationship "+relationship_name)
-        if relationship_name in self.H.edges.dataframe.index:
+        if relationship_name in self.get_edges()["name"]:
             raise ValueError(f"The relationship '{relationship_name}' already exists")
+        if len(ends_list) != 2:
+            raise ValueError(f"The relationship '{relationship_name}' should have exactly two ends, but has {len(ends_list)}")
         self.H.add_edge(relationship_name, Kind='Relationship')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node( 'Phantom_'+relationship_name, Kind='Phantom')
@@ -115,16 +165,23 @@ class Catalog:
         It can be expensive, so just do it at the end, not for each operation
         """
         correct = True
-        nodes = self.H.nodes.dataframe.rename_axis("nodes")
-        nodes["name"] = nodes.index
-        edges = self.H.edges.dataframe.rename_axis("edges")
-        edges["name"] = edges.index
-        incidences = self.H.incidences.dataframe
-        ids = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Identifier')]
-        attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
-        classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
+        incidences = self.get_incidences()
+        ids = self.get_ids()
+        phantoms = self.get_phantoms()
+        attributes = self.get_attributes()
+        classes = self.get_classes()
+        relationships = self.get_relationships()
+        inbounds = self.get_inbounds()
+        outbounds = self.get_outbounds()
+
+        # IC0: Names must be unique
+        logging.info("Checking IC0")
+        union0 = pd.concat([self.get_nodes()["name"], self.get_edges()["name"]], ignore_index=True)
+        violations0 = union0.groupby(union0).size()
+        if violations0[violations0 > 1].shape[0] > 0:
+            correct = False
+            print("IC0 violation: There are some non-unique names")
+            display(violations0[violations0 > 1])
 
         # IC1: The catalog must be connected
         logging.info("Checking IC1")
@@ -160,8 +217,13 @@ class Catalog:
             display(violations4)
 
         # IC5: An attribute cannot belong to more than one class
-        logging.info("Checking IC5->Not implemented yet")
-        matches5 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner')
+        logging.info("Checking IC5")
+        matches5 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner').join(attributes, on='nodes', rsuffix='_nodes', how='inner')
+        violations5 = matches5.groupby(matches5.index.get_level_values('nodes')).size()
+        if violations5[violations5 > 1].shape[0] > 0:
+            correct = False
+            print("IC5 violation: There are attributes with more than one class")
+            display(violations5[violations5 > 1])
 
         # IC6: The number of different values of an attribute must be less than the cardinality of its class
         logging.info("Checking IC6")
@@ -171,5 +233,40 @@ class Catalog:
             correct = False
             print("IC6 violation: The number of different values of an attribute is greater than the cardinality of its class")
             display(violations6)
+
+        # IC7: Every relationship has one phantom
+        logging.info("Checking IC7")
+        matches7 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+        violations7 = relationships[~relationships["name"].isin((matches7.reset_index(drop=False))["edges"])]
+        if violations7.shape[0] > 0:
+            correct = False
+            print("IC7 violation: There are relationships without phantom")
+            display(violations7)
+
+        # IC8: Every phantom belongs to one relationship
+        logging.info("Checking IC8")
+        matches8 = inbounds.join(relationships, on='edges', rsuffix='_edges', how='inner')
+        violations8 = phantoms[~phantoms["name"].isin((matches8.reset_index(drop=False))["nodes"])]
+        if violations8.shape[0] > 0:
+            correct = False
+            print("IC3 violation: There are phantoms without a relationships")
+            display(violations8)
+
+        # IC9: Every relationship has two ends (Definition 4)
+        logging.info("Checking IC9")
+        matches9 = incidences.join(relationships, on='edges', rsuffix='_edges', how='inner').join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        violations9 = matches9.groupby(matches9.index.get_level_values('edges')).size()
+        if violations9[violations9 != 2].shape[0] > 0:
+            correct = False
+            print("IC9 violation: There are non-binary relationships")
+            display(violations9[violations9 != 2])
+
+        # IC10: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+
+        # IC11: All roots of structs inside a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
+
+        # IC12: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or root of the struct inside the set (Definition 7-d)
+
+        # IC13: (Definition 7-e)
 
         return correct
