@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 import hypernetx as hnx
 import pickle
 import matplotlib
@@ -7,23 +6,26 @@ matplotlib.use('Qt5Agg') #This sets the backend to plot (default TkAgg does not 
 import matplotlib.pyplot as plt
 import pandas as pd
 from IPython.display import display
+import config
 
 
 class Catalog:
     """This class manages the catalog of a database using hypergraphs
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
-    def __init__(self, config, filename=None):
-        self.config = config
-        if filename is None:
+    def __init__(self, file=None):
+        self.config = config.Config()
+        if file is None:
             self.H = hnx.Hypergraph([])
         else:
-            with open(self.config.input_path.joinpath(filename+".HyperNetX"), "rb") as f:
+            logging.info("Loading hypergraph from " + str(file))
+            with open(file, "rb") as f:
                 self.H = pickle.load(f)
 
-    def save(self, filename):
+    def save(self, file):
+        logging.info("Saving hypergraph in " + str(file))
         # Save the hypergraph to a pickle file
-        with open(self.config.output_path.joinpath(filename+".HyperNetX"), "xb") as f:
+        with open(file, "xb") as f:
             pickle.dump(self.H, f)
 
     def get_nodes(self):
@@ -86,7 +88,7 @@ class Catalog:
         self.H.add_edge(class_name, Kind='Class', Count=cardinality)
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
-        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Serial', 'Size': 8, 'DistinctVals': cardinality})]
+        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Serial', 'Size': self.config.size_IDs, 'DistinctVals': cardinality})]
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(class_name, class_name+'_ID', {'Direction': 'Inbound'})]
         for att in att_list:
@@ -184,13 +186,19 @@ class Catalog:
         inbounds = self.get_inbounds()
         outbounds = self.get_outbounds()
 
+        # Pre-check emptiness
+        logging.info("Checking emptiness")
+        if self.get_nodes().shape[0] == 0 or self.get_edges().shape[0] == 0 or self.get_incidences().shape[0] == 0:
+            print(f"This is a degenerated hypergraph: {self.get_nodes().shape[0]} nodes, {self.get_edges().shape[0]} edges, and {self.get_incidences().shape[0]} incidences")
+            return False
+
         # IC0: Names must be unique
         logging.info("Checking IC0")
         union0 = pd.concat([self.get_nodes()["name"], self.get_edges()["name"]], ignore_index=True)
         violations0 = union0.groupby(union0).size()
         if violations0[violations0 > 1].shape[0] > 0:
             correct = False
-            print("IC0 violation: There are some non-unique names")
+
             display(violations0[violations0 > 1])
 
         # IC1: The catalog must be connected

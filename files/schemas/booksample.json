@@ -1,0 +1,27 @@
+{
+  "classes": [
+    {
+      "name": "BOOK",
+      "prop": { "count": 4000000 },
+      "attr": [
+        { "name": "B_NAME", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000}}
+        ]
+      },
+    {
+      "name": "AUTHOR",
+      "prop": { "count": 2500000 },
+      "attr": [
+        { "name": "A_NAME", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000}}
+        ]
+      }
+
+    ],
+  "relationships": [
+    {
+      "ends": [
+        { "name": "AUTHOR", "mult": 3.5 },
+        { "name": "BOOK", "mult": 5.5 }
+        ]
+      }
+    ]
+  }
