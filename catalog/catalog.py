@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 import hypernetx as hnx
+import pickle
 import matplotlib
 matplotlib.use('Qt5Agg') #This sets the backend to plot (default TkAgg does not work)
 import matplotlib.pyplot as plt
@@ -12,9 +13,18 @@ class Catalog:
     """This class manages the catalog of a database using hypergraphs
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
-    def __init__(self, config):
-        self.H = hnx.Hypergraph([])
+    def __init__(self, config, filename=None):
         self.config = config
+        if filename is None:
+            self.H = hnx.Hypergraph([])
+        else:
+            with open(self.config.input_path.joinpath(filename+".HyperNetX"), "rb") as f:
+                self.H = pickle.load(f)
+
+    def save(self, filename):
+        # Save the hypergraph to a pickle file
+        with open(self.config.output_path.joinpath(filename+".HyperNetX"), "xb") as f:
+            pickle.dump(self.H, f)
 
     def get_nodes(self):
         nodes = self.H.nodes.dataframe.rename_axis("nodes")

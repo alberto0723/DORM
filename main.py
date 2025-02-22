@@ -21,6 +21,7 @@ if __name__ == '__main__':
                 )
     c.add_relationship('myRelationship1', [{'name': 'myClass1', 'multiplicity': 5}, {'name': 'myClass2', 'multiplicity': 10}])
     c.show_textual()
+    #c.save(filename="test.HyperNetX")
     if not c.is_correct():
         print("WARNING: The catalog is not correct!!!")
     #c.show_graphical()

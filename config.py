@@ -9,7 +9,8 @@ class Config(object):
 
     # Path definitions
     base_path = Path(__file__).parent
-    output_path = base_path.parent.joinpath("output")
+    input_path = base_path.joinpath("output")
+    output_path = base_path.joinpath("output")
 
     # Graphical representations
     phantom = False
