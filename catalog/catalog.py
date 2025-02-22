@@ -23,6 +23,8 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logging.info("Adding class "+class_name)
+        if class_name in self.H.edges.dataframe.index:
+            raise ValueError(f"The class '{class_name}' already exists")
         self.H.add_edge(class_name, Kind='Class', Count=cardinality)
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
@@ -30,6 +32,8 @@ class Catalog:
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(class_name, class_name+'_ID', {'Direction': 'Inbound'})]
         for att in att_list:
+            if att['name'] in self.H.nodes.dataframe.index:
+                raise ValueError(f"The attribute '{att['name']}' already exists")
             prop = att['prop']
             prop['Kind'] = 'Attribute'
             nodes.append((att['name'], prop))
@@ -44,6 +48,8 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logging.info("Adding relationship "+relationship_name)
+        if relationship_name in self.H.edges.dataframe.index:
+            raise ValueError(f"The relationship '{relationship_name}' already exists")
         self.H.add_edge(relationship_name, Kind='Relationship')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node( 'Phantom_'+relationship_name, Kind='Phantom')
@@ -110,7 +116,9 @@ class Catalog:
         """
         correct = True
         nodes = self.H.nodes.dataframe.rename_axis("nodes")
+        nodes["name"] = nodes.index
         edges = self.H.edges.dataframe.rename_axis("edges")
+        edges["name"] = edges.index
         incidences = self.H.incidences.dataframe
         ids = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Identifier')]
         attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
@@ -122,30 +130,46 @@ class Catalog:
         logging.info("Checking IC1")
         if not self.H.is_connected(s=1):
             correct = False
-            print("The catalog is not connected")
+            print("IC1 violation: The catalog is not connected")
 
-        # IC2: Every class has one and only one ID and these are inbound
+        # IC2: Every class has one ID which is inbound
         logging.info("Checking IC2")
-        matches2 = inbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
-        matches2.reset_index(inplace=True)
-        if matches2.shape[0] != ids.shape[0] or matches2.shape[0] != classes.shape[0] or\
-                matches2["nodes"].drop_duplicates().shape[0] != ids.shape[0] or matches2["edges"].drop_duplicates().shape[0] != classes.shape[0]:
+        matches2 = inbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        violations2 = classes[~classes["name"].isin((matches2.reset_index(drop=False))["edges"])]
+        if violations2.shape[0] > 0:
             correct = False
-            print(f"The classes ({classes.shape[0]}) and identifiers ({ids.shape[0]}) do not match one to one by an inbound incidence")
+            print("IC2 violation: There are classes without identifier")
+            display(violations2)
 
-        # IC3: Every attribute must belong to exactly one class
+        # IC3: Every ID belongs to one class which is inbound
         logging.info("Checking IC3")
-        matches3 = outbounds.join(attributes, on='nodes', rsuffix='_nodes', how='inner')
-        matches3.reset_index(inplace=True)
-        if matches3.shape[0] != attributes.shape[0] or matches3["nodes"].drop_duplicates().shape[0] != attributes.shape[0]:
+        matches3 = inbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations3 = ids[~ids["name"].isin((matches3.reset_index(drop=False))["nodes"])]
+        if violations3.shape[0] > 0:
             correct = False
-            print("Some attribute does not belong to exactly one class linked by an outbound incidence")
+            print("IC3 violation: There are IDs without a class")
+            display(violations3)
 
-        # IC4: The number of different values of an attribute must be less than the cardinality of its class
-        logging.info("Checking IC4 -> Not implemented yet")
-        matches4 = outbounds.join(attributes, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
-        if matches4[matches4.apply(lambda row: row["misc_properties_nodes"]["DistinctVals"]>row["misc_properties_edges"]["Count"], axis=1)].shape[0] != 0:
+        # IC4: Every attribute must belong at least one class which is outbound
+        logging.info("Checking IC4")
+        matches4 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations4 = attributes[~attributes["name"].isin((matches4.reset_index(drop=False))["nodes"])]
+        if violations4.shape[0] > 0:
             correct = False
-            print("The number of different values of an attribute is greater than the cardinality of its class")
+            print("IC4 violation: There are attributes without a class")
+            display(violations4)
+
+        # IC5: An attribute cannot belong to more than one class
+        logging.info("Checking IC5->Not implemented yet")
+        matches5 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner')
+
+        # IC6: The number of different values of an attribute must be less than the cardinality of its class
+        logging.info("Checking IC6")
+        matches6 = outbounds.join(attributes, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations6 = matches6[matches6.apply(lambda row: row["misc_properties_nodes"]["DistinctVals"] > row["misc_properties_edges"]["Count"], axis=1)]
+        if violations6.shape[0] > 0:
+            correct = False
+            print("IC6 violation: The number of different values of an attribute is greater than the cardinality of its class")
+            display(violations6)
 
         return correct
