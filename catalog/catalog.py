@@ -2,11 +2,12 @@ import logging
 import hypernetx as hnx
 import pickle
 import matplotlib
-matplotlib.use('Qt5Agg') #This sets the backend to plot (default TkAgg does not work)
+matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
+
 import matplotlib.pyplot as plt
 import pandas as pd
 from IPython.display import display
-import config
+from . import config
 
 
 class Catalog:
@@ -25,7 +26,7 @@ class Catalog:
     def save(self, file):
         logging.info("Saving hypergraph in " + str(file))
         # Save the hypergraph to a pickle file
-        with open(file, "xb") as f:
+        with open(file, "wb") as f:
             pickle.dump(self.H, f)
 
     def get_nodes(self):

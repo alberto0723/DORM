@@ -1,10 +1,10 @@
 import logging
 import argparse
 from pathlib import Path
-import catalog
+from catalog import catalog
 
 # Path definitions
-base_path = Path(__file__).parent.parent
+base_path = Path(__file__).parent
 default_schemas_path = base_path.joinpath("files/schemas")
 default_hypergraphs_path = base_path.joinpath("files/hypergraphs")
 
