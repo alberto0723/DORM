@@ -77,7 +77,7 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
         return outbounds
 
-    def add_class(self, class_name, cardinality, att_list):
+    def add_class(self, class_name, properties, att_list):
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
         The latter is another dictionary that can contain any key, but at least it should contain
@@ -86,20 +86,22 @@ class Catalog:
         logging.info("Adding class "+class_name)
         if class_name in self.get_edges()["name"]:
             raise ValueError(f"Some edge called '{class_name}' already exists")
-        self.H.add_edge(class_name, Kind='Class', Count=cardinality)
+        # First element in the pair is the name and the second its properties
+        properties["Kind"] = 'Class'
+        edges = [(class_name, properties)]
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
-        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Serial', 'Size': self.config.size_IDs, 'DistinctVals': cardinality})]
+        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Serial', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(class_name, class_name+'_ID', {'Direction': 'Inbound'})]
         for att in att_list:
             if att['name'] in self.get_nodes()["name"]:
                 raise ValueError(f"Some node called '{att['name']}' already exists")
-            prop = att['prop']
-            prop['Kind'] = 'Attribute'
-            nodes.append((att['name'], prop))
+            att['prop']['Kind'] = 'Attribute'
+            nodes.append((att['name'], att['prop']))
             incidences.append((class_name, att['name'], {'Direction': 'Outbound'}))
         self.H.add_nodes_from(nodes)
+        self.H.add_edges_from(edges)
         self.H.add_incidences_from(incidences)
 
     def add_relationship(self, relationship_name, ends_list):
@@ -119,7 +121,8 @@ class Catalog:
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(relationship_name, 'Phantom_'+relationship_name, {'Direction': 'Inbound'})]
         for end in ends_list:
-            incidences.append((relationship_name, end['name']+'_ID', {'Direction': 'Outbound', 'Multiplicity': end['multiplicity']}))
+            end['prop']['Direction'] = 'Outbound'
+            incidences.append((relationship_name, end['name']+'_ID', end['prop']))
         self.H.add_incidences_from(incidences)
 
     def show_graphical(self, extra = True):
@@ -273,7 +276,7 @@ class Catalog:
 
         # IC9: Every relationship has two ends (Definition 4)
         logging.info("Checking IC9")
-        matches9 = incidences.join(relationships, on='edges', rsuffix='_edges', how='inner').join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        matches9 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(relationships, on='edges', rsuffix='_edges', how='inner')
         violations9 = matches9.groupby(matches9.index.get_level_values('edges')).size()
         if violations9[violations9 != 2].shape[0] > 0:
             correct = False

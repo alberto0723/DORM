@@ -1,6 +1,7 @@
 import logging
 import argparse
 from pathlib import Path
+import json
 from catalog import catalog
 
 # Path definitions
@@ -13,12 +14,21 @@ logging.basicConfig(level=logging.INFO)
 
 def recover(args):
     #self.config.input_path.joinpath(filename + ".HyperNetX")
-    c = catalog.Catalog(args.hg_path.joinpath(args.hypergraph + ".HyperNetX"))
-    return c
+    cat = catalog.Catalog(args.hg_path.joinpath(args.hypergraph + ".HyperNetX"))
+    return cat
 
 def create(args):
-    c = catalog.Catalog()
-    return c
+    # Open and load the JSON file
+    with open(args.sch_path.joinpath(args.schema + ".json"), 'r') as file:
+        schema = json.load(file)
+    # Create and fill the catalog
+    cat = catalog.Catalog()
+    for cl in schema.get("classes"):
+        cat.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
+    for rel in schema.get("relationships"):
+        cat.add_relationship(rel.get("name"), rel.get("ends"))
+
+    return cat
 
 # ---------------------------------------------------------------------------- #
 #                                configure argparse begin                      #
@@ -45,7 +55,7 @@ recover_parser.add_argument("--hypergraph", help="Input file name previously gen
 recover_parser.set_defaults(func=recover)
 
 # ---------------------------------------------------------------------------- #
-#                            to sql argument parsing                           #
+#                            to create argument parsing                           #
 # ---------------------------------------------------------------------------- #
 create_parser = subparsers.add_parser("create", help="Creates a catalog from a JSON file specification", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 base_parser.add_argument(
@@ -55,8 +65,8 @@ base_parser.add_argument(
     default=default_schemas_path,
     type=Path,
 )
-create_parser.add_argument("--json", help="Specification of the atomic schema in a JSON file", default="input", type=str)
-create_parser.add_argument("-o", "--output", help="Output file name to be generated for the hypergraph with pickle", metavar="<filename>", default="test", type=str)
+create_parser.add_argument("--schema", help="Specification of the atomic schema in a JSON file", default="input", type=str)
+#create_parser.add_argument("-o", "--output", help="Output file name to be generated for the hypergraph with pickle", metavar="<filename>", default="test", type=str)
 create_parser.set_defaults(func=create)
 
 if __name__ == "__main__":
@@ -71,11 +81,11 @@ if __name__ == "__main__":
             if c.is_correct():
                 print("The catalog is correct")
                 if args.func == create:
-                    c.save(filename=args.hg_path.joinpath(args.output + ".HyperNetX"))
+                    c.save(file=args.hg_path.joinpath(args.schema + ".HyperNetX"))
             else:
                 print("WARNING: The catalog is not correct!!!")
         else:
             if args.func == create:
-                c.save(filename=args.hg_path.joinpath(args.output + ".HyperNetX"))
+                c.save(file=args.hg_path.joinpath(args.schema + ".HyperNetX"))
         if args.graph:
             c.show_graphical()
