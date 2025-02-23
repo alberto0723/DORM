@@ -1,12 +1,14 @@
 import logging
 import hypernetx as hnx
 import pickle
+from IPython.display import display
+import pandas as pd
+pd.set_option('display.max_columns', None)
+
+import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
 
-import matplotlib.pyplot as plt
-import pandas as pd
-from IPython.display import display
 from . import config
 
 
@@ -67,15 +69,36 @@ class Catalog:
         edges = self.get_edges()
         relationships = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Relationship')]
         return relationships
+
+    def get_structs(self):
+        edges = self.get_edges()
+        structs = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Struct')]
+        return structs
+
     def get_inbounds(self):
         incidences = self.get_incidences()
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
+        return inbounds
+
+    def get_inbound_structs(self):
+        incidences = self.get_incidences()
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'StructIncidence')]
         return inbounds
 
     def get_outbounds(self):
         incidences = self.get_incidences()
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
         return outbounds
+
+    def get_outbound_structs(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
+        return outbounds
+
+    def get_transitives(self):
+        incidences = self.get_incidences()
+        transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
+        return transitives
 
     def add_class(self, class_name, properties, att_list):
         """Besides the class name and the number of instances of the class, this method requires
@@ -93,13 +116,13 @@ class Catalog:
         # First element in the pair is the node name and the second its properties
         nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Serial', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(class_name, class_name+'_ID', {'Direction': 'Inbound'})]
+        incidences = [(class_name, class_name+'_ID', {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
         for att in att_list:
             if att['name'] in self.get_nodes()["name"]:
                 raise ValueError(f"Some node called '{att['name']}' already exists")
             att['prop']['Kind'] = 'Attribute'
             nodes.append((att['name'], att['prop']))
-            incidences.append((class_name, att['name'], {'Direction': 'Outbound'}))
+            incidences.append((class_name, att['name'], {'Kind': 'ClassIncidence', 'Direction': 'Outbound'}))
         self.H.add_nodes_from(nodes)
         self.H.add_edges_from(edges)
         self.H.add_incidences_from(incidences)
@@ -112,20 +135,52 @@ class Catalog:
         """
         logging.info("Adding relationship "+relationship_name)
         if relationship_name in self.get_edges()["name"]:
-            raise ValueError(f"The relationship '{relationship_name}' already exists")
+            raise ValueError(f"The hyperedge '{relationship_name}' already exists")
         if len(ends_list) != 2:
             raise ValueError(f"The relationship '{relationship_name}' should have exactly two ends, but has {len(ends_list)}")
         self.H.add_edge(relationship_name, Kind='Relationship')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node( 'Phantom_'+relationship_name, Kind='Phantom')
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(relationship_name, 'Phantom_'+relationship_name, {'Direction': 'Inbound'})]
+        incidences = [(relationship_name, 'Phantom_'+relationship_name, {'Kind': 'RelationshipIncidence', 'Direction': 'Inbound'})]
         for end in ends_list:
+            end['prop']['Kind'] = 'RelationshipIncidence'
             end['prop']['Direction'] = 'Outbound'
             incidences.append((relationship_name, end['name']+'_ID', end['prop']))
         self.H.add_incidences_from(incidences)
 
-    def show_graphical(self, extra = True):
+    def add_struct(self, struct_name, elements):
+        logging.info("Adding struct "+struct_name)
+        if struct_name in self.get_edges()["name"]:
+            raise ValueError(f"The hyperedge '{struct_name}' already exists")
+        if len(elements) == 0:
+            raise ValueError(f"The struct '{struct_name}' should have some elements, but has {len(elements)}")
+        self.H.add_edge(struct_name, Kind='Struct')
+        # This adds a special phantom node required to represent different cases of inclusion in structs
+        self.H.add_node('Phantom_'+struct_name, Kind='Phantom')
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(struct_name, 'Phantom_'+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
+        for elem in elements:
+            if elem in self.get_attributes().index:
+                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+            elif elem in self.get_classes().index:
+                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+            elif elem in self.get_relationships().index:
+                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+            elif elem in self.get_structs().index:
+                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+                for outbound_elem in self.get_outbounds().loc[elem].index:
+                    incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
+                try:
+                    for transitive_elem in self.get_transitives().loc[elem].index:
+                        incidences.append((struct_name, transitive_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
+                except KeyError:
+                    pass
+            else:
+                raise ValueError(f"Creating struct '{struct_name}' could not find '{elem}' to place it inside")
+        self.H.add_incidences_from(incidences)
+
+    def show_graphical(self):
         # Customize node graphical display
         node_colors = []
         node_labels = {}
@@ -137,33 +192,36 @@ class Catalog:
                 node_colors.append('green')
             elif i[1].get('Kind') == 'Phantom':
                 if self.config.phantom:
-                    node_colors.append('blue')
+                    node_colors.append('yellow')
                 else:
                     node_colors.append('white')
                     node_labels[i[0]] = ''
             else:
-                node_colors.append('red')
+                raise ValueError(f"Undefined representation for node '{i[0]}' of kind '{i[1].get('Kind')}'")
         # Customize edge graphical display
         edge_lines = []
-        edge_colors = []
         for i in self.H.edges.dataframe['misc_properties'].items():
             if i[1].get('Kind') == 'Class':
                 edge_lines.append('dotted')
-                edge_colors.append('white')
             elif i[1].get('Kind') == 'Relationship':
+                edge_lines.append('dashed')
+            elif i[1].get('Kind') == 'Struct':
+                edge_lines.append('dashdot')
+            elif i[1].get('Kind') == 'Set':
                 edge_lines.append('solid')
-                edge_colors.append('white')
             else:
-                edge_lines.append('solid')
-                edge_colors.append('lightblue')
+                raise ValueError(f"Wrong kind of edge {i[1].get('Kind')} for {i[0]}")
+
         # Graphical display
         fig = plt.figure(figsize=(4, 4))
         hnx.drawing.draw(self.H,
                          edge_labels_on_edge=True,
+                         layout_kwargs={'seed': 666},
                          node_labels=node_labels,
                          nodes_kwargs={'facecolors': node_colors},
-                         edges_kwargs={'linestyles': edge_lines, 'facecolors': edge_colors, 'edgecolor': 'black'},
-                         #edge_labels_kwargs={'color': 'black'}
+                         edges_kwargs={'linestyles': edge_lines, 'edgecolor': 'black'},
+                         #'facecolors': edge_colors}, # This fills the edges, but they are not transparent
+                         # edge_labels_kwargs={'color': 'black'} # This does not work
                          )
         plt.show()
 
@@ -181,6 +239,7 @@ class Catalog:
         It can be expensive, so just do it at the end, not for each operation
         """
         correct = True
+        edges = self.get_edges()
         incidences = self.get_incidences()
         ids = self.get_ids()
         phantoms = self.get_phantoms()
@@ -188,107 +247,167 @@ class Catalog:
         classes = self.get_classes()
         relationships = self.get_relationships()
         inbounds = self.get_inbounds()
+        structInbounds = self.get_inbound_structs()
         outbounds = self.get_outbounds()
+        structOutbounds = self.get_outbound_structs()
 
+        # -------------------------------------------------------------------------------------------------- Generic ICs
         # Pre-check emptiness
         logging.info("Checking emptiness")
         if self.get_nodes().shape[0] == 0 or self.get_edges().shape[0] == 0 or self.get_incidences().shape[0] == 0:
             print(f"This is a degenerated hypergraph: {self.get_nodes().shape[0]} nodes, {self.get_edges().shape[0]} edges, and {self.get_incidences().shape[0]} incidences")
             return False
 
-        # IC0: Names must be unique
-        logging.info("Checking IC0")
-        union0 = pd.concat([self.get_nodes()["name"], self.get_edges()["name"]], ignore_index=True)
-        violations0 = union0.groupby(union0).size()
-        if violations0[violations0 > 1].shape[0] > 0:
+        # IC-Generic1: Names must be unique
+        logging.info("Checking IC-Generic1")
+        union1_1 = pd.concat([self.get_nodes()["name"], self.get_edges()["name"]], ignore_index=True)
+        violations1_1 = union1_1.groupby(union1_1).size()
+        if violations1_1[violations1_1 > 1].shape[0] > 0:
             correct = False
+            print("IC-Generic1 violation: Some names are not unique")
+            display(violations1_1[violations1_1 > 1])
 
-            display(violations0[violations0 > 1])
-
-        # IC1: The catalog must be connected
-        logging.info("Checking IC1")
+        # IC-Generic2: The catalog must be connected
+        logging.info("Checking IC-Generic2")
         if not self.H.is_connected(s=1):
             correct = False
-            print("IC1 violation: The catalog is not connected")
+            print("IC-Generic2 violation: The catalog is not connected")
 
-        # IC2: Every class has one ID which is inbound
-        logging.info("Checking IC2")
-        matches2 = inbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
-        violations2 = classes[~classes["name"].isin((matches2.reset_index(drop=False))["edges"])]
-        if violations2.shape[0] > 0:
+        # IC-Generic3: Every phantom belongs to one edge
+        logging.info("Checking IC-Generic3")
+        matches1_3 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
+        violations1_3 = phantoms[~phantoms["name"].isin((matches1_3.reset_index(drop=False))["nodes"])]
+        if violations1_3.shape[0] > 0:
             correct = False
-            print("IC2 violation: There are classes without identifier")
-            display(violations2)
+            print("IC-Generic3 violation: There are phantoms without an edge")
+            display(violations1_3)
 
-        # IC3: Every ID belongs to one class which is inbound
-        logging.info("Checking IC3")
-        matches3 = inbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
-        violations3 = ids[~ids["name"].isin((matches3.reset_index(drop=False))["nodes"])]
-        if violations3.shape[0] > 0:
+        # IC-Generic4: Every edge has at least inbound
+        logging.info("Checking IC-Generic4")
+        matches1_4 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
+        violations1_4 = edges[~edges["name"].isin((matches1_4.reset_index(drop=False))["edges"])]
+        if violations1_4.shape[0] > 0:
             correct = False
-            print("IC3 violation: There are IDs without a class")
-            display(violations3)
+            print("IC-Generic4 violation: There are edges without inbound")
+            display(violations1_4)
 
-        # IC4: Every attribute must belong at least one class which is outbound
-        logging.info("Checking IC4")
-        matches4 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
-        violations4 = attributes[~attributes["name"].isin((matches4.reset_index(drop=False))["nodes"])]
-        if violations4.shape[0] > 0:
+        # IC-Generic5: Every edge has at least one outbound
+        logging.info("Checking IC-Generic5")
+        matches1_5 = outbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
+        violations1_5 = edges[~edges["name"].isin((matches1_5.reset_index(drop=False))["edges"])]
+        if violations1_5.shape[0] > 0:
             correct = False
-            print("IC4 violation: There are attributes without a class")
-            display(violations4)
+            print("IC-Generic4 violation: There are edges without outbound")
+            display(violations1_5)
 
-        # IC5: An attribute cannot belong to more than one class
-        logging.info("Checking IC5")
-        matches5 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner').join(attributes, on='nodes', rsuffix='_nodes', how='inner')
-        violations5 = matches5.groupby(matches5.index.get_level_values('nodes')).size()
-        if violations5[violations5 > 1].shape[0] > 0:
+        # IC-Generic6: An edge cannot have more than one inbound
+        logging.info("Checking IC-Generic6")
+        violations1_6 = inbounds.groupby(inbounds.index.get_level_values('edges')).size()
+        if violations1_6[violations1_6 > 1].shape[0] > 0:
             correct = False
-            print("IC5 violation: There are attributes with more than one class")
-            display(violations5[violations5 > 1])
+            print("IC-Generic6 violation: There are edges with more than one inbound")
+            display(violations1_6[violations1_6 > 1])
 
-        # IC6: The number of different values of an attribute must be less than the cardinality of its class
-        logging.info("Checking IC6")
-        matches6 = outbounds.join(attributes, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
-        violations6 = matches6[matches6.apply(lambda row: row["misc_properties_nodes"]["DistinctVals"] > row["misc_properties_edges"]["Count"], axis=1)]
-        if violations6.shape[0] > 0:
+        # ------------------------------------------------------------------------------------------------- ICs on atoms
+        # IC-Atoms1: Every class has one ID which is inbound
+        logging.info("Checking IC-Atoms1")
+        matches2_1 = inbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        violations2_1 = classes[~classes["name"].isin((matches2_1.reset_index(drop=False))["edges"])]
+        if violations2_1.shape[0] > 0:
             correct = False
-            print("IC6 violation: The number of different values of an attribute is greater than the cardinality of its class")
-            display(violations6)
+            print("IC-Atoms1 violation: There are classes without identifier")
+            display(violations2_1)
 
-        # IC7: Every relationship has one phantom
-        logging.info("Checking IC7")
-        matches7 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-        violations7 = relationships[~relationships["name"].isin((matches7.reset_index(drop=False))["edges"])]
-        if violations7.shape[0] > 0:
+        # IC-Atoms2: Every ID belongs to one class which is inbound
+        logging.info("Checking IC-Atoms2")
+        matches2_2 = inbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations2_2 = ids[~ids["name"].isin((matches2_2.reset_index(drop=False))["nodes"])]
+        if violations2_2.shape[0] > 0:
             correct = False
-            print("IC7 violation: There are relationships without phantom")
-            display(violations7)
+            print("IC-Atoms2 violation: There are IDs without a class")
+            display(violations2_2)
 
-        # IC8: Every phantom belongs to one relationship
-        logging.info("Checking IC8")
-        matches8 = inbounds.join(relationships, on='edges', rsuffix='_edges', how='inner')
-        violations8 = phantoms[~phantoms["name"].isin((matches8.reset_index(drop=False))["nodes"])]
-        if violations8.shape[0] > 0:
+        # IC-Atoms3: Every attribute must belong at least one class which is outbound
+        logging.info("Checking IC-Atoms3")
+        matches2_3 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations2_3 = attributes[~attributes["name"].isin((matches2_3.reset_index(drop=False))["nodes"])]
+        if violations2_3.shape[0] > 0:
             correct = False
-            print("IC3 violation: There are phantoms without a relationships")
-            display(violations8)
+            print("IC-Atoms3 violation: There are attributes without a class")
+            display(violations2_3)
 
-        # IC9: Every relationship has two ends (Definition 4)
-        logging.info("Checking IC9")
-        matches9 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(relationships, on='edges', rsuffix='_edges', how='inner')
-        violations9 = matches9.groupby(matches9.index.get_level_values('edges')).size()
-        if violations9[violations9 != 2].shape[0] > 0:
+        # IC-Atoms4: An attribute cannot belong to more than one class
+        logging.info("Checking IC-Atoms4")
+        matches2_4 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner').join(attributes, on='nodes', rsuffix='_nodes', how='inner')
+        violations2_4 = matches2_4.groupby(matches2_4.index.get_level_values('nodes')).size()
+        if violations2_4[violations2_4 > 1].shape[0] > 0:
             correct = False
-            print("IC9 violation: There are non-binary relationships")
-            display(violations9[violations9 != 2])
+            print("IC-Atoms4 violation: There are attributes with more than one class")
+            display(violations2_4[violations2_4 > 1])
 
-        # IC10: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+        # IC-Atoms5: The number of different values of an attribute must be less than the cardinality of its class
+        logging.info("Checking IC-Atoms5")
+        matches2_5 = outbounds.join(attributes, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations2_5 = matches2_5[matches2_5.apply(lambda row: row["misc_properties_nodes"]["DistinctVals"] > row["misc_properties_edges"]["Count"], axis=1)]
+        if violations2_5.shape[0] > 0:
+            correct = False
+            print("IC-Atoms5 violation: The number of different values of an attribute is greater than the cardinality of its class")
+            display(violations2_5)
 
-        # IC11: All roots of structs inside a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
+        # IC-Atoms6: Every relationship has one phantom
+        logging.info("Checking IC-Atoms6")
+        matches2_6 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+        violations2_6 = relationships[~relationships["name"].isin((matches2_6.reset_index(drop=False))["edges"])]
+        if violations2_6.shape[0] > 0:
+            correct = False
+            print("IC-Atoms6 violation: There are relationships without phantom")
+            display(violations2_6)
 
-        # IC12: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or root of the struct inside the set (Definition 7-d)
+        # IC-Atoms7: Every relationship has two ends (Definition 4)
+        logging.info("Checking IC-Atoms7")
+        matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(relationships, on='edges', rsuffix='_edges', how='inner')
+        violations2_7 = matches2_7.groupby(matches2_7.index.get_level_values('edges')).size()
+        if violations2_7[violations2_7 != 2].shape[0] > 0:
+            correct = False
+            print("IC-Atoms7 violation: There are non-binary relationships")
+            display(violations2_7[violations2_7 != 2])
 
-        # IC13: (Definition 7-e)
+        # ----------------------------------------------------------------------------------------------- ICs on structs
+        # IC-Structs1: Every struct has one phantom
+        logging.info("Checking IC-Structs1")
+        matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+        violations3_1 = relationships[~relationships["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
+        if violations3_1.shape[0] > 0:
+            correct = False
+            print("IC-Structs1 violation: There are relationships without phantom")
+            display(violations3_1)
+
+        # IC-Structs2: Structs are transitive on themselves
+        logging.info("Checking IC-Structs2")
+        matches3_2_partial = structOutbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr") \
+                        .join(
+                            structInbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr"),
+                            on='joinattr', rsuffix='_firsthop', how='inner')
+        matches3_2 = matches3_2_partial.set_index('edges_firsthop', drop=False, verify_integrity=False).rename_axis("joinattr") \
+                        .join(
+                            structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
+                            on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
+        violations3_2 = pd.concat([matches3_2, self.get_transitives().reset_index(drop=False)[["edges", "nodes"]], self.get_transitives().reset_index(drop=False)[["edges", "nodes"]]], ignore_index=True).drop_duplicates(keep=False)
+        if violations3_2.shape[0] > 0:
+            correct = False
+            print("IC-Structs2 violation: There are missing elements in some struct")
+            display(violations3_2)
+
+        # IC-Structs-b: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+        logging.info("Checking IC-Structs-b -> To be implemented")
+
+        # IC-Structs-c: All roots of structs inside a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
+        logging.info("Checking IC-Structs-c -> To be implemented")
+
+        # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or root of the struct inside the set (Definition 7-d)
+        logging.info("Checking IC-Structs-d -> To be implemented")
+
+        # IC-Structs-e: (Definition 7-e)
+        logging.info("Checking IC-Structs-e -> To be implemented")
 
         return correct
