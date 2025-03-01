@@ -40,7 +40,6 @@ schema_parser.set_defaults(dir="schemas")
 
 if __name__ == "__main__":
     args = base_parser.parse_args()
-    print(args)
     if len(sys.argv) == 1:
         base_parser.print_help()
     else:
@@ -48,7 +47,7 @@ if __name__ == "__main__":
         if args.text:
             c.show_textual()
         if args.check:
-            if c.is_correct():
+            if c.is_correct(design=(args.dir == "designs")):
                 print("The catalog is correct")
             else:
                 print("WARNING: The catalog is not correct!!!")

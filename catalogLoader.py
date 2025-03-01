@@ -48,7 +48,7 @@ if __name__ == "__main__":
         if args.text:
             c.show_textual()
         if args.check:
-            if c.is_correct():
+            if c.is_correct(design=False):
                 print("The catalog is correct")
                 c.save(file=args.hg_path.joinpath("schemas").joinpath(args.schema + ".HyperNetX"))
             else:

@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
 
 from . import config
+from .tools import df_difference
 
 
 class Catalog:
@@ -61,6 +62,11 @@ class Catalog:
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
         return phantoms
 
+    def get_phantom_relationships(self):
+        nodes = self.get_nodes()
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Relationship')]
+        return phantoms
+
     def get_classes(self):
         edges = self.get_edges()
         classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
@@ -91,6 +97,11 @@ class Catalog:
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'StructIncidence')]
         return inbounds
 
+    def get_inbound_sets(self):
+        incidences = self.get_incidences()
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'SetIncidence')]
+        return inbounds
+
     def get_outbounds(self):
         incidences = self.get_incidences()
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
@@ -101,10 +112,21 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
+    def get_outbound_sets(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
+        return outbounds
+
     def get_transitives(self):
         incidences = self.get_incidences()
         transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
         return transitives
+
+    def get_inbound_firstLevel(self):
+        firstLevelPhantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
+                                    self.get_outbounds().reset_index()[["nodes"]])
+        firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
+        return firstLevelIncidences
 
     def add_class(self, class_name, properties, att_list):
         """Besides the class name and the number of instances of the class, this method requires
@@ -146,7 +168,7 @@ class Catalog:
             raise ValueError(f"The relationship '{relationship_name}' should have exactly two ends, but has {len(ends_list)}")
         self.H.add_edge(relationship_name, Kind='Relationship')
         # This adds a special phantom node required to represent different cases of inclusion in structs
-        self.H.add_node( 'Phantom_'+relationship_name, Kind='Phantom')
+        self.H.add_node( 'Phantom_'+relationship_name, Kind='Phantom', Subkind='Relationship')
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(relationship_name, 'Phantom_'+relationship_name, {'Kind': 'RelationshipIncidence', 'Direction': 'Inbound'})]
         for end in ends_list:
@@ -163,7 +185,7 @@ class Catalog:
             raise ValueError(f"The struct '{struct_name}' should have some elements, but has {len(elements)}")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
-        self.H.add_node('Phantom_'+struct_name, Kind='Phantom')
+        self.H.add_node('Phantom_'+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, 'Phantom_'+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
@@ -192,7 +214,7 @@ class Catalog:
             raise ValueError(f"The set '{set_name}' should have some elements, but has {len(elements)}")
         self.H.add_edge(set_name, Kind='Set')
         # This adds a special phantom node required to represent different cases of inclusion in sets
-        self.H.add_node('Phantom_'+set_name, Kind='Phantom')
+        self.H.add_node('Phantom_'+set_name, Kind='Phantom', Subkind="Set")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(set_name, 'Phantom_'+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
@@ -269,7 +291,7 @@ class Catalog:
         print("------------------------------------------Incidences: ")
         display(self.H.incidences.dataframe)
 
-    def is_correct(self):
+    def is_correct(self, design=False):
         """This method checks all the integrity constrains of the catalog
         It can be expensive, so just do it at the end, not for each operation
         """
@@ -417,61 +439,83 @@ class Catalog:
             print("IC-Atoms7 violation: There are non-binary relationships")
             display(violations2_7[violations2_7 != 2])
 
-        # ----------------------------------------------------------------------------------------------- ICs on structs
-        # IC-Structs1: Every struct has one phantom
-        logging.info("Checking IC-Structs1")
-        matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-        violations3_1 = structs[~structs["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
-        if violations3_1.shape[0] > 0:
-            correct = False
-            print("IC-Structs1 violation: There are structs without phantom")
-            display(violations3_1)
+        # Not necessary to check from here on if the catalog only contains the atoms in the schema
+        if design:
+            # ------------------------------------------------------------------------------------------- ICs on structs
+            # IC-Structs1: Every struct has one phantom
+            logging.info("Checking IC-Structs1")
+            matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+            violations3_1 = structs[~structs["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
+            if violations3_1.shape[0] > 0:
+                correct = False
+                print("IC-Structs1 violation: There are structs without phantom")
+                display(violations3_1)
 
-        # IC-Structs2: Structs are transitive on themselves
-        logging.info("Checking IC-Structs2")
-        matches3_2_partial = structOutbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr") \
-                        .join(
-                            structInbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr"),
-                            on='joinattr', rsuffix='_firsthop', how='inner')
-        matches3_2 = matches3_2_partial.set_index('edges_firsthop', drop=False, verify_integrity=False).rename_axis("joinattr") \
-                        .join(
-                            structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
-                            on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
-        violations3_2 = pd.concat([matches3_2, self.get_transitives().reset_index(drop=False)[["edges", "nodes"]], self.get_transitives().reset_index(drop=False)[["edges", "nodes"]]], ignore_index=True).drop_duplicates(keep=False)
-        if violations3_2.shape[0] > 0:
-            correct = False
-            print("IC-Structs2 violation: There are missing elements in some struct")
-            display(violations3_2)
+            # IC-Structs2: Structs are transitive on themselves
+            logging.info("Checking IC-Structs2")
+            matches3_2_partial = structOutbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr") \
+                            .join(
+                                structInbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr"),
+                                on='joinattr', rsuffix='_firsthop', how='inner')
+            matches3_2 = matches3_2_partial.set_index('edges_firsthop', drop=False, verify_integrity=False).rename_axis("joinattr") \
+                            .join(
+                                structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
+                                on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
+            violations3_2 = df_difference(matches3_2, self.get_transitives().reset_index(drop=False)[["edges", "nodes"]])
+            if violations3_2.shape[0] > 0:
+                correct = False
+                print("IC-Structs2 violation: There are missing elements in some struct")
+                display(violations3_2)
 
-        # IC-Structs-b: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
-        logging.info("Checking IC-Structs-b -> To be implemented")
+            # IC-Structs-b: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+            logging.info("Checking IC-Structs-b -> To be implemented")
 
-        # IC-Structs-c: All roots of structs inside a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
-        logging.info("Checking IC-Structs-c -> To be implemented")
+            # IC-Structs-c: All roots of structs inside a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
+            logging.info("Checking IC-Structs-c -> To be implemented")
 
-        # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or root of the struct inside the set (Definition 7-d)
-        logging.info("Checking IC-Structs-d -> To be implemented")
+            # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or root of the struct inside the set (Definition 7-d)
+            logging.info("Checking IC-Structs-d -> To be implemented")
 
-        # IC-Structs-e: (Definition 7-e)
-        logging.info("Checking IC-Structs-e -> To be implemented")
+            # IC-Structs-e: (Definition 7-e)
+            logging.info("Checking IC-Structs-e -> To be implemented")
 
-        # ----------------------------------------------------------------------------------------------- ICs on sets
-        # IC-Sets1: Every set has one phantom
-        logging.info("Checking IC-Sets1")
-        matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-        violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
-        if violations4_1.shape[0] > 0:
-            correct = False
-            print("IC-Sets1 violation: There are sets without phantom")
-            display(violations4_1)
+            # ---------------------------------------------------------------------------------------------- ICs on sets
+            # IC-Sets1: Every set has one phantom
+            logging.info("Checking IC-Sets1")
+            matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+            violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
+            if violations4_1.shape[0] > 0:
+                correct = False
+                print("IC-Sets1 violation: There are sets without phantom")
+                display(violations4_1)
 
-        # IC-Sets2: Sets are transitive on structs
-        logging.info("Checking IC-Sets2 -> To be implemented")
+            # IC-Sets2: Sets are transitive on structs
+            logging.info("Checking IC-Sets2 -> To be implemented")
 
-        # IC-Sets3: Sets cannot directly contain classes
-        logging.info("Checking IC-Sets3 -> To be implemented")
+            # IC-Sets3: Sets cannot directly contain classes
+            logging.info("Checking IC-Sets3 -> To be implemented")
 
-        # IC-Sets4: Sets cannot directly contain other sets
-        logging.info("Checking IC-Sets4 -> To be implemented")
+            # IC-Sets4: Sets cannot directly contain other sets
+            logging.info("Checking IC-Sets4 -> To be implemented")
+
+            # ----------------------------------------------------------------------------------------- ICs about design
+            # IC-Design1: All the first levels must be sets
+            logging.info("Checking IC-Design1")
+            matches5_1 = self.get_inbound_firstLevel()
+            violations5_1 = matches5_1[~matches5_1["misc_properties"].apply(lambda x: x['Kind'] == 'SetIncidence')]
+            if violations5_1.shape[0] > 0:
+                correct = False
+                print("IC-Design1 violation: All first levels must be sets")
+                display(violations5_1)
+
+            # IC-Design2: All the atoms in the schema are connected to the first level
+            logging.info("Checking IC-Design2")
+            matches5_2 = self.get_inbound_firstLevel().join(pd.concat([self.get_outbounds(), self.get_transitives()]).reset_index(level="nodes"), on="edges", rsuffix='_tokeep', how='inner')
+            atoms5_2 = pd.concat([self.get_ids(), self.get_attributes(), self.get_phantom_relationships()])
+            violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2["nodes"])]
+            if violations5_2.shape[0] > 0:
+                correct = False
+                print("IC-Design2 violation: Atoms disconnected from the first level")
+                display(violations5_2)
 
         return correct
