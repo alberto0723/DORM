@@ -4,6 +4,7 @@ import pickle
 from IPython.display import display
 import pandas as pd
 pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
 
 import matplotlib.pyplot as plt
 import matplotlib
@@ -74,6 +75,11 @@ class Catalog:
         edges = self.get_edges()
         structs = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Struct')]
         return structs
+
+    def get_sets(self):
+        edges = self.get_edges()
+        sets = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Set')]
+        return sets
 
     def get_inbounds(self):
         incidences = self.get_incidences()
@@ -165,9 +171,7 @@ class Catalog:
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
             elif elem in self.get_classes().index:
                 incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
-            elif elem in self.get_relationships().index:
-                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
-            elif elem in self.get_structs().index:
+            elif elem in self.get_relationships().index or elem in self.get_structs().index or elem in self.get_sets().index:
                 incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
                     incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
@@ -178,6 +182,37 @@ class Catalog:
                     pass
             else:
                 raise ValueError(f"Creating struct '{struct_name}' could not find '{elem}' to place it inside")
+        self.H.add_incidences_from(incidences)
+
+    def add_set(self, set_name, elements):
+        logging.info("Adding set "+set_name)
+        if set_name in self.get_edges()["name"]:
+            raise ValueError(f"The hyperedge '{set_name}' already exists")
+        if len(elements) == 0:
+            raise ValueError(f"The set '{set_name}' should have some elements, but has {len(elements)}")
+        self.H.add_edge(set_name, Kind='Set')
+        # This adds a special phantom node required to represent different cases of inclusion in sets
+        self.H.add_node('Phantom_'+set_name, Kind='Phantom')
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(set_name, 'Phantom_'+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
+        for elem in elements:
+            if elem in self.get_attributes().index:
+                incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            elif elem in self.get_relationships().index or elem in self.get_structs().index:
+                incidences.append((set_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+                for outbound_elem in self.get_outbounds().loc[elem].index:
+                    incidences.append((set_name, outbound_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
+                try:
+                    for transitive_elem in self.get_transitives().loc[elem].index:
+                        incidences.append((set_name, transitive_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
+                except KeyError:
+                    pass
+            elif elem in self.get_classes().index:
+                raise ValueError(f"Sets cannot contain classes (adding '{elem}' into '{set_name}')")
+            elif elem in self.get_sets().index:
+                raise ValueError(f"Sets cannot contain sets (adding '{elem}' into '{set_name}')")
+            else:
+                raise ValueError(f"Creating set '{set_name}' could not find '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
     def show_graphical(self):
@@ -246,6 +281,8 @@ class Catalog:
         attributes = self.get_attributes()
         classes = self.get_classes()
         relationships = self.get_relationships()
+        structs = self.get_structs()
+        sets = self.get_sets()
         inbounds = self.get_inbounds()
         structInbounds = self.get_inbound_structs()
         outbounds = self.get_outbounds()
@@ -307,6 +344,14 @@ class Catalog:
             correct = False
             print("IC-Generic6 violation: There are edges with more than one inbound")
             display(violations1_6[violations1_6 > 1])
+
+        # IC-Generic7: An edge cannot be cyclic
+        logging.info("Checking IC-Generic7->To be implemented")
+        # violations1_7 = inbounds.groupby(inbounds.index.get_level_values('edges')).size()
+        # if violations1_7[violations1_7 > 1].shape[0] > 0:
+        #     correct = False
+        #     print("IC-Generic6 violation: There are cyclic edges")
+        #     display(violations1_7[violations1_7 > 1])
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
         # IC-Atoms1: Every class has one ID which is inbound
@@ -376,10 +421,10 @@ class Catalog:
         # IC-Structs1: Every struct has one phantom
         logging.info("Checking IC-Structs1")
         matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-        violations3_1 = relationships[~relationships["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
+        violations3_1 = structs[~structs["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
         if violations3_1.shape[0] > 0:
             correct = False
-            print("IC-Structs1 violation: There are relationships without phantom")
+            print("IC-Structs1 violation: There are structs without phantom")
             display(violations3_1)
 
         # IC-Structs2: Structs are transitive on themselves
@@ -409,5 +454,24 @@ class Catalog:
 
         # IC-Structs-e: (Definition 7-e)
         logging.info("Checking IC-Structs-e -> To be implemented")
+
+        # ----------------------------------------------------------------------------------------------- ICs on sets
+        # IC-Sets1: Every set has one phantom
+        logging.info("Checking IC-Sets1")
+        matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+        violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
+        if violations4_1.shape[0] > 0:
+            correct = False
+            print("IC-Sets1 violation: There are sets without phantom")
+            display(violations4_1)
+
+        # IC-Sets2: Sets are transitive on structs
+        logging.info("Checking IC-Sets2 -> To be implemented")
+
+        # IC-Sets3: Sets cannot directly contain classes
+        logging.info("Checking IC-Sets3 -> To be implemented")
+
+        # IC-Sets4: Sets cannot directly contain other sets
+        logging.info("Checking IC-Sets4 -> To be implemented")
 
         return correct

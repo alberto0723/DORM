@@ -1,0 +1,52 @@
+{
+  "classes": [
+    {
+      "name": "Artist",
+      "prop": { "Count": 20 },
+      "attr": [
+        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 20}}
+        ]
+      },
+    {
+      "name": "Record",
+      "prop": { "Count": 100 },
+      "attr": [
+        { "name": "R_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100}}
+        ]
+      },
+    {
+      "name": "Track",
+      "prop": { "Count": 1500 },
+      "attr": [
+        { "name": "T_title", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 1250}}
+        ]
+      }
+
+    ],
+  "relationships": [
+    {
+      "name": "Made",
+      "ends": [
+        { "name": "Artist",
+          "prop": { "Multiplicity": 2.5 }
+          },
+        {
+          "name": "Record",
+          "prop": { "Multiplicity": 5 }
+          }
+        ]
+      },
+        {
+      "name": "Has",
+      "ends": [
+        { "name": "Record",
+          "prop": { "Multiplicity": 1 }
+          },
+        {
+          "name": "Track",
+          "prop": { "Multiplicity": 15 }
+          }
+        ]
+      }
+    ]
+  }
