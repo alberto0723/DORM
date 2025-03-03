@@ -14,21 +14,10 @@ class Relational(Catalog):
 
     def is_correct(self, design=False):
         correct = super().is_correct(design)
-        edges = self.get_edges()
-        incidences = self.get_incidences()
-        ids = self.get_ids()
-        phantoms = self.get_phantoms()
-        attributes = self.get_attributes()
-        classes = self.get_classes()
-        relationships = self.get_relationships()
         structs = self.get_structs()
         sets = self.get_sets()
-        inbounds = self.get_inbounds()
-        structInbounds = self.get_inbound_structs()
-        outbounds = self.get_outbounds()
-        structOutbounds = self.get_outbound_structs()
         if correct:
-            # --------------------------------------------------------------------------------------------- ICs on atoms
+            # --------------------------------------------------------------------- ICs about being a relational catalog
             # IC-Relational1: All sets are first level
             logging.info("Checking IC-Relational1")
             matches6_1 = self.get_inbound_firstLevel().reset_index(drop=False)

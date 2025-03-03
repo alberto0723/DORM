@@ -92,6 +92,11 @@ class Catalog:
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
         return inbounds
 
+    def get_inbound_relationships(self):
+        incidences = self.get_incidences()
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'RelationshipIncidence')]
+        return inbounds
+
     def get_inbound_structs(self):
         incidences = self.get_incidences()
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'StructIncidence')]
@@ -105,6 +110,11 @@ class Catalog:
     def get_outbounds(self):
         incidences = self.get_incidences()
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
+        return outbounds
+
+    def get_outbound_relationships(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'RelationshipIncidence')]
         return outbounds
 
     def get_outbound_structs(self):
@@ -142,7 +152,7 @@ class Catalog:
         edges = [(class_name, properties)]
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
-        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Serial', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
+        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Integer', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(class_name, class_name+'_ID', {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
         for att in att_list:
