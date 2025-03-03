@@ -1,10 +1,10 @@
 {
-    "atoms": "book-authors",
+    "atoms": "book-authors_1-1",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",
          "root": "Book",
-         "elements": ["B_name"]},
+         "elements": ["B_name","Writes","Author"]},
         {"kind": "Set",
          "name": "Books_table",
          "elements": ["Books_type"]},
@@ -14,13 +14,6 @@
          "elements": ["A_name"]},
         {"kind": "Set",
          "name": "Authors_table",
-         "elements": ["Authors_type"]},
-        {"kind": "Struct",
-         "name": "Writes_type",
-         "root": "Writes",
-         "elements": ["Book", "Author"]},
-        {"kind": "Set",
-         "name": "Writes_table",
-         "elements": ["Writes_type"]}
+         "elements": ["Authors_type"]}
     ]
 }

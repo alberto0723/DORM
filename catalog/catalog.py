@@ -67,6 +67,12 @@ class Catalog:
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Relationship')]
         return phantoms
 
+    def get_edge_by_phantom_name(self, phantom_name):
+        return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
+
+    def get_phantom_of_edge_by_name(self, edge_name):
+        return self.get_inbounds().loc[edge_name].index[0]
+
     def get_classes(self):
         edges = self.get_edges()
         classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
@@ -122,6 +128,15 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
+    def get_outbound_struct_by_phantom_name(self, phantom):
+        struct = self.get_inbound_structs().query('nodes == "' + phantom + '"')
+        elements = self.get_outbound_structs().query('edges == "' + struct.index[0][0] + '"')
+        # elements = pd.concat([
+        #                 self.get_outbound_structs().query('edges == "' + struct.index[0][0] + '"'),
+        #                 self.get_transitives().query('edges == "' + struct.index[0][0] + '"'),
+        #                 ])
+        return elements
+
     def get_outbound_sets(self):
         incidences = self.get_incidences()
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
@@ -138,6 +153,30 @@ class Catalog:
         firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevelIncidences
 
+    def is_attribute(self, name):
+        return name in self.get_attributes().index
+
+    def is_id(self, name):
+        return name in self.get_ids().index
+
+    def is_class(self, name):
+        return name in self.get_classes().index
+
+    def is_relationship_phantom(self, name):
+        return name in self.get_phantom_relationships().index
+
+    def is_hyperedge(self, name):
+        return name in self.get_edges()["name"]
+
+    def is_relationship(self, name):
+        return name in self.get_relationships().index
+
+    def is_struct(self, name):
+        return name in self.get_structs().index
+
+    def is_set(self, name):
+        return name in self.get_sets().index
+
     def add_class(self, class_name, properties, att_list):
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
@@ -145,8 +184,8 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logging.info("Adding class "+class_name)
-        if class_name in self.get_edges()["name"]:
-            raise ValueError(f"Some edge called '{class_name}' already exists")
+        if self.is_hyperedge(class_name):
+            raise ValueError(f"Some hyperedge called '{class_name}' already exists")
         # First element in the pair is the name and the second its properties
         properties["Kind"] = 'Class'
         edges = [(class_name, properties)]
@@ -172,7 +211,7 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logging.info("Adding relationship "+relationship_name)
-        if relationship_name in self.get_edges()["name"]:
+        if self.is_hyperedge(relationship_name):
             raise ValueError(f"The hyperedge '{relationship_name}' already exists")
         if len(ends_list) != 2:
             raise ValueError(f"The relationship '{relationship_name}' should have exactly two ends, but has {len(ends_list)}")
@@ -189,7 +228,7 @@ class Catalog:
 
     def add_struct(self, struct_name, root, elements):
         logging.info("Adding struct "+struct_name)
-        if struct_name in self.get_edges()["name"]:
+        if self.is_hyperedge(struct_name):
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
@@ -197,17 +236,19 @@ class Catalog:
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, 'Phantom_'+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
         for elem in [root]+elements:
-            if elem in self.get_attributes().index:
+            if self.is_attribute(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': (elem == root)}))
-            elif elem in self.get_classes().index:
-                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
-            elif elem in self.get_relationships().index or elem in self.get_structs().index or elem in self.get_sets().index:
-                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
+            elif self.is_class(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
+            elif self.is_relationship(elem) or self.is_struct(elem) or self.is_set(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
-                    incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
+                    if outbound_elem not in [self.get_phantom_of_edge_by_name(root)] + elements:
+                        incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
                 try:
                     for transitive_elem in self.get_transitives().loc[elem].index:
-                        incidences.append((struct_name, transitive_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
+                        if transitive_elem not in [self.get_phantom_of_edge_by_name(root)] + elements:
+                            incidences.append((struct_name, transitive_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
                 except KeyError:
                     pass
             else:
@@ -226,20 +267,22 @@ class Catalog:
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(set_name, 'Phantom_'+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
-            if elem in self.get_attributes().index:
+            if self.is_attribute(elem):
                 incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-            elif elem in self.get_relationships().index or elem in self.get_structs().index:
-                incidences.append((set_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            elif self.is_relationship(elem) or self.is_struct(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
-                    incidences.append((set_name, outbound_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
+                    if outbound_elem not in elements:
+                        incidences.append((set_name, outbound_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
                 try:
                     for transitive_elem in self.get_transitives().loc[elem].index:
-                        incidences.append((set_name, transitive_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
+                        if transitive_elem not in elements:
+                            incidences.append((set_name, transitive_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
                 except KeyError:
                     pass
-            elif elem in self.get_classes().index:
+            elif self.is_class(elem):
                 raise ValueError(f"Sets cannot contain classes (adding '{elem}' into '{set_name}')")
-            elif elem in self.get_sets().index:
+            elif self.is_set(elem):
                 raise ValueError(f"Sets cannot contain sets (adding '{elem}' into '{set_name}')")
             else:
                 raise ValueError(f"Creating set '{set_name}' could not find '{elem}' to place it inside")
@@ -477,7 +520,7 @@ class Catalog:
 
             # IC-Structs3: Every struct has one root
             logging.info("Checking IC-Structs3")
-            matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x['Root'])].groupby('edges').size()
+            matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Root', False))].groupby('edges').size()
             violations3_3 = structs[~structs["name"].isin((matches3_3[matches3_3 == 1].reset_index(drop=False))["edges"])]
             if violations3_3.shape[0] > 0:
                 correct = False

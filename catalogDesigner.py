@@ -3,7 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 import json
-from catalog import catalog
+from catalog import pureRelational
 
 # Path definitions
 base_path = Path(__file__).parent
@@ -19,7 +19,7 @@ def design(args):
     with open(args.dsg_path.joinpath(args.design + ".json"), 'r') as file:
         schema = json.load(file)
     # Create and fill the catalog
-    cat = catalog.Catalog(args.hg_path.joinpath("schemas").joinpath(schema.get("atoms") + ".HyperNetX"))
+    cat = pureRelational.PostgreSQL(args.hg_path.joinpath("schemas").joinpath(schema.get("atoms") + ".HyperNetX"))
     for h in schema.get("hyperedges"):
         if h.get("kind") == "Struct":
             cat.add_struct(h.get("name"), h.get("root"), h.get("elements"))

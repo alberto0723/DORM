@@ -1,0 +1,12 @@
+{
+    "atoms": "book-authors",
+    "hyperedges": [
+        {"kind": "Struct",
+         "name": "Writes_type",
+         "root": "Writes",
+         "elements": ["B_name","Book","Author","A_name"]},
+        {"kind": "Set",
+         "name": "Writes_table",
+         "elements": ["Writes_type"]}
+    ]
+}
