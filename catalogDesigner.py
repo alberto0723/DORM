@@ -13,6 +13,7 @@ default_hypergraphs_path = base_path.joinpath("files/hypergraphs")
 # Enable logging
 logging.basicConfig(level=logging.INFO)
 
+
 def design(args):
     # Open and load the JSON file
     with open(args.dsg_path.joinpath(args.design + ".json"), 'r') as file:
@@ -21,7 +22,7 @@ def design(args):
     cat = catalog.Catalog(args.hg_path.joinpath("schemas").joinpath(schema.get("atoms") + ".HyperNetX"))
     for h in schema.get("hyperedges"):
         if h.get("kind") == "Struct":
-            cat.add_struct(h.get("name"), h.get("elements"))
+            cat.add_struct(h.get("name"), h.get("root"), h.get("elements"))
         elif h.get("kind") == "Set":
             cat.add_set(h.get("name"), h.get("elements"))
         else:

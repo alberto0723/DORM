@@ -177,24 +177,22 @@ class Catalog:
             incidences.append((relationship_name, end['name']+'_ID', end['prop']))
         self.H.add_incidences_from(incidences)
 
-    def add_struct(self, struct_name, elements):
+    def add_struct(self, struct_name, root, elements):
         logging.info("Adding struct "+struct_name)
         if struct_name in self.get_edges()["name"]:
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
-        if len(elements) == 0:
-            raise ValueError(f"The struct '{struct_name}' should have some elements, but has {len(elements)}")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node('Phantom_'+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, 'Phantom_'+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
-        for elem in elements:
+        for elem in [root]+elements:
             if elem in self.get_attributes().index:
-                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': (elem == root)}))
             elif elem in self.get_classes().index:
-                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
             elif elem in self.get_relationships().index or elem in self.get_structs().index or elem in self.get_sets().index:
-                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound'}))
+                incidences.append((struct_name, self.get_inbounds().loc[elem].index[0], {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
                     incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
                 try:
@@ -466,6 +464,15 @@ class Catalog:
                 correct = False
                 print("IC-Structs2 violation: There are missing elements in some struct")
                 display(violations3_2)
+
+            # IC-Structs3: Every struct has one root
+            logging.info("Checking IC-Structs3")
+            matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x['Root'])].groupby('edges').size()
+            violations3_3 = structs[~structs["name"].isin((matches3_3[matches3_3 == 1].reset_index(drop=False))["edges"])]
+            if violations3_3.shape[0] > 0:
+                correct = False
+                print("IC-Structs3 violation: There are structs without exactly one root")
+                display(violations3_3)
 
             # IC-Structs-b: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
             logging.info("Checking IC-Structs-b -> To be implemented")
