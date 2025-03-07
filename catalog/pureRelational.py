@@ -3,8 +3,10 @@ from IPython.display import display
 import pandas as pd
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
+import sqlparse
 
 from .relational import Relational
+from .tools import df_difference, show_textual_hypergraph, show_graphical_hypergraph, combine_tables, drop_duplicates
 
 class PostgreSQL(Relational):
     """This is a subclass of Relational that implements the code generation in PostgreSQL
@@ -60,7 +62,7 @@ class PostgreSQL(Relational):
                         display(elements)
         return correct
 
-    def create_tables(self):
+    def create_tables(self, verbose=False):
         logging.info("Creating tables")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
@@ -95,4 +97,70 @@ class PostgreSQL(Relational):
             if clause_PK is None:
                 raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. root in the corresponding struct) defined")
             sentence += clause_PK + "  );"
-            print(sentence)
+            if verbose:
+                print(sentence)
+
+    def execute(self, query, verbose=False):
+        logging.info("Executing query")
+        print("--------- Query")
+        # Get the query
+        project_attributes = query.get("project")
+        join_relationships = query.get("join")
+        where_clause = "WHERE "+query.get("filter")
+        where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
+        filter_attributes = []
+        # This extracts the attribute names
+        # TODO: Parenthesis are not considered. It will require some kind of recursion
+        for atom in where_parsed.tokens:
+            if atom.ttype is None:  # This is a clause in the predicate
+                for token in atom.tokens:
+                    if token.ttype is None:  # This is an attribute in the predicate
+                        filter_attributes.append(token.value)
+        required_attributes = list(set(project_attributes + filter_attributes))
+        print("Project: "+str(project_attributes))
+        print("Join: "+str(join_relationships))
+        print("Filter: "+str(filter_attributes))
+        print("Required attributes: " + str(required_attributes))
+        # Check if the hypergraph contains all the projected attributes
+        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
+        if non_existing_attributes.shape[0] > 0:
+            raise ValueError(f"Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+
+        # Check if the hypergraph contains all the filter attributes
+        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
+        if non_existing_attributes.shape[0] > 0:
+            raise ValueError(f"Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+
+        # Check if the hypergraph contains all the join hyperedges
+        non_existing_relationships = df_difference(pd.DataFrame(join_relationships), pd.concat([self.get_classes(), self.get_relationships()])["name"].reset_index(drop=True))
+        if non_existing_relationships.shape[0] > 0:
+            raise ValueError(f"Some class or relationship in the join does not belong to the catalog: {non_existing_relationships.values.tolist()[0]}")
+
+        restricted_schema = self.H.restrict_to_edges(join_relationships)
+        # Check if the restricted schema is connected
+        if not restricted_schema.is_connected(s=1):
+            raise ValueError(f"Some query elements (i.e., attributes, classes and relationships) are not connected")
+
+        # Check if the restricted schema contains all the required attributes
+        missing_attributes = df_difference(pd.DataFrame(required_attributes), restricted_schema.nodes.dataframe.reset_index(drop=False)["uid"])
+        if missing_attributes.shape[0] > 0:
+            raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
+
+        # Get the tables where every required attribute is found
+        tables = []
+        for attr in required_attributes:
+            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == attr)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+            first_levels.sort()
+            tables.append(first_levels)
+        query_options = combine_tables(drop_duplicates(tables))
+        print(query_options)
+        for option in query_options:
+            # Check if the combination is connected by the given relationships, and find the join attributes
+            # Build the sentence
+            sentence = "SELECT "+", ".join(project_attributes)
+            # Build the FROM clause
+            sentence += "\nFROM "+",".join(option)
+            # Build the WHERE clause
+            sentence += "\n" + where_clause + ";"
+            if verbose:
+                print(sentence)

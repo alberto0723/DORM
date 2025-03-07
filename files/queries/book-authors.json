@@ -1,10 +1,9 @@
 {
-  "schema": "book-authors_1-1",
   "queries": [
     {
-      "select": "B_name = 'hello'",
-      "project": ["Book", "B_name"],
-      "join": ["Writes"]
+      "project": ["Book_ID", "B_name", "Author_ID", "A_name"],
+      "join": ["Book", "Writes", "Author"],
+      "filter": "B_name = 'hello'"
     }
   ]
 }

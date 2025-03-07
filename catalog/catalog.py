@@ -7,12 +7,8 @@ import pandas as pd
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
-
 from . import config
-from .tools import df_difference
+from .tools import df_difference, show_textual_hypergraph, show_graphical_hypergraph
 
 
 class Catalog:
@@ -194,9 +190,9 @@ class Catalog:
         edges = [(class_name, properties)]
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
-        nodes = [(class_name+'_ID', {'Kind': 'Identifier', 'DataType': 'Integer', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
+        nodes = [(class_name+self.config.tail_ID, {'Kind': 'Identifier', 'DataType': 'Integer', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(class_name, class_name+'_ID', {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
+        incidences = [(class_name, class_name+self.config.tail_ID, {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
         for att in att_list:
             if att['name'] in self.get_nodes()["name"]:
                 raise ValueError(f"Some node called '{att['name']}' already exists")
@@ -226,7 +222,7 @@ class Catalog:
         for end in ends_list:
             end['prop']['Kind'] = 'RelationshipIncidence'
             end['prop']['Direction'] = 'Outbound'
-            incidences.append((relationship_name, end['name']+'_ID', end['prop']))
+            incidences.append((relationship_name, end['name']+self.config.tail_ID, end['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_struct(self, struct_name, root, elements):
@@ -292,58 +288,12 @@ class Catalog:
         self.H.add_incidences_from(incidences)
 
     def show_graphical(self):
-        # Customize node graphical display
-        node_colors = []
-        node_labels = {}
-        for i in self.H.nodes.dataframe['misc_properties'].items():
-            node_labels[i[0]] = i[0]
-            if i[1].get('Kind') == 'Identifier':
-                node_colors.append('blue')
-            elif i[1].get('Kind') == 'Attribute':
-                node_colors.append('green')
-            elif i[1].get('Kind') == 'Phantom':
-                if self.config.phantom:
-                    node_colors.append('yellow')
-                else:
-                    node_colors.append('white')
-                    node_labels[i[0]] = ''
-            else:
-                raise ValueError(f"Undefined representation for node '{i[0]}' of kind '{i[1].get('Kind')}'")
-        # Customize edge graphical display
-        edge_lines = []
-        for i in self.H.edges.dataframe['misc_properties'].items():
-            if i[1].get('Kind') == 'Class':
-                edge_lines.append('dotted')
-            elif i[1].get('Kind') == 'Relationship':
-                edge_lines.append('dashed')
-            elif i[1].get('Kind') == 'Struct':
-                edge_lines.append('dashdot')
-            elif i[1].get('Kind') == 'Set':
-                edge_lines.append('solid')
-            else:
-                raise ValueError(f"Wrong kind of edge {i[1].get('Kind')} for {i[0]}")
-
         # Graphical display
-        fig = plt.figure(figsize=(4, 4))
-        hnx.drawing.draw(self.H,
-                         edge_labels_on_edge=True,
-                         layout_kwargs={'seed': 666},
-                         node_labels=node_labels,
-                         nodes_kwargs={'facecolors': node_colors},
-                         edges_kwargs={'linestyles': edge_lines, 'edgecolor': 'black'},
-                         #'facecolors': edge_colors}, # This fills the edges, but they are not transparent
-                         # edge_labels_kwargs={'color': 'black'} # This does not work
-                         )
-        plt.show()
+        show_graphical_hypergraph(self.H, self.config.phantom)
 
     def show_textual(self):
         # Textual display
-        print("-----------------------------------------------Nodes: ")
-        display(self.H.nodes.dataframe)
-        print("-----------------------------------------------Edges: ")
-        display(self.H.edges.dataframe)
-        print("------------------------------------------Incidences: ")
-        display(self.H.incidences.dataframe)
+        show_textual_hypergraph(self.H)
 
     def is_correct(self, design=False):
         """This method checks all the integrity constrains of the catalog

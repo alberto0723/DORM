@@ -61,6 +61,8 @@ base_parser.add_argument("--hypergraph", type=str, default="input", help="File g
 base_parser.add_argument("--check", help="Checks correctness of the catalog", action="store_true")
 base_parser.add_argument("--text", help="Shows the catalog in text format", action="store_true")
 base_parser.add_argument("--graph", help="Shows the catalog in graphical format", action="store_true")
+base_parser.add_argument("--create", help="Creates the schema", action="store_true")
+base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
 # ------------------------------------------------------------------------------ #
 #                                   Subparsers                                   #
 # ------------------------------------------------------------------------------ #
@@ -70,12 +72,10 @@ design_parser = subparsers.add_parser("design", help="Uses a hypergraph with a f
 schema_parser.set_defaults(state="schema")  # This is the subfolder where hypergraphs are stored
 schema_parser.add_argument("--sch_path", type=Path, default=default_schemas_path, help="Path to schemas folder", metavar="<path>")
 schema_parser.add_argument("--sch_spec", type=str, default="specification", help="Specification of the atomic schema in a JSON file", metavar="<schema>")
-schema_parser.add_argument("--create", help="Creates the schema", action="store_true")
 # ---------------------------------------------------------------------- Designs
 design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
 design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
 design_parser.add_argument("--dsg_spec", type=str, default="specification", help="Specification of the design in a JSON file", metavar="<design>")
-design_parser.add_argument("--create", help="Creates the design", action="store_true")
 design_parser.add_argument("--translate", help="Translates the design into the database (e.g., create tables)", action="store_true")
 
 
@@ -105,6 +105,6 @@ if __name__ == "__main__":
                 consistent = False
                 print("WARNING: The catalog is not consistent!!!")
         if args.state == "design" and consistent and args.translate:
-            c.create_tables()
+            c.create_tables(verbose=args.verbose)
         if args.graph:
             c.show_graphical()

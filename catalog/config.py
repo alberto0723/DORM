@@ -9,4 +9,5 @@ class Config(object):
     phantom = False
 
     # Optimizer constants
+    tail_ID = "_ID"
     size_IDs = 4
