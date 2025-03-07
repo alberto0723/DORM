@@ -1,4 +1,5 @@
 import logging
+import os
 import hypernetx as hnx
 import pickle
 from IPython.display import display
@@ -29,6 +30,8 @@ class Catalog:
 
     def save(self, file):
         logging.info("Saving hypergraph in " + str(file))
+        # Create the directory (if it doesn't exist)
+        os.makedirs(os.path.dirname(file), exist_ok=True)
         # Save the hypergraph to a pickle file
         with open(file, "wb") as f:
             pickle.dump(self.H, f)

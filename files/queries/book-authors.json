@@ -1,0 +1,10 @@
+{
+  "schema": "book-authors_1-1",
+  "queries": [
+    {
+      "select": "B_name = 'hello'",
+      "project": ["Book", "B_name"],
+      "join": ["Writes"]
+    }
+  ]
+}
