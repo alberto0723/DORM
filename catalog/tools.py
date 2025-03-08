@@ -22,9 +22,12 @@ def combine_tables(patterns_list):
         combinations = []
         for combination in combine_tables(patterns_list):
             for current_table in current_pattern:
-                temp = combination + [current_table]
-                temp.sort()
-                combinations.append(temp)
+                if not current_table in combination:
+                    temp = combination + [current_table]
+                    temp.sort()
+                    combinations.append(temp)
+                else:
+                    combinations.append(combination)
         return drop_duplicates(combinations)
 
 

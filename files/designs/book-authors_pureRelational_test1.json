@@ -4,7 +4,7 @@
         {"kind": "Struct",
          "name": "Books_type",
          "root": "Book",
-         "elements": ["B_name","Writes","Author"]},
+         "elements": ["B_name","Writes"]},
         {"kind": "Set",
          "name": "Books_table",
          "elements": ["Books_type"]},

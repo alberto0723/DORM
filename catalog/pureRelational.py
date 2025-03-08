@@ -106,16 +106,20 @@ class PostgreSQL(Relational):
         # Get the query
         project_attributes = query.get("project")
         join_relationships = query.get("join")
-        where_clause = "WHERE "+query.get("filter")
-        where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
         filter_attributes = []
-        # This extracts the attribute names
-        # TODO: Parenthesis are not considered. It will require some kind of recursion
-        for atom in where_parsed.tokens:
-            if atom.ttype is None:  # This is a clause in the predicate
-                for token in atom.tokens:
-                    if token.ttype is None:  # This is an attribute in the predicate
-                        filter_attributes.append(token.value)
+        if "filter" in query:
+            where_clause = "WHERE "+query.get("filter")
+            where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
+
+            # This extracts the attribute names
+            # TODO: Parenthesis are not considered. It will require some kind of recursion
+            for atom in where_parsed.tokens:
+                if atom.ttype is None:  # This is a clause in the predicate
+                    for token in atom.tokens:
+                        if token.ttype is None:  # This is an attribute in the predicate
+                            filter_attributes.append(token.value)
+        else:
+            where_clause = ""
         required_attributes = list(set(project_attributes + filter_attributes))
         print("Project: "+str(project_attributes))
         print("Join: "+str(join_relationships))
@@ -146,20 +150,35 @@ class PostgreSQL(Relational):
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
-        # Get the tables where every required attribute is found
+        # Get the tables where every required relationship is found
         tables = []
-        for attr in required_attributes:
-            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == attr)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+        for rel in join_relationships:
+            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == self.get_phantom_of_edge_by_name(rel)) & (self.get_transitives().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels.sort()
+            print(rel+"\t"+str(first_levels))
             tables.append(first_levels)
         query_options = combine_tables(drop_duplicates(tables))
-        print(query_options)
+        if len(query_options) > 1:
+            print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
         for option in query_options:
-            # Check if the combination is connected by the given relationships, and find the join attributes
-            # Build the sentence
-            sentence = "SELECT "+", ".join(project_attributes)
-            # Build the FROM clause
-            sentence += "\nFROM "+",".join(option)
+            if len(option) > 1:
+                # Check if the combination is connected by the given relationships, and find the join attributes
+                table_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(option))]
+                print("-------------------------Table links: ")
+                display(table_links)
+                relationship_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(join_relationships))]
+                print("----------------------Relationship links: ")
+                display(relationship_links)
+                # Disambiguate required attributes
+                # Build the SELECT clause
+                sentence = "SELECT " + ", ".join(project_attributes)
+                # Build the FROM clause
+                sentence += "\nFROM " + ",".join(option)
+            else:
+                # Build the SELECT clause
+                sentence = "SELECT "+", ".join(project_attributes)
+                # Build the FROM clause
+                sentence += "\nFROM "+option[0]
             # Build the WHERE clause
             sentence += "\n" + where_clause + ";"
             if verbose:

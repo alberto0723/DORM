@@ -42,23 +42,35 @@ class Catalog:
         edges["name"] = edges.index
         return edges
 
+    def get_edges_firstlevel(self):
+        firstLevelPhantoms = df_difference(
+            pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
+                self.get_outbounds().reset_index()[["nodes"]])
+        firstLevelEdges = pd.merge(firstLevelPhantoms, pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index(drop=False), on="nodes", how="inner")
+        return firstLevelEdges
+
     def get_incidences(self):
         incidences = self.H.incidences.dataframe
         return incidences
-
-    def get_ids(self):
-        nodes = self.get_nodes()
-        ids = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Identifier')]
-        return ids
 
     def get_attributes(self):
         nodes = self.get_nodes()
         attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
         return attributes
 
+    def get_ids(self):
+        attributes = self.get_attributes()
+        ids = attributes[attributes["misc_properties"].apply(lambda x: x['Identifier'])]
+        return ids
+
     def get_phantoms(self):
         nodes = self.get_nodes()
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
+        return phantoms
+
+    def get_phantom_classes(self):
+        nodes = self.get_nodes()
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Class')]
         return phantoms
 
     def get_phantom_relationships(self):
@@ -190,9 +202,9 @@ class Catalog:
         edges = [(class_name, properties)]
         # This adds a special attribute to identify instances in the class
         # First element in the pair is the node name and the second its properties
-        nodes = [(class_name+self.config.tail_ID, {'Kind': 'Identifier', 'DataType': 'Integer', 'Size': self.config.size_IDs, 'DistinctVals': properties["Count"]})]
+        nodes = [(self.config.prepend_phantom+class_name, {'Kind': 'Phantom', 'Subkind': 'Class'})]
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(class_name, class_name+self.config.tail_ID, {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
+        incidences = [(class_name, self.config.prepend_phantom+class_name, {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
         for att in att_list:
             if att['name'] in self.get_nodes()["name"]:
                 raise ValueError(f"Some node called '{att['name']}' already exists")
@@ -216,13 +228,13 @@ class Catalog:
             raise ValueError(f"The relationship '{relationship_name}' should have exactly two ends, but has {len(ends_list)}")
         self.H.add_edge(relationship_name, Kind='Relationship')
         # This adds a special phantom node required to represent different cases of inclusion in structs
-        self.H.add_node( 'Phantom_'+relationship_name, Kind='Phantom', Subkind='Relationship')
+        self.H.add_node(self.config.prepend_phantom+relationship_name, Kind='Phantom', Subkind='Relationship')
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(relationship_name, 'Phantom_'+relationship_name, {'Kind': 'RelationshipIncidence', 'Direction': 'Inbound'})]
+        incidences = [(relationship_name, self.config.prepend_phantom+relationship_name, {'Kind': 'RelationshipIncidence', 'Direction': 'Inbound'})]
         for end in ends_list:
             end['prop']['Kind'] = 'RelationshipIncidence'
             end['prop']['Direction'] = 'Outbound'
-            incidences.append((relationship_name, end['name']+self.config.tail_ID, end['prop']))
+            incidences.append((relationship_name, self.config.prepend_phantom+end['name'], end['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_struct(self, struct_name, root, elements):
@@ -231,9 +243,9 @@ class Catalog:
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
-        self.H.add_node('Phantom_'+struct_name, Kind='Phantom', Subkind="Struct")
+        self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(struct_name, 'Phantom_'+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
+        incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
         for elem in [root]+elements:
             if self.is_attribute(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': (elem == root)}))
@@ -313,6 +325,7 @@ class Catalog:
         structInbounds = self.get_inbound_structs()
         outbounds = self.get_outbounds()
         structOutbounds = self.get_outbound_structs()
+        transitives = self.get_transitives()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
         # Pre-check emptiness
@@ -345,7 +358,7 @@ class Catalog:
             print("IC-Generic3 violation: There are phantoms without an edge")
             display(violations1_3)
 
-        # IC-Generic4: Every edge has at least inbound
+        # IC-Generic4: Every edge has at least one inbound
         logging.info("Checking IC-Generic4")
         matches1_4 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
         violations1_4 = edges[~edges["name"].isin((matches1_4.reset_index(drop=False))["edges"])]
@@ -372,26 +385,34 @@ class Catalog:
             display(violations1_6[violations1_6 > 1])
 
         # IC-Generic7: An edge cannot be cyclic
-        logging.info("Checking IC-Generic7->To be implemented")
-        # violations1_7 = inbounds.groupby(inbounds.index.get_level_values('edges')).size()
-        # if violations1_7[violations1_7 > 1].shape[0] > 0:
-        #     correct = False
-        #     print("IC-Generic6 violation: There are cyclic edges")
-        #     display(violations1_7[violations1_7 > 1])
+        logging.info("Checking IC-Generic7")
+        violations1_7 = pd.merge(inbounds, pd.concat([outbounds, transitives]), on=["nodes", "edges"], how="inner")
+        if violations1_7.shape[0] > 0:
+            correct = False
+            print("IC-Generic7 violation: There are cyclic edges")
+            display(violations1_7)
+
+        # IC-Generic8: Outbounds and transitive of an edge must be disjoint
+        logging.info("Checking IC-Generic8")
+        violations1_8 = pd.merge(outbounds, transitives, on=["nodes", "edges"], how="inner")
+        if violations1_8.shape[0] > 0:
+            correct = False
+            print("IC-Generic8 violation: There are edges with common outbound and transitive incidences")
+            display(violations1_8)
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
-        # IC-Atoms1: Every class has one ID which is inbound
+        # IC-Atoms1: Every class has one ID which is outbound
         logging.info("Checking IC-Atoms1")
-        matches2_1 = inbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        matches2_1 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
         violations2_1 = classes[~classes["name"].isin((matches2_1.reset_index(drop=False))["edges"])]
         if violations2_1.shape[0] > 0:
             correct = False
             print("IC-Atoms1 violation: There are classes without identifier")
             display(violations2_1)
 
-        # IC-Atoms2: Every ID belongs to one class which is inbound
+        # IC-Atoms2: Every ID belongs to one class which is outbound
         logging.info("Checking IC-Atoms2")
-        matches2_2 = inbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
+        matches2_2 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
         violations2_2 = ids[~ids["name"].isin((matches2_2.reset_index(drop=False))["nodes"])]
         if violations2_2.shape[0] > 0:
             correct = False
@@ -416,7 +437,7 @@ class Catalog:
             print("IC-Atoms4 violation: There are attributes with more than one class")
             display(violations2_4[violations2_4 > 1])
 
-        # IC-Atoms5: The number of different values of an attribute must be less than the cardinality of its class
+        # IC-Atoms5: The number of different values of an attribute must be less or equal than the cardinality of its class
         logging.info("Checking IC-Atoms5")
         matches2_5 = outbounds.join(attributes, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
         violations2_5 = matches2_5[matches2_5.apply(lambda row: row["misc_properties_nodes"]["DistinctVals"] > row["misc_properties_edges"]["Count"], axis=1)]
@@ -442,6 +463,15 @@ class Catalog:
             correct = False
             print("IC-Atoms7 violation: There are non-binary relationships")
             display(violations2_7[violations2_7 != 2])
+
+        # IC-Atoms8: The number of different values of an attribute must be less or equal than the cardinality of its class
+        logging.info("Checking IC-Atoms8")
+        matches2_8 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(classes, on='edges', rsuffix='_edges', how='inner')
+        violations2_8 = matches2_8[matches2_8.apply(lambda row: row["misc_properties_nodes"]["DistinctVals"] != row["misc_properties_edges"]["Count"], axis=1)]
+        if violations2_8.shape[0] > 0:
+            correct = False
+            print("IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
+            display(violations2_8)
 
         # Not necessary to check from here on if the catalog only contains the atoms in the schema
         if design:

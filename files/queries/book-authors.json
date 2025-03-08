@@ -1,9 +1,9 @@
 {
   "queries": [
     {
-      "project": ["Book_ID", "B_name", "Author_ID", "A_name"],
-      "join": ["Book", "Writes", "Author"],
-      "filter": "B_name = 'hello'"
+      "project": ["Author_ID"],
+      "join": ["Author"],
+      "filter": "A_name = 'hello'"
     }
   ]
 }

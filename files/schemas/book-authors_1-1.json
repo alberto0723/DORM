@@ -4,14 +4,16 @@
       "name": "Book",
       "prop": { "Count": 4000000 },
       "attr": [
-        { "name": "B_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000}}
+        { "name": "B_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 4000000, "Identifier": true}},
+        { "name": "B_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}}
         ]
       },
     {
       "name": "Author",
       "prop": { "Count": 2500000 },
       "attr": [
-        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000}}
+        { "name": "A_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 2500000, "Identifier": true}},
+        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}}
         ]
       }
 
