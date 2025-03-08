@@ -37,7 +37,7 @@ def design(args):
     cat = relational.Relational(args.hg_path.joinpath("schema").joinpath(schema.get("atoms") + ".HyperNetX"))
     for h in schema.get("hyperedges"):
         if h.get("kind") == "Struct":
-            cat.add_struct(h.get("name"), h.get("root"), h.get("elements"))
+            cat.add_struct(h.get("name"), h.get("anchor"), h.get("elements"))
         elif h.get("kind") == "Set":
             cat.add_set(h.get("name"), h.get("elements"))
         else:

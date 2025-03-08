@@ -4,21 +4,24 @@
       "name": "Artist",
       "prop": { "Count": 20 },
       "attr": [
-        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 20}}
+        { "name": "A_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 20, "Identifier": true}},
+        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 20, "Identifier": false}}
         ]
       },
     {
       "name": "Record",
       "prop": { "Count": 100 },
       "attr": [
-        { "name": "R_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100}}
+        { "name": "R_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 100, "Identifier": true}},
+        { "name": "R_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100, "Identifier": false}}
         ]
       },
     {
       "name": "Track",
       "prop": { "Count": 1500 },
       "attr": [
-        { "name": "T_title", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 1250}}
+        { "name": "T_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 1500, "Identifier": true}},
+        { "name": "T_title", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 1250, "Identifier": false}}
         ]
       }
 

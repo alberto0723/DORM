@@ -63,6 +63,13 @@ class Catalog:
         ids = attributes[attributes["misc_properties"].apply(lambda x: x['Identifier'])]
         return ids
 
+    def get_class_id_by_phantom_name(self, phantom):
+        attributes = self.get_attributes()
+        ids = attributes[attributes["misc_properties"].apply(lambda x: x['Identifier'])]
+        class_outbounds = self.get_outbound_class_by_phantom_name(phantom)
+        class_id = pd.merge(ids, class_outbounds, on="nodes", suffixes=("_node", "_incidence"), how="inner")
+        return class_id
+
     def get_phantoms(self):
         nodes = self.get_nodes()
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
@@ -140,17 +147,21 @@ class Catalog:
         return outbounds
 
     def get_outbound_struct_by_phantom_name(self, phantom):
-        struct = self.get_inbound_structs().query('nodes == "' + phantom + '"')
-        elements = self.get_outbound_structs().query('edges == "' + struct.index[0][0] + '"')
-        # elements = pd.concat([
-        #                 self.get_outbound_structs().query('edges == "' + struct.index[0][0] + '"'),
-        #                 self.get_transitives().query('edges == "' + struct.index[0][0] + '"'),
-        #                 ])
+        elements = self.get_outbound_structs().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
+        return elements
+
+    def get_outbound_class_by_phantom_name(self, phantom):
+        elements = self.get_outbound_classes().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
         return elements
 
     def get_outbound_sets(self):
         incidences = self.get_incidences()
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
+        return outbounds
+
+    def get_outbound_classes(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'ClassIncidence')]
         return outbounds
 
     def get_transitives(self):
@@ -172,6 +183,9 @@ class Catalog:
 
     def is_class(self, name):
         return name in self.get_classes().index
+
+    def is_class_phantom(self, name):
+        return name in self.get_phantom_classes().index
 
     def is_relationship_phantom(self, name):
         return name in self.get_phantom_relationships().index
@@ -237,28 +251,30 @@ class Catalog:
             incidences.append((relationship_name, self.config.prepend_phantom+end['name'], end['prop']))
         self.H.add_incidences_from(incidences)
 
-    def add_struct(self, struct_name, root, elements):
+    def add_struct(self, struct_name, anchor, elements):
         logging.info("Adding struct "+struct_name)
         if self.is_hyperedge(struct_name):
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
+        if not self.is_class(anchor) and not self.is_relationship(anchor):
+            raise ValueError(f"The anchor of '{struct_name}' (i.e., '{anchor}') must be either a class or a relationship")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
-        for elem in [root]+elements:
+        for elem in [anchor]+elements:
             if self.is_attribute(elem):
-                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': (elem == root)}))
-            elif self.is_class(elem):
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
-            elif self.is_relationship(elem) or self.is_struct(elem) or self.is_set(elem):
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Root': elem == root}))
+                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem == anchor)}))
+            elif self.is_class(elem) or self.is_relationship(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': elem == anchor}))
+            elif self.is_struct(elem) or self.is_set(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': elem == anchor}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
-                    if outbound_elem not in [self.get_phantom_of_edge_by_name(root)] + elements:
+                    if outbound_elem not in [self.get_phantom_of_edge_by_name(anchor)] + elements:
                         incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
                 try:
                     for transitive_elem in self.get_transitives().loc[elem].index:
-                        if transitive_elem not in [self.get_phantom_of_edge_by_name(root)] + elements:
+                        if transitive_elem not in [self.get_phantom_of_edge_by_name(anchor)] + elements:
                             incidences.append((struct_name, transitive_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
                 except KeyError:
                     pass
@@ -276,7 +292,7 @@ class Catalog:
         # This adds a special phantom node required to represent different cases of inclusion in sets
         self.H.add_node('Phantom_'+set_name, Kind='Phantom', Subkind="Set")
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(set_name, 'Phantom_'+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
+        incidences = [(set_name, self.config.prepend_phantom+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
             if self.is_attribute(elem):
                 incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
@@ -296,7 +312,7 @@ class Catalog:
             elif self.is_set(elem):
                 raise ValueError(f"Sets cannot contain sets (adding '{elem}' into '{set_name}')")
             else:
-                raise ValueError(f"Creating set '{set_name}' could not find '{elem}' to place it inside")
+                raise ValueError(f"Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
     def show_graphical(self):
@@ -501,22 +517,31 @@ class Catalog:
                 print("IC-Structs2 violation: There are missing elements in some struct")
                 display(violations3_2)
 
-            # IC-Structs3: Every struct has one root
+            # IC-Structs3: Every struct has one anchor
             logging.info("Checking IC-Structs3")
-            matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Root', False))].groupby('edges').size()
+            matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].groupby('edges').size()
             violations3_3 = structs[~structs["name"].isin((matches3_3[matches3_3 == 1].reset_index(drop=False))["edges"])]
             if violations3_3.shape[0] > 0:
                 correct = False
-                print("IC-Structs3 violation: There are structs without exactly one root")
+                print("IC-Structs3 violation: There are structs without exactly one anchor")
                 display(violations3_3)
 
-            # IC-Structs-b: All attributes in a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+            # IC-Structs4: Anchors can be either classes or relationships
+            logging.info("Checking IC-Structs3")
+            matches3_4 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].reset_index(drop=False)['nodes']
+            violations3_4 = df_difference(matches3_4, pd.concat([self.get_phantom_classes(), self.get_phantom_relationships()])["name"])
+            if violations3_4.shape[0] > 0:
+                correct = False
+                print("IC-Structs4 violation: There are structs with an anchor which is neither class nor relationship")
+                display(violations3_4)
+
+            # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
             logging.info("Checking IC-Structs-b -> To be implemented")
 
-            # IC-Structs-c: All roots of structs inside a struct are connected to its root by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
+            # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
             logging.info("Checking IC-Structs-c -> To be implemented")
 
-            # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or root of the struct inside the set (Definition 7-d)
+            # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
             logging.info("Checking IC-Structs-d -> To be implemented")
 
             # IC-Structs-e: (Definition 7-e)
@@ -554,7 +579,7 @@ class Catalog:
             # IC-Design2: All the atoms in the schema are connected to the first level
             logging.info("Checking IC-Design2")
             matches5_2 = self.get_inbound_firstLevel().join(pd.concat([self.get_outbounds(), self.get_transitives()]).reset_index(level="nodes"), on="edges", rsuffix='_tokeep', how='inner')
-            atoms5_2 = pd.concat([self.get_ids(), self.get_attributes(), self.get_phantom_relationships()])
+            atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_relationships()])
             violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2["nodes"])]
             if violations5_2.shape[0] > 0:
                 correct = False

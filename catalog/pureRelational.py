@@ -33,7 +33,7 @@ class PostgreSQL(Relational):
         correct = super().is_correct(design)
         if correct:
             # ---------------------------------------------------------------- ICs about being a pure relational catalog
-            # IC-PureRelational1: All relationships from the root of a struct must be to one (or less)
+            # IC-PureRelational1: All relationships from the anchor of a struct must be to one (or less)
             logging.info("Checking IC-PureRelational1")
             firstlevels = self.get_inbound_firstLevel()
             # For each table
@@ -42,23 +42,17 @@ class PostgreSQL(Relational):
                     struct_phantom = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
                     elements = self.get_outbound_struct_by_phantom_name(struct_phantom.index[0][1])
                     members = elements.index.get_level_values(1).tolist()
-                    root = elements[elements["misc_properties"].apply(lambda x: x.get('Root', False))]
-                    if self.is_attribute(root.index[0][1]):
-                        # If the root of the struct is an attribute, this cannot contain anything else
-                        correct = elements.shape[0] == 1
-                        if not correct:
-                            print(f"IC-PureRelational1 violation: A struct '{table.Index[0]}' whose root '{root.index[0][1]}' is an attribute, cannot have any other element")
-                            display(elements)
-                    elif self.is_id(root.index[0][1]):
-                        correct = self.check_toOne(root.index[0][1], members)
-                    elif self.is_relationship_phantom(root.index[0][1]):
-                        relationship = self.get_inbound_relationships().query('nodes == "'+root.index[0][1]+'"')
+                    anchor = elements[elements["misc_properties"].apply(lambda x: x.get('Anchor', False))]
+                    if self.is_class_phantom(anchor.index[0][1]):
+                        correct = self.check_toOne(anchor.index[0][1], members)
+                    elif self.is_relationship_phantom(anchor.index[0][1]):
+                        relationship = self.get_inbound_relationships().query('nodes == "'+anchor.index[0][1]+'"')
                         legs = self.get_outbound_relationships().query('edges == "'+relationship.index[0][0]+'"')
                         for leg in legs.itertuples():
-                            correct = correct and self.check_toOne(leg.Index[1], [x for x in members if x != root.index[0][1]])
+                            correct = correct and self.check_toOne(leg.Index[1], [x for x in members if x != anchor.index[0][1]])
                     else:
                         correct = False
-                        print(f"IC-PureRelational1 violation: A struct '{table.Index[0]}' has an unacceptable root '{root.index[0][1]}'")
+                        print(f"IC-PureRelational1 violation: A struct '{table.Index[0]}' has an unacceptable anchor '{anchor.index[0][1]}'")
                         display(elements)
         return correct
 
@@ -74,28 +68,39 @@ class PostgreSQL(Relational):
             elements = self.get_outbound_struct_by_phantom_name(struct_phantom.index[0][1])
             # For each element in the table
             for elem in elements.itertuples():
-                # If it is an attribute or class id
-                attribute = pd.concat([self.get_ids(), self.get_attributes()]).query('nodes == "'+elem.Index[1]+'"')
-                if attribute.shape[0] != 0:
-                    sentence += "  " + attribute.iloc[0]["name"]
+                # If it is an attribute
+                if self.is_attribute(elem.Index[1]):
+                    attribute = self.get_attributes().query('nodes == "'+elem.Index[1]+'"')
+                    sentence += "  " + elem.Index[1]
                     if attribute.iloc[0]["misc_properties"].get("DataType") == "String":
                         sentence += " VarChar(" + str(attribute.iloc[0]["misc_properties"].get("Size")) + "),\n"
                     else:
                         sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
-                    if elem.misc_properties.get("Root"):
-                        clause_PK = "  PRIMARY KEY ("+elem.Index[1]+")\n"
-                # If it is a relationship, we get a compound PK
-                # TODO: There could be chained relationships as root (i.e., we would take the extremes as PK)
                 else:
-                    relationship = self.get_inbound_relationships().query('nodes == "'+elem.Index[1]+'"')
-                    legs = self.get_outbound_relationships().query('edges == "'+relationship.index[0][0]+'"')
-                    leg_names = []
-                    for leg in legs.itertuples():
-                        leg_names.append(leg.Index[1])
-                    if elem.misc_properties.get("Root"):
-                        clause_PK = "  PRIMARY KEY ("+",".join(leg_names)+")\n"
+                    if elem.misc_properties.get("Anchor"):
+                        anchor_name = elem.Index[1]
+            # If the anchor is a class, its ID is the PK
+            if self.is_class(self.get_edge_by_phantom_name(anchor_name)):
+                anchor_id = self.get_class_id_by_phantom_name(anchor_name).index[0]
+                if elements[elements.index.get_level_values("nodes") == anchor_id].shape[0] == 0:
+                    raise ValueError(f"'{table.Index[0]}' must contain its anchor ID {anchor_id} as an element")
+                else:
+                    clause_PK = "  PRIMARY KEY ("+anchor_id+")\n"
+            # If it is a relationship, we get a compound PK
+            # TODO: There could be chained relationships as anchor (i.e., we would take the extremes as PK)
+            elif self.is_relationship(self.get_edge_by_phantom_name(anchor_name)):
+                legs = self.get_outbound_relationships().query('edges == "'+self.get_edge_by_phantom_name(anchor_name)+'"')
+                leg_names = []
+                for leg in legs.itertuples():
+                    leg_id = self.get_class_id_by_phantom_name(leg.Index[1]).index[0]
+                    if elements[elements.index.get_level_values("nodes") == leg_id].shape[0] == 0:
+                        raise ValueError(f"'{table.Index[0]}' must contain its anchor ID {leg_id} as an element")
+                    leg_names.append(leg_id)
+                clause_PK = "  PRIMARY KEY ("+",".join(leg_names)+")\n"
+            else:
+                raise ValueError(f"Anchor of '{table.Index[0]}' (i.e. {anchor_name}) is neither a class nor a relationship")
             if clause_PK is None:
-                raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. root in the corresponding struct) defined")
+                raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
             sentence += clause_PK + "  );"
             if verbose:
                 print(sentence)

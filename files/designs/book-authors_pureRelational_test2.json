@@ -3,8 +3,8 @@
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",
-         "root": "Book",
-         "elements": ["B_name","Writes","Author","A_name"]},
+         "anchor": "Book",
+         "elements": ["B_ID","B_name","Writes","Author","A_ID","A_name"]},
         {"kind": "Set",
          "name": "Books_table",
          "elements": ["Books_type"]}
