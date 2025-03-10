@@ -1,5 +1,5 @@
 {
-    "atoms": "artist-record-track",
+    "domain": "artist-record-track",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Artists_type",

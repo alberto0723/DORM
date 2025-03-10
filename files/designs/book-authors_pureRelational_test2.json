@@ -1,5 +1,5 @@
 {
-    "atoms": "book-authors_1-1",
+    "domain": "book-authors_1-1",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",

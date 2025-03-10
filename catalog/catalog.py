@@ -1,6 +1,7 @@
 import logging
 import os
 import hypernetx as hnx
+import networkx as nx
 import pickle
 from IPython.display import display
 import pandas as pd
@@ -116,6 +117,11 @@ class Catalog:
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
         return inbounds
 
+    def get_inbound_classes(self):
+        incidences = self.get_incidences()
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'ClassIncidence')]
+        return inbounds
+
     def get_inbound_relationships(self):
         incidences = self.get_incidences()
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'RelationshipIncidence')]
@@ -146,6 +152,10 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
+    def get_outbound_relationship_by_phantom_name(self, phantom):
+        elements = self.get_outbound_relationships().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
+        return elements
+
     def get_outbound_struct_by_phantom_name(self, phantom):
         elements = self.get_outbound_structs().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
         return elements
@@ -174,6 +184,11 @@ class Catalog:
                                     self.get_outbounds().reset_index()[["nodes"]])
         firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevelIncidences
+
+    def get_anchor_by_phantom_name(self, phantom):
+        outbounds = self.get_outbound_struct_by_phantom_name(phantom)
+        anchor = outbounds[outbounds["misc_properties"].apply(lambda x: x['Anchor'])]
+        return anchor.index[0][1]
 
     def is_attribute(self, name):
         return name in self.get_attributes().index
@@ -536,16 +551,59 @@ class Catalog:
                 display(violations3_4)
 
             # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
-            logging.info("Checking IC-Structs-b -> To be implemented")
+            logging.info("Checking IC-Structs-b")
+            for struct in self.get_structs().index:
+                attribute_names = []
+                edge_names = []
+                for elem in self.get_outbound_struct_by_phantom_name(self.get_phantom_of_edge_by_name(struct)).reset_index(level='edges', drop=True).index:
+                    if self.is_attribute(elem):
+                        attribute_names.append(elem)
+                    if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
+                        edge_names.append(self.get_edge_by_phantom_name(elem))
+                restricted_struct = self.H.restrict_to_edges(edge_names)
+                # Check if the restricted schema is connected
+                if not restricted_struct.is_connected(s=1):
+                    correct = False
+                    print(f"IC-Structs-b violation: The struct '{struct}' is not connected")
+                anchor = self.get_anchor_by_phantom_name(self.get_phantom_of_edge_by_name(struct))
+                bipartite = restricted_struct.bipartite()
+                for attr in attribute_names:
+                    paths = list(nx.all_simple_paths(bipartite, source=anchor, target=attr))
+                    if len(paths) > 1:
+                        correct = False
+                        print(f"IC-Structs-b violation: The struct '{struct}' has multiple paths '{paths}'")
 
             # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
-            logging.info("Checking IC-Structs-c -> To be implemented")
+            logging.info("Checking IC-Structs-c -> To be implemented (for nested structs)")
 
             # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
-            logging.info("Checking IC-Structs-d -> To be implemented")
+            logging.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
 
-            # IC-Structs-e: (Definition 7-e)
-            logging.info("Checking IC-Structs-e -> To be implemented")
+            # IC-Structs-e: All relationships inside a struct connect either a class or another struct (Definition 7-e)
+            # TODO: Implementation needs to be extended to structs
+            logging.info("Checking IC-Structs-e -> To be extended (for nested structs)")
+            for struct in self.get_structs().index:
+                class_names = []
+                relationship_names = []
+                for elem in self.get_outbound_struct_by_phantom_name(self.get_phantom_of_edge_by_name(struct)).reset_index(level='edges', drop=True).index:
+                    if self.is_class_phantom(elem):
+                        class_names.append(self.get_edge_by_phantom_name(elem))
+                    if self.is_relationship_phantom(elem):
+                        relationship_names.append(self.get_edge_by_phantom_name(elem))
+                restricted_struct = self.H.restrict_to_edges(relationship_names+class_names)
+                # Check if the restricted schema is connected
+                if not restricted_struct.is_connected(s=1):
+                    correct = False
+                    print(f"IC-Structs-e violation: The struct '{struct}' is not connected")
+                anchor = self.get_anchor_by_phantom_name(self.get_phantom_of_edge_by_name(struct))
+                bipartite = restricted_struct.bipartite()
+                paths = []
+                for cl in class_names:
+                    paths.append(nx.shortest_path(bipartite, source=anchor, target=cl))
+                for rel in relationship_names:
+                    if len([p for p in paths if rel in p]) == 0:
+                        correct = False
+                        print(f"IC-Structs-e violation: The relationship '{rel}' in '{struct}' does not participate in any path from '{self.get_edge_by_phantom_name(anchor)}' to its classes '{classes}'")
 
             # ---------------------------------------------------------------------------------------------- ICs on sets
             # IC-Sets1: Every set has one phantom
@@ -561,10 +619,20 @@ class Catalog:
             logging.info("Checking IC-Sets2 -> To be implemented")
 
             # IC-Sets3: Sets cannot directly contain classes
-            logging.info("Checking IC-Sets3 -> To be implemented")
+            logging.info("Checking IC-Sets3")
+            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_inbound_classes(), on='nodes', suffixes=('_setOutbounds', '_classInbounds'), how='inner')
+            if violations4_3.shape[0] > 0:
+                correct = False
+                print("IC-Sets3 violation: There are sets that contain classes")
+                display(violations4_3)
 
             # IC-Sets4: Sets cannot directly contain other sets
-            logging.info("Checking IC-Sets4 -> To be implemented")
+            logging.info("Checking IC-Sets4")
+            violations4_4 = pd.merge(self.get_outbound_sets(), self.get_inbound_sets(), on='nodes', suffixes=('_setOutbounds', '_setInbounds'), how='inner')
+            if violations4_4.shape[0] > 0:
+                correct = False
+                print("IC-Sets4 violation: There are sets that contain other sets")
+                display(violations4_4)
 
             # ----------------------------------------------------------------------------------------- ICs about design
             # IC-Design1: All the first levels must be sets

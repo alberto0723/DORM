@@ -166,7 +166,13 @@ class PostgreSQL(Relational):
         if len(query_options) > 1:
             print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
         for option in query_options:
-            if len(option) > 1:
+            if len(option) == 1:
+                # Build the SELECT clause
+                sentence = "SELECT " + ", ".join(project_attributes)
+                # Build the FROM clause
+                sentence += "\nFROM " + option[0]
+            else:
+                print("Involved tables: "+str(option))
                 # Check if the combination is connected by the given relationships, and find the join attributes
                 table_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(option))]
                 print("-------------------------Table links: ")
@@ -179,11 +185,6 @@ class PostgreSQL(Relational):
                 sentence = "SELECT " + ", ".join(project_attributes)
                 # Build the FROM clause
                 sentence += "\nFROM " + ",".join(option)
-            else:
-                # Build the SELECT clause
-                sentence = "SELECT "+", ".join(project_attributes)
-                # Build the FROM clause
-                sentence += "\nFROM "+option[0]
             # Build the WHERE clause
             sentence += "\n" + where_clause + ";"
             if verbose:
