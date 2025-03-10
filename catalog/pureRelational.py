@@ -67,18 +67,25 @@ class PostgreSQL(Relational):
             struct_phantom = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
             elements = self.get_outbound_struct_by_phantom_name(struct_phantom.index[0][1])
             # For each element in the table
+            attribute_list = []
             for elem in elements.itertuples():
                 # If it is an attribute
                 if self.is_attribute(elem.Index[1]):
-                    attribute = self.get_attributes().query('nodes == "'+elem.Index[1]+'"')
-                    sentence += "  " + elem.Index[1]
-                    if attribute.iloc[0]["misc_properties"].get("DataType") == "String":
-                        sentence += " VarChar(" + str(attribute.iloc[0]["misc_properties"].get("Size")) + "),\n"
-                    else:
-                        sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
+                    attribute_list.append(elem.Index[1])
+                elif self.is_class(self.get_edge_by_phantom_name(elem.Index[1])):
+                    attribute_list.append(self.get_class_id_by_phantom_name(elem.Index[1]).index[0])
                 else:
-                    if elem.misc_properties.get("Anchor"):
-                        anchor_name = elem.Index[1]
+                    pass
+                if elem.misc_properties.get("Anchor"):
+                    anchor_name = elem.Index[1]
+            attribute_list = list(set(attribute_list))
+            for attr_name in attribute_list:
+                attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
+                sentence += "  " + attr_name
+                if attribute.iloc[0]["misc_properties"].get("DataType") == "String":
+                    sentence += " VarChar(" + str(attribute.iloc[0]["misc_properties"].get("Size")) + "),\n"
+                else:
+                    sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
             # If the anchor is a class, its ID is the PK
             if self.is_class(self.get_edge_by_phantom_name(anchor_name)):
                 anchor_id = self.get_class_id_by_phantom_name(anchor_name).index[0]
