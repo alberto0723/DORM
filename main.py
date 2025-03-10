@@ -14,11 +14,11 @@ if __name__ == '__main__':
     # # if not c.is_correct(design=True):
     # #     print("WARNING: The catalog is not correct!!!")
     # # c.show_graphical()
-    c.create_tables(True)
+    c.create_schema(verbose=True)
     logging.info("Executing batch queries")
     # Open and load the JSON file
     with open("files/queries/book-authors.json", 'r') as file:
         queries = json.load(file).get("queries")
     for query in queries:
-        c.execute(query, True)
+        c.execute(query, verbose=True, onlyOneQuery=False)
     logging.info("END")

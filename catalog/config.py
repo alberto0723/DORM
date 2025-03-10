@@ -10,4 +10,5 @@ class Config(object):
 
     # Optimizer constants
     prepend_phantom = "Phantom_"
+    prepend_table_alias = "t_"
 

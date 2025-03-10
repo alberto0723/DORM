@@ -56,7 +56,7 @@ class PostgreSQL(Relational):
                         display(elements)
         return correct
 
-    def create_tables(self, verbose=False):
+    def create_schema(self, verbose=False):
         logging.info("Creating tables")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
@@ -112,12 +112,12 @@ class PostgreSQL(Relational):
             if verbose:
                 print(sentence)
 
-    def execute(self, query, verbose=False):
+    def execute(self, query, verbose=False, onlyOneQuery=True):
         logging.info("Executing query")
         print("--------- Query parsed begin")
         # Get the query
         project_attributes = query.get("project")
-        join_relationships = query.get("join")
+        join_edges = query.get("join")
         filter_attributes = []
         if "filter" in query:
             where_clause = "WHERE "+query.get("filter")
@@ -134,7 +134,7 @@ class PostgreSQL(Relational):
             where_clause = ""
         required_attributes = list(set(project_attributes + filter_attributes))
         print("Project: "+str(project_attributes))
-        print("Join: "+str(join_relationships))
+        print("Join: "+str(join_edges))
         print("Filter: "+str(filter_attributes))
         print("Required attributes: " + str(required_attributes))
         print("--------- Query parsed end")
@@ -149,50 +149,76 @@ class PostgreSQL(Relational):
             raise ValueError(f"Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         # Check if the hypergraph contains all the join hyperedges
-        non_existing_relationships = df_difference(pd.DataFrame(join_relationships), pd.concat([self.get_classes(), self.get_relationships()])["name"].reset_index(drop=True))
+        non_existing_relationships = df_difference(pd.DataFrame(join_edges), pd.concat([self.get_classes(), self.get_relationships()])["name"].reset_index(drop=True))
         if non_existing_relationships.shape[0] > 0:
             raise ValueError(f"Some class or relationship in the join does not belong to the catalog: {non_existing_relationships.values.tolist()[0]}")
 
-        restricted_schema = self.H.restrict_to_edges(join_relationships)
-        # Check if the restricted schema is connected
-        if not restricted_schema.is_connected(s=1):
+        restricted_domain = self.H.restrict_to_edges(join_edges)
+        # Check if the restricted domain is connected
+        if not restricted_domain.is_connected(s=1):
             raise ValueError(f"Some query elements (i.e., attributes, classes and relationships) are not connected")
 
-        # Check if the restricted schema contains all the required attributes
-        missing_attributes = df_difference(pd.DataFrame(required_attributes), restricted_schema.nodes.dataframe.reset_index(drop=False)["uid"])
+        # Check if the restricted domain contains all the required attributes
+        missing_attributes = df_difference(pd.DataFrame(required_attributes), restricted_domain.nodes.dataframe.reset_index(drop=False)["uid"])
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
         # Get the tables where every required relationship is found
         tables = []
-        for rel in join_relationships:
-            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == self.get_phantom_of_edge_by_name(rel)) & (self.get_transitives().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+        classes = []
+        relationships = []
+        for edge in join_edges:
+            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == self.get_phantom_of_edge_by_name(edge)) & (self.get_transitives().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels.sort()
-            print(rel+"\t"+str(first_levels))
+            print(edge+"\t"+str(first_levels))
             tables.append(first_levels)
+            # Split join edges into classes and relationships
+            if self.is_class(edge):
+                classes.append(edge)
+            elif self.is_relationship(edge):
+                relationships.append(edge)
+            else:
+                raise ValueError(f"A join edge was neither a class nor a relationship")
+        print("Classes:", classes)
+        print("Relationships:", relationships)
         query_options = combine_tables(drop_duplicates(tables))
         if len(query_options) > 1:
             print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
+            query_options = sorted(query_options, key=len)
+            if onlyOneQuery:
+                query_options = [query_options[0]]
+                print(f"WARNING: One of those accessing less tables is taken: '{query_options[0]}'")
         for option in query_options:
+            print("============================================", option)
             if len(option) == 1:
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join(project_attributes)
                 # Build the FROM clause
                 sentence += "\nFROM " + option[0]
             else:
-                print("Involved tables: "+str(option))
                 # Check if the combination is connected by the given relationships, and find the join attributes
-                table_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(option))]
-                print("-------------------------Table links: ")
-                display(table_links)
-                relationship_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(join_relationships))]
-                print("----------------------Relationship links: ")
-                display(relationship_links)
+                # table_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(option))]
+                # print("-------------------------Table links: ")
+                # display(table_links)
+                # relationship_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(join_edges))]
+                # print("----------------------Relationship links: ")
+                # display(relationship_links)
                 # Disambiguate required attributes
+                alias_attr = {}
+                alias_table = {}
+                # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
+                for index, table in enumerate(reversed(option)):
+                    alias_table[table] = self.config.prepend_table_alias+str(len(option)-index)
+                    contained_attributes = self.get_transitives_by_edge_name(table)[self.get_transitives_by_edge_name(table).index.get_level_values("nodes").isin(required_attributes)]
+                    for attr in contained_attributes.itertuples():
+                        alias_attr[attr.Index[1]] = alias_table[table]
                 # Build the SELECT clause
-                sentence = "SELECT " + ", ".join(project_attributes)
+                sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
-                sentence += "\nFROM " + ",".join(option)
+                sentence += "\nFROM " + ", ".join([t+" "+alias_table[t] for t in option])
+                # Add alias to the where clause if there is more than one table
+                for attr in alias_attr.items():
+                    where_clause = where_clause.replace(attr[0], attr[1]+"."+attr[0])
             # Build the WHERE clause
             sentence += "\n" + where_clause + ";"
             if verbose:

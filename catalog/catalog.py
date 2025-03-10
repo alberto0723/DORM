@@ -179,6 +179,10 @@ class Catalog:
         transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
         return transitives
 
+    def get_transitives_by_edge_name(self, edge):
+        transitives = self.get_transitives()[self.get_transitives().index.get_level_values('edges') == edge]
+        return transitives
+
     def get_inbound_firstLevel(self):
         firstLevelPhantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
                                     self.get_outbounds().reset_index()[["nodes"]])
@@ -504,7 +508,7 @@ class Catalog:
             print("IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
             display(violations2_8)
 
-        # Not necessary to check from here on if the catalog only contains the atoms in the schema
+        # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
             # ------------------------------------------------------------------------------------------- ICs on structs
             # IC-Structs1: Every struct has one phantom
@@ -561,7 +565,7 @@ class Catalog:
                     if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
                         edge_names.append(self.get_edge_by_phantom_name(elem))
                 restricted_struct = self.H.restrict_to_edges(edge_names)
-                # Check if the restricted schema is connected
+                # Check if the restricted struct is connected
                 if not restricted_struct.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-b violation: The struct '{struct}' is not connected")
@@ -591,7 +595,7 @@ class Catalog:
                     if self.is_relationship_phantom(elem):
                         relationship_names.append(self.get_edge_by_phantom_name(elem))
                 restricted_struct = self.H.restrict_to_edges(relationship_names+class_names)
-                # Check if the restricted schema is connected
+                # Check if the restricted struct is connected
                 if not restricted_struct.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-e violation: The struct '{struct}' is not connected")
@@ -644,7 +648,7 @@ class Catalog:
                 print("IC-Design1 violation: All first levels must be sets")
                 display(violations5_1)
 
-            # IC-Design2: All the atoms in the schema are connected to the first level
+            # IC-Design2: All the atoms in the domain are connected to the first level
             logging.info("Checking IC-Design2")
             matches5_2 = self.get_inbound_firstLevel().join(pd.concat([self.get_outbounds(), self.get_transitives()]).reset_index(level="nodes"), on="edges", rsuffix='_tokeep', how='inner')
             atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_relationships()])
