@@ -107,7 +107,7 @@ class PostgreSQL(Relational):
 
     def execute(self, query, verbose=False):
         logging.info("Executing query")
-        print("--------- Query")
+        print("--------- Query parsed begin")
         # Get the query
         project_attributes = query.get("project")
         join_relationships = query.get("join")
@@ -130,6 +130,7 @@ class PostgreSQL(Relational):
         print("Join: "+str(join_relationships))
         print("Filter: "+str(filter_attributes))
         print("Required attributes: " + str(required_attributes))
+        print("--------- Query parsed end")
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:

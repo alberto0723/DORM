@@ -654,4 +654,17 @@ class Catalog:
                 print("IC-Design2 violation: Atoms disconnected from the first level")
                 display(violations5_2)
 
+            # # IC-Design3: All relationships must appear in one struct with both its classes
+            logging.info("Checking IC-Design3")
+            structs_with_name = structOutbounds
+            structs_with_name["name"] = structOutbounds.index.get_level_values("edges")
+            relationship_incidences_with_name = pd.concat([self.get_inbound_relationships(), self.get_outbound_relationships()], ignore_index=False)
+            relationship_incidences_with_name["name"] = relationship_incidences_with_name.index.get_level_values("edges")
+            matches5_3 = pd.merge(structs_with_name, relationship_incidences_with_name, on="nodes", suffixes=("_struct", "_relationship")).groupby(["name_struct", "name_relationship"]).size().reset_index(level=0, drop=True)
+            violations5_3 = relationships[~relationships.index.isin(matches5_3[matches5_3 == 3].index)]
+            if violations5_3.shape[0] > 0:
+                correct = False
+                print("IC-Design3 violation: The three elements (i.e., relationship and two classes) of some relationship do not belong together to any struct")
+                display(violations5_3)
+
         return correct
