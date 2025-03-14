@@ -19,6 +19,9 @@ if __name__ == '__main__':
     # Open and load the JSON file
     with open("files/queries/book-authors.json", 'r') as file:
         queries = json.load(file).get("queries")
-    for query in queries:
-        c.execute(query, verbose=True, onlyOneQuery=False)
+    for i, query in enumerate(queries):
+        print("--*********************************** ", i)
+        for q in c.generate_SQL(query):
+            print("--//////////////////////////////////////////")
+            print(q)
     logging.info("END")

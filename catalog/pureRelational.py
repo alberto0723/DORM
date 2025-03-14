@@ -1,6 +1,8 @@
 import logging
 from IPython.display import display
 import pandas as pd
+from matplotlib import table
+
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 import sqlparse
@@ -39,8 +41,9 @@ class PostgreSQL(Relational):
             # For each table
             for table in firstlevels.itertuples():
                 if correct:
-                    struct_phantom = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
-                    elements = self.get_outbound_struct_by_phantom_name(struct_phantom.index[0][1])
+                    struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
+                    # TODO: There could be more than one struct in a set (horizontal partitioning)
+                    elements = self.get_outbound_struct_by_name(struct_phantoms.index[0][0])
                     members = elements.index.get_level_values(1).tolist()
                     anchor = elements[elements["misc_properties"].apply(lambda x: x.get('Anchor', False))]
                     if self.is_class_phantom(anchor.index[0][1]):
@@ -58,26 +61,25 @@ class PostgreSQL(Relational):
 
     def create_schema(self, verbose=False):
         logging.info("Creating tables")
+        show_textual_hypergraph(self.H)
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
             clause_PK = None
             logging.info("-- Creating table " + table.Index[0])
             sentence = "CREATE TABLE IF NOT EXISTS " + table.Index[0] + " (\n"
-            struct_phantom = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
-            elements = self.get_outbound_struct_by_phantom_name(struct_phantom.index[0][1])
+            struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
+            # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
+            elements = self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(struct_phantoms.index[0][1]))
             # For each element in the table
             attribute_list = []
             for elem in elements.itertuples():
-                # If it is an attribute
-                if self.is_attribute(elem.Index[1]):
-                    attribute_list.append(elem.Index[1])
-                elif self.is_class(self.get_edge_by_phantom_name(elem.Index[1])):
-                    attribute_list.append(self.get_class_id_by_phantom_name(elem.Index[1]).index[0])
-                else:
-                    pass
                 if elem.misc_properties.get("Anchor"):
                     anchor_name = elem.Index[1]
+                else:
+                    # If it is an attribute
+                    if self.is_attribute(elem.Index[1]):
+                        attribute_list.append(elem.Index[1])
             attribute_list = list(set(attribute_list))
             for attr_name in attribute_list:
                 attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
@@ -88,7 +90,7 @@ class PostgreSQL(Relational):
                     sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
             # If the anchor is a class, its ID is the PK
             if self.is_class(self.get_edge_by_phantom_name(anchor_name)):
-                anchor_id = self.get_class_id_by_phantom_name(anchor_name).index[0]
+                anchor_id = self.get_class_id_by_name(self.get_edge_by_phantom_name(anchor_name))
                 if elements[elements.index.get_level_values("nodes") == anchor_id].shape[0] == 0:
                     raise ValueError(f"'{table.Index[0]}' must contain its anchor ID {anchor_id} as an element")
                 else:
@@ -99,7 +101,7 @@ class PostgreSQL(Relational):
                 legs = self.get_outbound_relationships().query('edges == "'+self.get_edge_by_phantom_name(anchor_name)+'"')
                 leg_names = []
                 for leg in legs.itertuples():
-                    leg_id = self.get_class_id_by_phantom_name(leg.Index[1]).index[0]
+                    leg_id = self.get_class_id_by_name(self.get_edge_by_phantom_name(leg.Index[1]))
                     if elements[elements.index.get_level_values("nodes") == leg_id].shape[0] == 0:
                         raise ValueError(f"'{table.Index[0]}' must contain its anchor ID {leg_id} as an element")
                     leg_names.append(leg_id)
@@ -112,10 +114,52 @@ class PostgreSQL(Relational):
             if verbose:
                 print(sentence)
 
-    def execute(self, query, verbose=False, onlyOneQuery=True):
+    def generate_joins(self, tables, classes, relationships, visited, alias_table, alias_attr):
+        first_table = (visited == {})
+        unjoinable = []
+        while tables:
+            current_table = tables.pop(0)
+            # TODO: Consider that there could be more than one connected component (provided by the query) in the table
+            # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
+            # Get all the edges in the table
+            struct_name = self.get_outbound_set_by_name(current_table).index[0][0]
+            current_classes = []
+            current_relationships = []
+            for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
+                edge_phantom = incidence.Index[1]
+                if self.is_class_phantom(edge_phantom):
+                    if self.get_edge_by_phantom_name(edge_phantom) in classes:
+                        current_classes.append(self.get_edge_by_phantom_name(edge_phantom))
+                    if self.get_edge_by_phantom_name(edge_phantom) in relationships:
+                        current_relationships.append(self.get_edge_by_phantom_name(edge_phantom))
+            # Generate joins for classes already in visited
+            joins = []
+            for c in classes:
+                if c in visited:
+                    identifier = self.get_class_id_by_name(c)
+                    joins.append(alias_table[visited[c]]+"."+identifier+"="+alias_table[current_table]+"."+identifier)
+                else:
+                    visited[c] = current_table
+            if not first_table and not joins:
+                unjoinable.append(current_table)
+            else:
+                tables += unjoinable
+                unjoinable = []
+                break
+        join_clause = current_table + " " + alias_table[current_table]
+        if not first_table:
+            if unjoinable:
+                raise ValueError(f"Tables '{unjoinable}' are not joinable in the query")
+            join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)+','
+        if not tables:
+            return join_clause
+        else:
+            return join_clause+'\n '+self.generate_joins(tables, classes, list(set(relationships)-set(current_relationships)), visited, alias_table, alias_attr)
+
+    def generate_SQL(self, query):
         logging.info("Executing query")
-        print("--------- Query parsed begin")
-        # Get the query
+        sentences = []
+        # Get the query and parse it
         project_attributes = query.get("project")
         join_edges = query.get("join")
         filter_attributes = []
@@ -133,11 +177,6 @@ class PostgreSQL(Relational):
         else:
             where_clause = ""
         required_attributes = list(set(project_attributes + filter_attributes))
-        print("Project: "+str(project_attributes))
-        print("Join: "+str(join_edges))
-        print("Filter: "+str(filter_attributes))
-        print("Required attributes: " + str(required_attributes))
-        print("--------- Query parsed end")
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:
@@ -163,49 +202,40 @@ class PostgreSQL(Relational):
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
-        # Get the tables where every required relationship is found
+        # Get the tables where every required domain elements are found
         tables = []
         classes = []
         relationships = []
-        for edge in join_edges:
-            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == self.get_phantom_of_edge_by_name(edge)) & (self.get_transitives().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
-            first_levels.sort()
-            print(edge+"\t"+str(first_levels))
-            tables.append(first_levels)
+        for elem in join_edges+required_attributes:
             # Split join edges into classes and relationships
-            if self.is_class(edge):
-                classes.append(edge)
-            elif self.is_relationship(edge):
-                relationships.append(edge)
+            if self.is_class(elem):
+                classes.append(elem)
+                node_name = self.get_phantom_of_edge_by_name(elem)
+            elif self.is_relationship(elem):
+                relationships.append(elem)
+                node_name = self.get_phantom_of_edge_by_name(elem)
+            elif self.is_attribute(elem):
+                node_name = elem
             else:
-                raise ValueError(f"A join edge was neither a class nor a relationship")
-        print("Classes:", classes)
-        print("Relationships:", relationships)
+                raise ValueError(f"A join edge was neither a class nor a relationship nor an attribute")
+            first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == node_name) & (self.get_transitives().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+            first_levels.sort()
+            tables.append(first_levels)
+
         query_options = combine_tables(drop_duplicates(tables))
         if len(query_options) > 1:
             print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
             query_options = sorted(query_options, key=len)
-            if onlyOneQuery:
-                query_options = [query_options[0]]
-                print(f"WARNING: One of those accessing less tables is taken: '{query_options[0]}'")
         for option in query_options:
-            print("============================================", option)
             if len(option) == 1:
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join(project_attributes)
                 # Build the FROM clause
                 sentence += "\nFROM " + option[0]
             else:
-                # Check if the combination is connected by the given relationships, and find the join attributes
-                # table_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(option))]
-                # print("-------------------------Table links: ")
-                # display(table_links)
-                # relationship_links = self.get_incidences()[(self.get_incidences().index.get_level_values('edges').isin(join_edges))]
-                # print("----------------------Relationship links: ")
-                # display(relationship_links)
-                # Disambiguate required attributes
-                alias_attr = {}
+                # Determine the aliases of tables and required attributes
                 alias_table = {}
+                alias_attr = {}
                 # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
                 for index, table in enumerate(reversed(option)):
                     alias_table[table] = self.config.prepend_table_alias+str(len(option)-index)
@@ -215,11 +245,11 @@ class PostgreSQL(Relational):
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
-                sentence += "\nFROM " + ", ".join([t+" "+alias_table[t] for t in option])
+                sentence += "\nFROM "+self.generate_joins(option, classes, relationships, {}, alias_table, alias_attr)
                 # Add alias to the where clause if there is more than one table
                 for attr in alias_attr.items():
                     where_clause = where_clause.replace(attr[0], attr[1]+"."+attr[0])
             # Build the WHERE clause
             sentence += "\n" + where_clause + ";"
-            if verbose:
-                print(sentence)
+            sentences.append(sentence)
+        return sentences

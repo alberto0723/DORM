@@ -64,12 +64,12 @@ class Catalog:
         ids = attributes[attributes["misc_properties"].apply(lambda x: x['Identifier'])]
         return ids
 
-    def get_class_id_by_phantom_name(self, phantom):
+    def get_class_id_by_name(self, class_name):
         attributes = self.get_attributes()
         ids = attributes[attributes["misc_properties"].apply(lambda x: x['Identifier'])]
-        class_outbounds = self.get_outbound_class_by_phantom_name(phantom)
+        class_outbounds = self.get_outbound_class_by_name(class_name)
         class_id = pd.merge(ids, class_outbounds, on="nodes", suffixes=("_node", "_incidence"), how="inner")
-        return class_id
+        return class_id.index[0]
 
     def get_phantoms(self):
         nodes = self.get_nodes()
@@ -152,16 +152,20 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
-    def get_outbound_relationship_by_phantom_name(self, phantom):
-        elements = self.get_outbound_relationships().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
+    def get_outbound_relationship_by_name(self, rel_name):
+        elements = self.get_outbound_relationships().query('edges == "' + rel_name + '"')
         return elements
 
-    def get_outbound_struct_by_phantom_name(self, phantom):
-        elements = self.get_outbound_structs().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
+    def get_outbound_struct_by_name(self, struct_name):
+        elements = self.get_outbound_structs().query('edges == "' + struct_name + '"')
         return elements
 
-    def get_outbound_class_by_phantom_name(self, phantom):
-        elements = self.get_outbound_classes().query('edges == "' + self.get_edge_by_phantom_name(phantom) + '"')
+    def get_outbound_set_by_name(self, set_name):
+        elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
+        return elements
+
+    def get_outbound_class_by_name(self, class_name):
+        elements = self.get_outbound_classes().query('edges == "' + class_name + '"')
         return elements
 
     def get_outbound_sets(self):
@@ -189,8 +193,8 @@ class Catalog:
         firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevelIncidences
 
-    def get_anchor_by_phantom_name(self, phantom):
-        outbounds = self.get_outbound_struct_by_phantom_name(phantom)
+    def get_anchor_by_edge_name(self, edge_name):
+        outbounds = self.get_outbound_struct_by_name(edge_name)
         anchor = outbounds[outbounds["misc_properties"].apply(lambda x: x['Anchor'])]
         return anchor.index[0][1]
 
@@ -286,6 +290,8 @@ class Catalog:
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem == anchor)}))
             elif self.is_class(elem) or self.is_relationship(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': elem == anchor}))
+                if self.is_class(elem):
+                    incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
             elif self.is_struct(elem) or self.is_set(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': elem == anchor}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
@@ -559,7 +565,7 @@ class Catalog:
             for struct in self.get_structs().index:
                 attribute_names = []
                 edge_names = []
-                for elem in self.get_outbound_struct_by_phantom_name(self.get_phantom_of_edge_by_name(struct)).reset_index(level='edges', drop=True).index:
+                for elem in self.get_outbound_struct_by_name(struct).reset_index(level='edges', drop=True).index:
                     if self.is_attribute(elem):
                         attribute_names.append(elem)
                     if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
@@ -569,7 +575,7 @@ class Catalog:
                 if not restricted_struct.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-b violation: The struct '{struct}' is not connected")
-                anchor = self.get_anchor_by_phantom_name(self.get_phantom_of_edge_by_name(struct))
+                anchor = self.get_anchor_by_edge_name(struct)
                 bipartite = restricted_struct.bipartite()
                 for attr in attribute_names:
                     paths = list(nx.all_simple_paths(bipartite, source=anchor, target=attr))
@@ -589,7 +595,7 @@ class Catalog:
             for struct in self.get_structs().index:
                 class_names = []
                 relationship_names = []
-                for elem in self.get_outbound_struct_by_phantom_name(self.get_phantom_of_edge_by_name(struct)).reset_index(level='edges', drop=True).index:
+                for elem in self.get_outbound_struct_by_name(struct).reset_index(level='edges', drop=True).index:
                     if self.is_class_phantom(elem):
                         class_names.append(self.get_edge_by_phantom_name(elem))
                     if self.is_relationship_phantom(elem):
@@ -599,7 +605,7 @@ class Catalog:
                 if not restricted_struct.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-e violation: The struct '{struct}' is not connected")
-                anchor = self.get_anchor_by_phantom_name(self.get_phantom_of_edge_by_name(struct))
+                anchor = self.get_anchor_by_edge_name(struct)
                 bipartite = restricted_struct.bipartite()
                 paths = []
                 for cl in class_names:
