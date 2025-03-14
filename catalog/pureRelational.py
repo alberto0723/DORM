@@ -61,7 +61,6 @@ class PostgreSQL(Relational):
 
     def create_schema(self, verbose=False):
         logging.info("Creating tables")
-        show_textual_hypergraph(self.H)
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
@@ -114,69 +113,47 @@ class PostgreSQL(Relational):
             if verbose:
                 print(sentence)
 
-    def generate_joins(self, tables, classes, relationships, visited, alias_table, alias_attr):
+    def generate_joins(self, tables, query_classes, visited, alias_table, alias_attr):
         first_table = (visited == {})
         unjoinable = []
         while tables:
             current_table = tables.pop(0)
-            # TODO: Consider that there could be more than one connected component (provided by the query) in the table
-            # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
-            # Get all the edges in the table
-            struct_name = self.get_outbound_set_by_name(current_table).index[0][0]
-            current_classes = []
-            current_relationships = []
-            for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
-                edge_phantom = incidence.Index[1]
-                if self.is_class_phantom(edge_phantom):
-                    if self.get_edge_by_phantom_name(edge_phantom) in classes:
-                        current_classes.append(self.get_edge_by_phantom_name(edge_phantom))
-                    if self.get_edge_by_phantom_name(edge_phantom) in relationships:
-                        current_relationships.append(self.get_edge_by_phantom_name(edge_phantom))
+            # TODO: Consider that there could be more than one connected component (provided by the query) in the table (relationships should be used to choose)
             # Generate joins for classes already in visited
+            struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(current_table).index[0][1])
+            current_classes = []
+            for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
+                if self.is_class_phantom(incidence.Index[1]):
+                    class_name = self.get_edge_by_phantom_name(incidence.Index[1])
+                    if class_name in query_classes:
+                        current_classes.append(class_name)
             joins = []
-            for c in classes:
+            for c in current_classes:
                 if c in visited:
                     identifier = self.get_class_id_by_name(c)
                     joins.append(alias_table[visited[c]]+"."+identifier+"="+alias_table[current_table]+"."+identifier)
-                else:
-                    visited[c] = current_table
             if not first_table and not joins:
                 unjoinable.append(current_table)
             else:
                 tables += unjoinable
                 unjoinable = []
                 break
+        # Get all the classes in the table and mark them as visited
+        # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
+        for c in current_classes:
+            visited[c] = current_table
+        # Create the join clause
         join_clause = current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
                 raise ValueError(f"Tables '{unjoinable}' are not joinable in the query")
-            join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)+','
+            join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, classes, list(set(relationships)-set(current_relationships)), visited, alias_table, alias_attr)
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, visited, alias_table, alias_attr)
 
-    def generate_SQL(self, query):
-        logging.info("Executing query")
-        sentences = []
-        # Get the query and parse it
-        project_attributes = query.get("project")
-        join_edges = query.get("join")
-        filter_attributes = []
-        if "filter" in query:
-            where_clause = "WHERE "+query.get("filter")
-            where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
-
-            # This extracts the attribute names
-            # TODO: Parenthesis are not considered. It will require some kind of recursion
-            for atom in where_parsed.tokens:
-                if atom.ttype is None:  # This is a clause in the predicate
-                    for token in atom.tokens:
-                        if token.ttype is None:  # This is an attribute in the predicate
-                            filter_attributes.append(token.value)
-        else:
-            where_clause = ""
-        required_attributes = list(set(project_attributes + filter_attributes))
+    def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:
@@ -202,7 +179,31 @@ class PostgreSQL(Relational):
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
-        # Get the tables where every required domain elements are found
+    def generate_SQL(self, query, verbose=True):
+        logging.info("Executing query")
+        sentences = []
+        # Get the query and parse it
+        project_attributes = query.get("project")
+        join_edges = query.get("join")
+        filter_attributes = []
+        if "filter" in query:
+            where_clause = "WHERE "+query.get("filter")
+            where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
+
+            # This extracts the attribute names
+            # TODO: Parenthesis are not considered. It will require some kind of recursion
+            for atom in where_parsed.tokens:
+                if atom.ttype is None:  # This is a clause in the predicate
+                    for token in atom.tokens:
+                        if token.ttype is None:  # This is an attribute in the predicate
+                            filter_attributes.append(token.value)
+        else:
+            where_clause = ""
+        required_attributes = list(set(project_attributes + filter_attributes))
+
+        self.check_query_structure(project_attributes, filter_attributes, join_edges, required_attributes)
+
+        # Get the tables where each required domain elements is found
         tables = []
         classes = []
         relationships = []
@@ -221,17 +222,20 @@ class PostgreSQL(Relational):
             first_levels = self.get_transitives()[(self.get_transitives().index.get_level_values('nodes') == node_name) & (self.get_transitives().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels.sort()
             tables.append(first_levels)
-
+        # Generate combinations of the tables of each element to get the combinations that cover all of them
         query_options = combine_tables(drop_duplicates(tables))
         if len(query_options) > 1:
-            print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
+            if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
             query_options = sorted(query_options, key=len)
         for option in query_options:
+            modified_where_clause = where_clause
+            # Simple case of only one table required by the query
             if len(option) == 1:
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join(project_attributes)
                 # Build the FROM clause
                 sentence += "\nFROM " + option[0]
+            # Case with several tables that require joins
             else:
                 # Determine the aliases of tables and required attributes
                 alias_table = {}
@@ -245,11 +249,11 @@ class PostgreSQL(Relational):
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
-                sentence += "\nFROM "+self.generate_joins(option, classes, relationships, {}, alias_table, alias_attr)
+                sentence += "\nFROM "+self.generate_joins(option, classes, {}, alias_table, alias_attr)
                 # Add alias to the where clause if there is more than one table
                 for attr in alias_attr.items():
-                    where_clause = where_clause.replace(attr[0], attr[1]+"."+attr[0])
+                    modified_where_clause = modified_where_clause.replace(attr[0], attr[1]+"."+attr[0])
             # Build the WHERE clause
-            sentence += "\n" + where_clause + ";"
+            sentence += "\n" + modified_where_clause + ";"
             sentences.append(sentence)
         return sentences
