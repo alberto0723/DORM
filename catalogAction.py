@@ -110,7 +110,7 @@ if __name__ == "__main__":
             elif args.state == "design":
                 c.save(file=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                 if args.translate:
-                    c.create_tables(verbose=args.verbose)
+                    c.create_schema(verbose=args.verbose)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:
