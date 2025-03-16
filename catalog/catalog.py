@@ -740,7 +740,13 @@ class Catalog:
     def parse_query(self, query):
         # Get the query and parse it
         project_attributes = query.get("project")
+        for a in project_attributes:
+            if not self.is_attribute(a):
+                raise ValueError(f"Projected '{a}' is not an attribute")
         join_edges = query.get("join")
+        for e in join_edges:
+            if not (self.is_class(e) or self.is_relationship(e)):
+                raise ValueError(f"Chosen edge '{e}' is neither a class nor a relationship")
         filter_clause = query.get("filter", "TRUE")
         filter_attributes = []
         if "filter" in query:
@@ -753,6 +759,8 @@ class Catalog:
                 if atom.ttype is None:  # This is a clause in the predicate
                     for token in atom.tokens:
                         if token.ttype is None:  # This is an attribute in the predicate
+                            if not self.is_attribute(token.value):
+                                raise ValueError(f"Filtering '{token.value}' is not an attribute")
                             filter_attributes.append(token.value)
         required_attributes = list(set(project_attributes + filter_attributes))
 
