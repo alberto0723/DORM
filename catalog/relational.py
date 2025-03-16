@@ -38,7 +38,7 @@ class Relational(Catalog):
                 print("IC-Relational2 violation: Some second level are not structs")
                 display(violations6_2)
 
-            # IC-Relational3: All are structs are second level
+            # IC-Relational3: All structs are at second level
             logging.info("Checking IC-Relational3")
             violations6_3 = structs[~structs["name"].isin(matches6_2["edges_secondhop"])]
             if violations6_3.shape[0] > 0:

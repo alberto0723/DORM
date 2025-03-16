@@ -10,8 +10,13 @@
       "filter": "R_name = 'value'"
     },
     {
+      "project": ["T_ID"],
+      "join": ["Track"],
+      "filter": "T_title = 'value'"
+    },
+    {
       "project": ["A_ID", "R_ID", "T_ID"],
-      "join": ["Artist", "Record", "Track", "Has", "Made"]
+      "join": ["Has", "Made"]
     },
     {
       "project": ["R_ID"],

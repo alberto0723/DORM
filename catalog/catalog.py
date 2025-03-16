@@ -7,9 +7,10 @@ from IPython.display import display
 import pandas as pd
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
+import sqlparse
 
 from . import config
-from .tools import df_difference, show_textual_hypergraph, show_graphical_hypergraph
+from .tools import drop_duplicates, df_difference, show_textual_hypergraph, show_graphical_hypergraph
 
 
 class Catalog:
@@ -60,6 +61,7 @@ class Catalog:
         return attributes
 
     def get_ids(self):
+        # TODO: IDs must be tagged in the incidence of the class
         attributes = self.get_attributes()
         ids = attributes[attributes["misc_properties"].apply(lambda x: x['Identifier'])]
         return ids
@@ -193,10 +195,40 @@ class Catalog:
         firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevelIncidences
 
-    def get_anchor_by_edge_name(self, edge_name):
-        outbounds = self.get_outbound_struct_by_name(edge_name)
-        anchor = outbounds[outbounds["misc_properties"].apply(lambda x: x['Anchor'])]
-        return anchor.index[0][1]
+    def get_anchor_relationships_by_struct_name(self, struct_name):
+        elements = self.get_outbound_struct_by_name(struct_name)
+        anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        inbounds = self.get_inbound_relationships()
+        inbounds["edges"] = inbounds.index.get_level_values("edges")
+        anchor_relationships = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].tolist()
+        return anchor_relationships
+
+    def get_anchor_points_by_struct_name(self, struct_name):
+        elements = self.get_outbound_struct_by_name(struct_name)
+        elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        inbounds = self.get_inbound_relationships()
+        inbounds["edges"] = inbounds.index.get_level_values("edges")
+        relationships = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
+        outbounds = self.get_outbound_relationships()
+        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
+        loose_ends = pd.merge(relationships, outbounds, on="edges", suffixes=("_relationships", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].tolist()
+        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.tolist()
+        anchor_points = loose_ends+classes
+        return anchor_points
+
+    def get_restricted_struct_hypergraph(self, struct_name):
+        edge_names = []
+        for elem in drop_duplicates(self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist() + self.get_anchor_points_by_struct_name(struct_name)):
+            if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
+                edge_names.append(self.get_edge_by_phantom_name(elem))
+        return self.H.restrict_to_edges(edge_names)
+
+    def get_attributes_by_struct_name(self, struct_name):
+        attribute_names = []
+        for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+            if self.is_attribute(elem):
+                attribute_names.append(elem)
+        return attribute_names
 
     def is_attribute(self, name):
         return name in self.get_attributes().index
@@ -278,22 +310,25 @@ class Catalog:
         logging.info("Adding struct "+struct_name)
         if self.is_hyperedge(struct_name):
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
-        if not self.is_class(anchor) and not self.is_relationship(anchor):
-            raise ValueError(f"The anchor of '{struct_name}' (i.e., '{anchor}') must be either a class or a relationship")
+        for element in anchor:
+            if not self.is_class(element) and not self.is_relationship(element):
+                raise ValueError(f"The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a relationship")
+        # Check if the anchor is connected
+        # Check if the struct is connected
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
-        for elem in [anchor]+elements:
+        for elem in drop_duplicates(anchor+elements):
             if self.is_attribute(elem):
-                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem == anchor)}))
+                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_class(elem) or self.is_relationship(elem):
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': elem == anchor}))
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 if self.is_class(elem):
                     incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
             elif self.is_struct(elem) or self.is_set(elem):
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': elem == anchor}))
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
                     if outbound_elem not in [self.get_phantom_of_edge_by_name(anchor)] + elements:
                         incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
@@ -470,6 +505,7 @@ class Catalog:
             display(violations2_3)
 
         # IC-Atoms4: An attribute cannot belong to more than one class
+        # TODO: This must be relaxed to implement horizontal partitioning
         logging.info("Checking IC-Atoms4")
         matches2_4 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner').join(attributes, on='nodes', rsuffix='_nodes', how='inner')
         violations2_4 = matches2_4.groupby(matches2_4.index.get_level_values('nodes')).size()
@@ -542,10 +578,10 @@ class Catalog:
                 print("IC-Structs2 violation: There are missing elements in some struct")
                 display(violations3_2)
 
-            # IC-Structs3: Every struct has one anchor
+            # IC-Structs3: Every struct has at least one anchor
             logging.info("Checking IC-Structs3")
             matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].groupby('edges').size()
-            violations3_3 = structs[~structs["name"].isin((matches3_3[matches3_3 == 1].reset_index(drop=False))["edges"])]
+            violations3_3 = structs[~structs["name"].isin((matches3_3[matches3_3 > 0].reset_index(drop=False))["edges"])]
             if violations3_3.shape[0] > 0:
                 correct = False
                 print("IC-Structs3 violation: There are structs without exactly one anchor")
@@ -560,28 +596,38 @@ class Catalog:
                 print("IC-Structs4 violation: There are structs with an anchor which is neither class nor relationship")
                 display(violations3_4)
 
-            # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
-            logging.info("Checking IC-Structs-b")
+            # IC-Structs5: Anchors are connected
+            logging.info("Checking IC-Structs5")
             for struct in self.get_structs().index:
-                attribute_names = []
                 edge_names = []
-                for elem in self.get_outbound_struct_by_name(struct).reset_index(level='edges', drop=True).index:
-                    if self.is_attribute(elem):
-                        attribute_names.append(elem)
+                struct_outbounds = self.get_outbound_struct_by_name(struct)
+                for elem in struct_outbounds[struct_outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].reset_index(level='edges', drop=True).index:
                     if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
                         edge_names.append(self.get_edge_by_phantom_name(elem))
                 restricted_struct = self.H.restrict_to_edges(edge_names)
                 # Check if the restricted struct is connected
                 if not restricted_struct.is_connected(s=1):
                     correct = False
-                    print(f"IC-Structs-b violation: The struct '{struct}' is not connected")
-                anchor = self.get_anchor_by_edge_name(struct)
-                bipartite = restricted_struct.bipartite()
+                    print(f"IC-Structs-5 violation: The anchor of struct '{struct}' is not connected")
+
+            # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+            logging.info("Checking IC-Structs-b")
+            for struct_name in self.get_structs().index:
+                attribute_names = self.get_attributes_by_struct_name(struct_name)
+                restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                # Check if the restricted struct is connected
+                if not restricted_struct.is_connected(s=1):
+                    correct = False
+                    print(f"IC-Structs-b violation: The struct '{struct_name}' is not connected")
+                anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+                bipartite = restricted_struct.remove_edges(self.get_anchor_relationships_by_struct_name(struct_name)).bipartite()
                 for attr in attribute_names:
-                    paths = list(nx.all_simple_paths(bipartite, source=anchor, target=attr))
+                    paths = []
+                    for anchor in anchor_points:
+                        paths += list(nx.all_simple_paths(bipartite, source=anchor, target=attr))
                     if len(paths) > 1:
                         correct = False
-                        print(f"IC-Structs-b violation: The struct '{struct}' has multiple paths '{paths}'")
+                        print(f"IC-Structs-b violation: The struct '{struct_name}' has multiple paths '{paths}', which generates ambiguity in the meaning")
 
             # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
             logging.info("Checking IC-Structs-c -> To be implemented (for nested structs)")
@@ -590,30 +636,14 @@ class Catalog:
             logging.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
 
             # IC-Structs-e: All relationships inside a struct connect either a class or another struct (Definition 7-e)
-            # TODO: Implementation needs to be extended to structs
-            logging.info("Checking IC-Structs-e -> To be extended (for nested structs)")
-            for struct in self.get_structs().index:
-                class_names = []
-                relationship_names = []
-                for elem in self.get_outbound_struct_by_name(struct).reset_index(level='edges', drop=True).index:
-                    if self.is_class_phantom(elem):
-                        class_names.append(self.get_edge_by_phantom_name(elem))
-                    if self.is_relationship_phantom(elem):
-                        relationship_names.append(self.get_edge_by_phantom_name(elem))
-                restricted_struct = self.H.restrict_to_edges(relationship_names+class_names)
+            #               This needs to be relaxed to simply structs being connected
+            logging.info("Checking IC-Structs-e (relaxed)")
+            for struct_name in self.get_structs().index:
+                restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
                 if not restricted_struct.is_connected(s=1):
                     correct = False
-                    print(f"IC-Structs-e violation: The struct '{struct}' is not connected")
-                anchor = self.get_anchor_by_edge_name(struct)
-                bipartite = restricted_struct.bipartite()
-                paths = []
-                for cl in class_names:
-                    paths.append(nx.shortest_path(bipartite, source=anchor, target=cl))
-                for rel in relationship_names:
-                    if len([p for p in paths if rel in p]) == 0:
-                        correct = False
-                        print(f"IC-Structs-e violation: The relationship '{rel}' in '{struct}' does not participate in any path from '{self.get_edge_by_phantom_name(anchor)}' to its classes '{classes}'")
+                    print(f"IC-Structs-e violation: The struct '{struct_name}' is not connected")
 
             # ---------------------------------------------------------------------------------------------- ICs on sets
             # IC-Sets1: Every set has one phantom
@@ -664,17 +694,67 @@ class Catalog:
                 print("IC-Design2 violation: Atoms disconnected from the first level")
                 display(violations5_2)
 
-            # # IC-Design3: All relationships must appear in one struct with both its classes
+            # # IC-Design3: All domain elements must appear in some struct
             logging.info("Checking IC-Design3")
-            structs_with_name = structOutbounds
-            structs_with_name["name"] = structOutbounds.index.get_level_values("edges")
-            relationship_incidences_with_name = pd.concat([self.get_inbound_relationships(), self.get_outbound_relationships()], ignore_index=False)
-            relationship_incidences_with_name["name"] = relationship_incidences_with_name.index.get_level_values("edges")
-            matches5_3 = pd.merge(structs_with_name, relationship_incidences_with_name, on="nodes", suffixes=("_struct", "_relationship")).groupby(["name_struct", "name_relationship"]).size().reset_index(level=0, drop=True)
-            violations5_3 = relationships[~relationships.index.isin(matches5_3[matches5_3 == 3].index)]
+            atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_relationships().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
+            violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
                 correct = False
-                print("IC-Design3 violation: The three elements (i.e., relationship and two classes) of some relationship do not belong together to any struct")
+                print("IC-Design3 violation: Some atoms do not belong to any struct")
                 display(violations5_3)
 
         return correct
+
+
+    def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
+        # Check if the hypergraph contains all the projected attributes
+        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
+        if non_existing_attributes.shape[0] > 0:
+            raise ValueError(f"Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+
+        # Check if the hypergraph contains all the filter attributes
+        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
+        if non_existing_attributes.shape[0] > 0:
+            raise ValueError(f"Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+
+        # Check if the hypergraph contains all the join hyperedges
+        non_existing_relationships = df_difference(pd.DataFrame(join_edges), pd.concat([self.get_classes(), self.get_relationships()])["name"].reset_index(drop=True))
+        if non_existing_relationships.shape[0] > 0:
+            raise ValueError(f"Some class or relationship in the join does not belong to the catalog: {non_existing_relationships.values.tolist()[0]}")
+
+        restricted_domain = self.H.restrict_to_edges(join_edges)
+        # Check if the restricted domain is connected
+        if not restricted_domain.is_connected(s=1):
+            raise ValueError(f"Some query elements (i.e., attributes, classes and relationships) are not connected")
+
+        # Check if the restricted domain contains all the required attributes
+        hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_classes().reset_index(drop=False), left_on="uid", right_on="nodes", suffixes=('_classPhantoms', '_inbounds'), how="inner")
+        hop2 = pd.merge(hop1, self.get_outbound_classes().reset_index(drop=False), left_on="edges", right_on="edges", suffixes=('', '_outbounds'), how="inner")
+        hop3 = pd.merge(hop2, self.get_attributes().reset_index(drop=False), left_on="nodes_outbounds", right_on="nodes", suffixes=('_carriedOutbounds', '_attributes'), how="inner")
+        implicit_ids = hop3[hop3["misc_properties_attributes"].apply(lambda x: x.get('Identifier', False))]["nodes_attributes"]
+        explicit = restricted_domain.nodes.dataframe.reset_index(drop=False)["uid"]
+        missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([explicit, implicit_ids], ignore_index=True))
+        if missing_attributes.shape[0] > 0:
+            raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
+
+    def parse_query(self, query):
+        # Get the query and parse it
+        project_attributes = query.get("project")
+        join_edges = query.get("join")
+        filter_clause = query.get("filter", "TRUE")
+        filter_attributes = []
+        if "filter" in query:
+            where_clause = "WHERE "+filter_clause
+            where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
+
+            # This extracts the attribute names
+            # TODO: Parenthesis are not considered by now. It will require some kind of recursion
+            for atom in where_parsed.tokens:
+                if atom.ttype is None:  # This is a clause in the predicate
+                    for token in atom.tokens:
+                        if token.ttype is None:  # This is an attribute in the predicate
+                            filter_attributes.append(token.value)
+        required_attributes = list(set(project_attributes + filter_attributes))
+
+        self.check_query_structure(project_attributes, filter_attributes, join_edges, required_attributes)
+        return project_attributes, filter_attributes, join_edges, required_attributes, filter_clause

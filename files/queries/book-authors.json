@@ -1,6 +1,10 @@
 {
   "queries": [
     {
+      "project": ["A_ID"],
+      "join": ["Author"]
+    },
+    {
       "project": ["B_ID"],
       "join": ["Book"]
     },
