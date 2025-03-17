@@ -1,4 +1,4 @@
-# WORM (Wise Object-Relational Mapping)
+# Wise Object-Relational Mapping (WORM)
 
 This tool (based on [Modithas Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis) allows to generate database schemas and queries in a flexible way. 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
@@ -22,7 +22,7 @@ Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirem
 There are some tools available to facilitate usage and testing.
 
 ### catalogAction
-This is a flexible scripting tool that allows to manage the catalog, including creating, visualizing and translated it.
+This is a flexible scripting tool that allows to manage the catalog, including creating, storing (as a serialized hypergraph), visualizing (both textual and graphically) and translating it into SQL.
 
 ```
 usage: catalogAction.py [-h] [--hg_path <path>] [--hypergraph <hypergraph>]

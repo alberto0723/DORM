@@ -6,6 +6,8 @@ pd.set_option('display.width', 1000)
 
 from .catalog import Catalog
 
+logger = logging.getLogger("Relational")
+
 class Relational(Catalog):
     """This is a subclass of Catalog that implements the constraints for relational databases
     """
@@ -19,7 +21,7 @@ class Relational(Catalog):
         if correct:
             # --------------------------------------------------------------------- ICs about being a relational catalog
             # IC-Relational1: All sets are first level
-            logging.info("Checking IC-Relational1")
+            logger.info("Checking IC-Relational1")
             matches6_1 = self.get_inbound_firstLevel().reset_index(drop=False)
             violations6_1 = sets[~sets["name"].isin(matches6_1["edges"])]
             if violations6_1.shape[0] > 0:
@@ -28,7 +30,7 @@ class Relational(Catalog):
                 display(violations6_1)
 
             # IC-Relational2: All second level are structs
-            logging.info("Checking IC-Relational2")
+            logger.info("Checking IC-Relational2")
             matches6_2 = self.get_inbound_firstLevel().merge(
                             self.get_outbounds().reset_index(drop=False), on="edges", how="inner", suffixes=[None, "_firsthop"]).merge(
                             self.get_inbounds().reset_index(drop=False), on="nodes", how="inner", suffixes=[None, "_secondhop"])
@@ -39,7 +41,7 @@ class Relational(Catalog):
                 display(violations6_2)
 
             # IC-Relational3: All structs are at second level
-            logging.info("Checking IC-Relational3")
+            logger.info("Checking IC-Relational3")
             violations6_3 = structs[~structs["name"].isin(matches6_2["edges_secondhop"])]
             if violations6_3.shape[0] > 0:
                 correct = False

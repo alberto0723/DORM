@@ -10,6 +10,8 @@ pd.set_option('display.width', 1000)
 from .relational import Relational
 from .tools import df_difference, show_textual_hypergraph, show_graphical_hypergraph, combine_tables, drop_duplicates
 
+logger = logging.getLogger("pureRelational")
+
 class PostgreSQL(Relational):
     """This is a subclass of Relational that implements the code generation in PostgreSQL
     """
@@ -37,7 +39,7 @@ class PostgreSQL(Relational):
         if correct:
             # ---------------------------------------------------------------- ICs about being a pure relational catalog
             # IC-PureRelational1: All relationships from the anchor of a struct must be to one (or less)
-            logging.info("Checking IC-PureRelational1")
+            logger.info("Checking IC-PureRelational1")
             firstlevels = self.get_inbound_firstLevel()
             # For each table
             for table in firstlevels.itertuples():
@@ -61,12 +63,12 @@ class PostgreSQL(Relational):
         return correct
 
     def create_schema(self, verbose=False):
-        logging.info("Creating tables")
+        logger.info("Creating tables")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
             clause_PK = None
-            logging.info("-- Creating table " + table.Index[0])
+            logger.info("-- Creating table " + table.Index[0])
             sentence = "CREATE TABLE IF NOT EXISTS " + table.Index[0] + " (\n"
             struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
             # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
@@ -152,7 +154,7 @@ class PostgreSQL(Relational):
             return join_clause+'\n '+self.generate_joins(tables, query_classes, query_relationships, visited, alias_table, alias_attr)
 
     def generate_SQL(self, query, verbose=True):
-        logging.info("Executing query")
+        logger.info("Executing query")
         project_attributes, filter_attributes, join_edges, required_attributes, filter_clause = self.parse_query(query)
 
         # Get the tables where each required domain elements is found
