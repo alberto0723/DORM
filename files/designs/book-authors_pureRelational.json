@@ -18,7 +18,7 @@
         {"kind": "Struct",
          "name": "Writes_type",
          "anchor": ["Writes"],
-         "elements": ["Book", "Author"]},
+         "elements": []},
         {"kind": "Set",
          "name": "Writes_table",
          "elements": ["Writes_type"]}

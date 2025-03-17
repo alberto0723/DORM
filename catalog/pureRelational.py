@@ -20,14 +20,10 @@ class PostgreSQL(Relational):
 
     def check_toOne(self, path):
         correct = True
-        print("Path:", path)
         for i, current in enumerate(path):
             if self.is_relationship(current):
-                print("Current relationship:", current)
                 if len(path) > i+1:
-                    print(path[i+1])
                     properties = self.H.get_cell_properties(current, path[i+1])
-                    print(properties)
                     if "Multiplicity" in properties:
                         correct = correct and (properties.get("Multiplicity") <= 1)
                     else:
@@ -117,7 +113,7 @@ class PostgreSQL(Relational):
             # Generate joins for classes already in visited
             struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(current_table).index[0][1])
             current_classes = []
-            # If all relationships in the anchor are in the query anchor points are considered for join
+            # If all relationships in the anchor are in the query, then anchor points are considered for join
             if all(rel in query_relationships for rel in self.get_anchor_relationships_by_struct_name(struct_name)):
                 for phantom_name in self.get_anchor_points_by_struct_name(struct_name):
                     current_classes.append(self.get_edge_by_phantom_name(phantom_name))
@@ -128,7 +124,7 @@ class PostgreSQL(Relational):
                     if class_name in query_classes:
                         current_classes.append(class_name)
             joins = []
-            for c in current_classes:
+            for c in drop_duplicates(current_classes):
                 if c in visited:
                     identifier = self.get_class_id_by_name(c)
                     joins.append(alias_table[visited[c]]+"."+identifier+"="+alias_table[current_table]+"."+identifier)
@@ -156,17 +152,11 @@ class PostgreSQL(Relational):
     def generate_SQL(self, query, verbose=True):
         logger.info("Executing query")
         project_attributes, filter_attributes, join_edges, required_attributes, filter_clause = self.parse_query(query)
-
         # Get the tables where each required domain elements is found
         tables = []
         classes = []
         relationships = []
         for elem in join_edges:
-            # Split join edges into classes and relationships
-            if self.is_class(elem):
-                classes.append(elem)
-            if self.is_relationship(elem):
-                relationships.append(elem)
             # Find the tables (aka fist level elements) where the element belongs
             node_name = self.get_phantom_of_edge_by_name(elem)
             second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes') == node_name]
@@ -177,7 +167,25 @@ class PostgreSQL(Relational):
             #first_levels = self.get_outbound_sets()[(self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)) & (self.get_outbound_sets().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels.sort()
-            tables.append(first_levels)
+            # Split join edges into classes and relationships
+            if self.is_relationship(elem):
+                relationships.append(elem)
+                # If the element is a relationship, any table containing it is an option
+                tables.append(first_levels)
+            if self.is_class(elem):
+                classes.append(elem)
+                # If it is a class, it may be vertically partitioned
+                # We need to generate joins of these tables that cover all required attributes one by one
+                # Get the tables independently for every attribute in the class
+                for attr in required_attributes:
+                    attr_tables = []
+                    for table in first_levels:
+                        kind = self.H.get_cell_properties(table, attr, "Kind")
+                        if kind is not None:
+                            attr_tables.append(table)
+                    if attr_tables:
+                        tables.append(attr_tables)
+
         # Generate combinations of the tables of each element to get the combinations that cover all of them
         query_options = combine_tables(drop_duplicates(tables))
         if len(query_options) > 1:
@@ -218,6 +226,6 @@ class PostgreSQL(Relational):
                 for attr in alias_attr.items():
                     modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+attr[0])
             # Build the WHERE clause
-            sentence += "\n WHERE " + modified_filter_clause + ";"
+            sentence += "\nWHERE " + modified_filter_clause + ";"
             sentences.append(sentence)
         return sentences

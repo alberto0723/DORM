@@ -5,7 +5,7 @@
       "join": ["Author"]
     },
     {
-      "project": ["B_ID"],
+      "project": ["B_title"],
       "join": ["Book"]
     },
     {
@@ -25,6 +25,14 @@
       "project": ["A_ID", "B_ID"],
       "join": ["Author", "Book", "Writes"],
       "filter": "A_name = 'hello'"
+    },
+    {
+      "project": ["B_ID", "B_title", "B_editorial"],
+      "join": ["Book"]
+    },
+    {
+      "project": ["A_ID", "A_name", "A_gender", "A_age", "A_address"],
+      "join": ["Author"]
     }
   ]
 }
