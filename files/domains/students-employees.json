@@ -1,0 +1,66 @@
+{
+  "classes": [
+    {
+      "name": "People",
+      "prop": { "Count": 4000 },
+      "attr": [
+        { "name": "P_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 4000, "Identifier": true}},
+        { "name": "P_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 3900, "Identifier": false}},
+        { "name": "P_occupation", "prop": {"DataType": "String", "Size": 10, "DistinctVals": 2, "Identifier": false}}
+        ]
+      },
+    {
+      "name": "Students",
+      "prop": { "Count": 2000 },
+      "attr": [
+        { "name": "S_university", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100, "Identifier": false}}
+        ]
+      },
+    {
+      "name": "Workers",
+      "prop": { "Count": 2000 },
+      "attr": [
+        { "name": "W_company", "prop": {"DataType": "String", "Size": 50, "DistinctVals": 100, "Identifier": false}}
+        ]
+      }
+
+    ],
+  "associations": [
+    {
+      "name": "Friends",
+      "ends": [
+        { "name": "Students",
+          "prop": { "Multiplicity": 3.5 }
+          },
+        {
+          "name": "Workers",
+          "prop": { "Multiplicity": 5.5 }
+          }
+        ]
+      }
+    ],
+  "generalizations": [
+      {
+        "name": "G1",
+        "prop": {
+          "Disjoint": true,
+          "Complete": true
+        },
+        "superclass": "People",
+        "subclasses": [
+          {
+            "name": "Students",
+            "prop": {
+              "constraint": "P_occupation='studies'"
+            }
+          },
+          {
+            "name": "Workers",
+            "prop": {
+              "constraint": "P_occupation='works'"
+            }
+          }
+        ]
+      }
+    ]
+  }

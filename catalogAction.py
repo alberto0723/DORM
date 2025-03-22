@@ -24,9 +24,12 @@ def create(args):
     cat = catalog.Catalog()
     for cl in domain.get("classes"):
         cat.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
-    for rel in domain.get("relationships"):
-        cat.add_relationship(rel.get("name"), rel.get("ends"))
+    for ass in domain.get("associations"):
+        cat.add_association(ass.get("name"), ass.get("ends"))
+    for gen in domain.get("generalizations"):
+        cat.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
     return cat
+
 
 def design(args):
     logging.info("Creating design: "+args.dsg_spec)

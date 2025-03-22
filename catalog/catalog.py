@@ -82,9 +82,9 @@ class Catalog:
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Class')]
         return phantoms
 
-    def get_phantom_relationships(self):
+    def get_phantom_associations(self):
         nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Relationship')]
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Association')]
         return phantoms
 
     def get_edge_by_phantom_name(self, phantom_name):
@@ -98,10 +98,10 @@ class Catalog:
         classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
         return classes
 
-    def get_relationships(self):
+    def get_associations(self):
         edges = self.get_edges()
-        relationships = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Relationship')]
-        return relationships
+        associations = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Association')]
+        return associations
 
     def get_structs(self):
         edges = self.get_edges()
@@ -123,9 +123,9 @@ class Catalog:
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'ClassIncidence')]
         return inbounds
 
-    def get_inbound_relationships(self):
+    def get_inbound_associations(self):
         incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'RelationshipIncidence')]
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'AssociationIncidence')]
         return inbounds
 
     def get_inbound_structs(self):
@@ -143,9 +143,9 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
         return outbounds
 
-    def get_outbound_relationships(self):
+    def get_outbound_associations(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'RelationshipIncidence')]
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
         return outbounds
 
     def get_outbound_structs(self):
@@ -153,8 +153,8 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
-    def get_outbound_relationship_by_name(self, rel_name):
-        elements = self.get_outbound_relationships().query('edges == "' + rel_name + '"')
+    def get_outbound_association_by_name(self, rel_name):
+        elements = self.get_outbound_associations().query('edges == "' + rel_name + '"')
         return elements
 
     def get_outbound_struct_by_name(self, struct_name):
@@ -194,23 +194,23 @@ class Catalog:
         firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevelIncidences
 
-    def get_anchor_relationships_by_struct_name(self, struct_name):
+    def get_anchor_associations_by_struct_name(self, struct_name):
         elements = self.get_outbound_struct_by_name(struct_name)
         anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
-        inbounds = self.get_inbound_relationships()
+        inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
-        anchor_relationships = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].tolist()
-        return anchor_relationships
+        anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].tolist()
+        return anchor_associations
 
     def get_anchor_points_by_struct_name(self, struct_name):
         elements = self.get_outbound_struct_by_name(struct_name)
         elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
-        inbounds = self.get_inbound_relationships()
+        inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
-        relationships = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
-        outbounds = self.get_outbound_relationships()
+        associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
+        outbounds = self.get_outbound_associations()
         outbounds["nodes"] = outbounds.index.get_level_values("nodes")
-        loose_ends = pd.merge(relationships, outbounds, on="edges", suffixes=("_relationships", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].tolist()
+        loose_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].tolist()
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.tolist()
         anchor_points = loose_ends+classes
         return anchor_points
@@ -218,7 +218,7 @@ class Catalog:
     def get_restricted_struct_hypergraph(self, struct_name):
         edge_names = []
         for elem in drop_duplicates(self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist() + self.get_anchor_points_by_struct_name(struct_name)):
-            if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
+            if self.is_class_phantom(elem) or self.is_association_phantom(elem):
                 edge_names.append(self.get_edge_by_phantom_name(elem))
         return self.H.restrict_to_edges(edge_names)
 
@@ -241,14 +241,14 @@ class Catalog:
     def is_class_phantom(self, name):
         return name in self.get_phantom_classes().index
 
-    def is_relationship_phantom(self, name):
-        return name in self.get_phantom_relationships().index
+    def is_association_phantom(self, name):
+        return name in self.get_phantom_associations().index
 
     def is_hyperedge(self, name):
         return name in self.get_edges()["name"]
 
-    def is_relationship(self, name):
-        return name in self.get_relationships().index
+    def is_association(self, name):
+        return name in self.get_associations().index
 
     def is_struct(self, name):
         return name in self.get_structs().index
@@ -296,26 +296,53 @@ class Catalog:
         self.H.add_edges_from(edges)
         self.H.add_incidences_from(incidences)
 
-    def add_relationship(self, relationship_name, ends_list):
+    def add_association(self, association_name, ends_list):
         """Besides the association name, this method requires
         a list of ends (usually should be only two), where each end is a dictionary with the keys 'name' and 'multiplicity'.
         The latter is another dictionary that contains
-        DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
+        'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
-        logger.info("Adding relationship "+relationship_name)
-        if self.is_hyperedge(relationship_name):
-            raise ValueError(f"The hyperedge '{relationship_name}' already exists")
+        logger.info("Adding association "+association_name)
+        if self.is_hyperedge(association_name):
+            raise ValueError(f"The hyperedge '{association_name}' already exists")
         if len(ends_list) != 2:
-            raise ValueError(f"The relationship '{relationship_name}' should have exactly two ends, but has {len(ends_list)}")
-        self.H.add_edge(relationship_name, Kind='Relationship')
+            raise ValueError(f"The association '{association_name}' should have exactly two ends, but has {len(ends_list)}")
+        self.H.add_edge(association_name, Kind='Association')
         # This adds a special phantom node required to represent different cases of inclusion in structs
-        self.H.add_node(self.config.prepend_phantom+relationship_name, Kind='Phantom', Subkind='Relationship')
+        self.H.add_node(self.config.prepend_phantom+association_name, Kind='Phantom', Subkind='Association')
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(relationship_name, self.config.prepend_phantom+relationship_name, {'Kind': 'RelationshipIncidence', 'Direction': 'Inbound'})]
+        incidences = [(association_name, self.config.prepend_phantom+association_name, {'Kind': 'AssociationIncidence', 'Direction': 'Inbound'})]
         for end in ends_list:
-            end['prop']['Kind'] = 'RelationshipIncidence'
+            if not self.is_class(end['name']):
+                raise ValueError(f"The class '{end['name']}' in '{association_name}' does not exists")
+            end['prop']['Kind'] = 'AssociationIncidence'
             end['prop']['Direction'] = 'Outbound'
-            incidences.append((relationship_name, self.config.prepend_phantom+end['name'], end['prop']))
+            incidences.append((association_name, self.config.prepend_phantom+end['name'], end['prop']))
+        self.H.add_incidences_from(incidences)
+
+    def add_generalization(self, generalization_name, properties, superclass, subclasses_list):
+        """ Besides the generalization name, this method requires some properties (expected to be two booleans for
+        disjointness and completeness, the name of the superclass and a list of subclasses,
+        where each subclass is a dictionary with the keys 'name' and 'prop'.
+        The latter is another dictionary that contains at least one constraint predicate that discriminates the subclass.
+        """
+        logger.info("Adding generalization "+generalization_name)
+        if self.is_hyperedge(generalization_name):
+            raise ValueError(f"The hyperedge '{generalization_name}' already exists")
+        self.H.add_edge(generalization_name, Kind='Generalization', Disjoint=properties.get('Disjoint', False), Complete=properties.get('Complete', False))
+        if not self.is_class(superclass):
+            raise ValueError(f"The superclass '{superclass}' in '{generalization_name}' does not exists")
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(generalization_name,  self.config.prepend_phantom+superclass, {'Kind': 'GeneralizationIncidence', 'Direction': 'Inbound'})]
+        if len(subclasses_list) < 1:
+            raise ValueError(f"The generalization '{generalization_name}' should have at least one subclass")
+        for sub in subclasses_list:
+            if not self.is_class(sub['name']):
+                raise ValueError(f"The subclass '{superclass}' in '{generalization_name}' does not exists")
+            # TODO: Discriminant should be validated here
+            sub['prop']['Kind'] = 'GeneralizationIncidence'
+            sub['prop']['Direction'] = 'Outbound'
+            incidences.append((generalization_name, self.config.prepend_phantom+sub['name'], sub['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_struct(self, struct_name, anchor, elements):
@@ -323,9 +350,10 @@ class Catalog:
         if self.is_hyperedge(struct_name):
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
         for element in anchor:
-            if not self.is_class(element) and not self.is_relationship(element):
-                raise ValueError(f"The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a relationship")
+            if not self.is_class(element) and not self.is_association(element):
+                raise ValueError(f"The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a association")
         # Check if the anchor is connected
+        # TODO: Does this need to be checked?
         # Check if the struct is connected
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
@@ -335,7 +363,7 @@ class Catalog:
         for elem in drop_duplicates(anchor+elements):
             if self.is_attribute(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-            elif self.is_class(elem) or self.is_relationship(elem):
+            elif self.is_class(elem) or self.is_association(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 if self.is_class(elem):
                     incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
@@ -368,7 +396,7 @@ class Catalog:
         for elem in elements:
             if self.is_attribute(elem):
                 incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-            elif self.is_relationship(elem) or self.is_struct(elem):
+            elif self.is_association(elem) or self.is_struct(elem):
                 incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
                     if outbound_elem not in elements:
@@ -406,7 +434,7 @@ class Catalog:
         phantoms = self.get_phantoms()
         attributes = self.get_attributes()
         classes = self.get_classes()
-        relationships = self.get_relationships()
+        associations = self.get_associations()
         structs = self.get_structs()
         sets = self.get_sets()
         inbounds = self.get_inbounds()
@@ -534,22 +562,22 @@ class Catalog:
             print("IC-Atoms5 violation: The number of different values of an attribute is greater than the cardinality of its class")
             display(violations2_5)
 
-        # IC-Atoms6: Every relationship has one phantom
+        # IC-Atoms6: Every association has one phantom
         logger.info("Checking IC-Atoms6")
         matches2_6 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-        violations2_6 = relationships[~relationships["name"].isin((matches2_6.reset_index(drop=False))["edges"])]
+        violations2_6 = associations[~associations["name"].isin((matches2_6.reset_index(drop=False))["edges"])]
         if violations2_6.shape[0] > 0:
             correct = False
-            print("IC-Atoms6 violation: There are relationships without phantom")
+            print("IC-Atoms6 violation: There are associations without phantom")
             display(violations2_6)
 
-        # IC-Atoms7: Every relationship has two ends (Definition 4)
+        # IC-Atoms7: Every association has two ends (Definition 4)
         logger.info("Checking IC-Atoms7")
-        matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(relationships, on='edges', rsuffix='_edges', how='inner')
+        matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(associations, on='edges', rsuffix='_edges', how='inner')
         violations2_7 = matches2_7.groupby(matches2_7.index.get_level_values('edges')).size()
         if violations2_7[violations2_7 != 2].shape[0] > 0:
             correct = False
-            print("IC-Atoms7 violation: There are non-binary relationships")
+            print("IC-Atoms7 violation: There are non-binary associations")
             display(violations2_7[violations2_7 != 2])
 
         # IC-Atoms8: The number of different values of an identified must coincide with the cardinality of its class
@@ -598,13 +626,13 @@ class Catalog:
                 print("IC-Structs3 violation: There are structs without exactly one anchor")
                 display(violations3_3)
 
-            # IC-Structs4: Anchors can be either classes or relationships
+            # IC-Structs4: Anchors can be either classes or associations
             logger.info("Checking IC-Structs3")
             matches3_4 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].reset_index(drop=False)['nodes']
-            violations3_4 = df_difference(matches3_4, pd.concat([self.get_phantom_classes(), self.get_phantom_relationships()])["name"])
+            violations3_4 = df_difference(matches3_4, pd.concat([self.get_phantom_classes(), self.get_phantom_associations()])["name"])
             if violations3_4.shape[0] > 0:
                 correct = False
-                print("IC-Structs4 violation: There are structs with an anchor which is neither class nor relationship")
+                print("IC-Structs4 violation: There are structs with an anchor which is neither class nor association")
                 display(violations3_4)
 
             # IC-Structs5: Anchors are connected
@@ -613,7 +641,7 @@ class Catalog:
                 edge_names = []
                 struct_outbounds = self.get_outbound_struct_by_name(struct)
                 for elem in struct_outbounds[struct_outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].reset_index(level='edges', drop=True).index:
-                    if self.is_class_phantom(elem) or self.is_relationship_phantom(elem):
+                    if self.is_class_phantom(elem) or self.is_association_phantom(elem):
                         edge_names.append(self.get_edge_by_phantom_name(elem))
                 restricted_struct = self.H.restrict_to_edges(edge_names)
                 # Check if the restricted struct is connected
@@ -621,7 +649,7 @@ class Catalog:
                     correct = False
                     print(f"IC-Structs-5 violation: The anchor of struct '{struct}' is not connected")
 
-            # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-b)
+            # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-b)
             logger.info("Checking IC-Structs-b")
             for struct_name in self.get_structs().index:
                 attribute_names = self.get_attributes_by_struct_name(struct_name)
@@ -631,7 +659,7 @@ class Catalog:
                     correct = False
                     print(f"IC-Structs-b violation: The struct '{struct_name}' is not connected")
                 anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                bipartite = restricted_struct.remove_edges(self.get_anchor_relationships_by_struct_name(struct_name)).bipartite()
+                bipartite = restricted_struct.remove_edges(self.get_anchor_associations_by_struct_name(struct_name)).bipartite()
                 for attr in attribute_names:
                     paths = []
                     for anchor in anchor_points:
@@ -640,13 +668,13 @@ class Catalog:
                         correct = False
                         print(f"IC-Structs-b violation: The struct '{struct_name}' has multiple paths '{paths}', which generates ambiguity in the meaning of some attribute")
 
-            # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of relationships, which are all part of the struct, too (Definition 7-c)
+            # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-c)
             logger.info("Checking IC-Structs-c -> To be implemented (for nested structs)")
 
-            # IC-Structs-d: All sets inside a struct must contain a unique path of relationships connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
+            # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
             logger.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
 
-            # IC-Structs-e: All relationships inside a struct connect either a class or another struct (Definition 7-e)
+            # IC-Structs-e: All associations inside a struct connect either a class or another struct (Definition 7-e)
             #               This needs to be relaxed to simply structs being connected
             logger.info("Checking IC-Structs-e (relaxed)")
             for struct_name in self.get_structs().index:
@@ -698,7 +726,7 @@ class Catalog:
             # IC-Design2: All the atoms in the domain are connected to the first level
             logger.info("Checking IC-Design2")
             matches5_2 = self.get_inbound_firstLevel().join(pd.concat([self.get_outbounds(), self.get_transitives()]).reset_index(level="nodes"), on="edges", rsuffix='_tokeep', how='inner')
-            atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_relationships()])
+            atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_associations()])
             violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2["nodes"])]
             if violations5_2.shape[0] > 0:
                 correct = False
@@ -707,7 +735,7 @@ class Catalog:
 
             # # IC-Design3: All domain elements must appear in some struct
             logger.info("Checking IC-Design3")
-            atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_relationships().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
+            atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
                 correct = False
@@ -729,14 +757,14 @@ class Catalog:
             raise ValueError(f"Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         # Check if the hypergraph contains all the join hyperedges
-        non_existing_relationships = df_difference(pd.DataFrame(join_edges), pd.concat([self.get_classes(), self.get_relationships()])["name"].reset_index(drop=True))
-        if non_existing_relationships.shape[0] > 0:
-            raise ValueError(f"Some class or relationship in the join does not belong to the catalog: {non_existing_relationships.values.tolist()[0]}")
+        non_existing_associations = df_difference(pd.DataFrame(join_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
+        if non_existing_associations.shape[0] > 0:
+            raise ValueError(f"Some class or association in the join does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
         restricted_domain = self.H.restrict_to_edges(join_edges)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
-            raise ValueError(f"Some query elements (i.e., attributes, classes and relationships) are not connected")
+            raise ValueError(f"Some query elements (i.e., attributes, classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes
         hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_classes().reset_index(drop=False), left_on="uid", right_on="nodes", suffixes=('_classPhantoms', '_inbounds'), how="inner")
@@ -756,8 +784,8 @@ class Catalog:
                 raise ValueError(f"Projected '{a}' is not an attribute")
         join_edges = query.get("join")
         for e in join_edges:
-            if not (self.is_class(e) or self.is_relationship(e)):
-                raise ValueError(f"Chosen edge '{e}' is neither a class nor a relationship")
+            if not (self.is_class(e) or self.is_association(e)):
+                raise ValueError(f"Chosen edge '{e}' is neither a class nor a association")
         filter_clause = query.get("filter", "TRUE")
         filter_attributes = []
         if "filter" in query:

@@ -21,20 +21,20 @@ class PostgreSQL(Relational):
     def check_toOne(self, path):
         correct = True
         for i, current in enumerate(path):
-            if self.is_relationship(current):
+            if self.is_association(current):
                 if len(path) > i+1:
                     properties = self.H.get_cell_properties(current, path[i+1])
                     if "Multiplicity" in properties:
                         correct = correct and (properties.get("Multiplicity") <= 1)
                     else:
-                        raise ValueError(f"Checking multiplicity: Multiplicity not provided for relationship '{current}-{path[i+1]}'")
+                        raise ValueError(f"Checking multiplicity: Multiplicity not provided for association '{current}-{path[i+1]}'")
         return correct
 
     def is_correct(self, design=False):
         correct = super().is_correct(design)
         if correct:
             # ---------------------------------------------------------------- ICs about being a pure relational catalog
-            # IC-PureRelational1: All relationships from the anchor of a struct must be to one (or less)
+            # IC-PureRelational1: All associations from the anchor of a struct must be to one (or less)
             logger.info("Checking IC-PureRelational1")
             firstlevels = self.get_inbound_firstLevel()
             # For each table
@@ -43,7 +43,7 @@ class PostgreSQL(Relational):
                     struct_name = self.get_edge_by_phantom_name(struct.Index[1])
                     members = self.get_outbound_struct_by_name(struct_name).index.get_level_values(1).tolist()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                    dont_cross = self.get_anchor_relationships_by_struct_name(struct_name)
+                    dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
                     restricted_struct = self.get_restricted_struct_hypergraph(struct_name).remove_edges(dont_cross)
                     bipartite = restricted_struct.bipartite()
                     for anchor in anchor_points:
@@ -77,8 +77,8 @@ class PostgreSQL(Relational):
                     attribute_list.append(elem.Index[1])
                 elif self.is_class_phantom(elem.Index[1]):
                     attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1])))
-                elif self.is_relationship_phantom(elem.Index[1]):
-                    ends = self.get_outbound_relationship_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
+                elif self.is_association_phantom(elem.Index[1]):
+                    ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
                     for end in ends.itertuples():
                         attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
                 else:
@@ -103,18 +103,18 @@ class PostgreSQL(Relational):
             if verbose:
                 print(sentence)
 
-    def generate_joins(self, tables, query_classes, query_relationships, visited, alias_table, alias_attr):
+    def generate_joins(self, tables, query_classes, query_associations, visited, alias_table, alias_attr):
         first_table = (visited == {})
         unjoinable = []
         while tables:
             current_table = tables.pop(0)
             # TODO: Consider that there could be more than one connected component (provided by the query) in the table
-            #  (relationships should be used to choose the right one)
+            #  (associations should be used to choose the right one)
             # Generate joins for classes already in visited
             struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(current_table).index[0][1])
             current_classes = []
-            # If all relationships in the anchor are in the query, then anchor points are considered for join
-            if all(rel in query_relationships for rel in self.get_anchor_relationships_by_struct_name(struct_name)):
+            # If all associations in the anchor are in the query, then anchor points are considered for join
+            if all(rel in query_associations for rel in self.get_anchor_associations_by_struct_name(struct_name)):
                 for phantom_name in self.get_anchor_points_by_struct_name(struct_name):
                     current_classes.append(self.get_edge_by_phantom_name(phantom_name))
             # If classes are in the query, they are considered for join
@@ -147,7 +147,7 @@ class PostgreSQL(Relational):
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_relationships, visited, alias_table, alias_attr)
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, visited, alias_table, alias_attr)
 
     def generate_SQL(self, query, verbose=True):
         logger.info("Executing query")
@@ -155,7 +155,7 @@ class PostgreSQL(Relational):
         # Get the tables where each required domain elements is found
         tables = []
         classes = []
-        relationships = []
+        associations = []
         for elem in join_edges:
             # Find the tables (aka fist level elements) where the element belongs
             node_name = self.get_phantom_of_edge_by_name(elem)
@@ -167,10 +167,10 @@ class PostgreSQL(Relational):
             #first_levels = self.get_outbound_sets()[(self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)) & (self.get_outbound_sets().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
             first_levels.sort()
-            # Split join edges into classes and relationships
-            if self.is_relationship(elem):
-                relationships.append(elem)
-                # If the element is a relationship, any table containing it is an option
+            # Split join edges into classes and associations
+            if self.is_association(elem):
+                associations.append(elem)
+                # If the element is an association, any table containing it is an option
                 tables.append(first_levels)
             if self.is_class(elem):
                 classes.append(elem)
@@ -221,7 +221,7 @@ class PostgreSQL(Relational):
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
-                sentence += "\nFROM "+self.generate_joins(option, classes, relationships,{}, alias_table, alias_attr)
+                sentence += "\nFROM "+self.generate_joins(option, classes, associations,{}, alias_table, alias_attr)
                 # Add alias to the WHERE clause if there is more than one table
                 for attr in alias_attr.items():
                     modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+attr[0])
