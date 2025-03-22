@@ -103,6 +103,11 @@ class Catalog:
         associations = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Association')]
         return associations
 
+    def get_generalizations(self):
+        edges = self.get_edges()
+        associations = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Generalization')]
+        return associations
+
     def get_structs(self):
         edges = self.get_edges()
         structs = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Struct')]
@@ -128,6 +133,11 @@ class Catalog:
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'AssociationIncidence')]
         return inbounds
 
+    def get_inbound_generalizations(self):
+        incidences = self.get_incidences()
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'GeneralizationIncidence')]
+        return inbounds
+
     def get_inbound_structs(self):
         incidences = self.get_incidences()
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'StructIncidence')]
@@ -146,6 +156,11 @@ class Catalog:
     def get_outbound_associations(self):
         incidences = self.get_incidences()
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
+        return outbounds
+
+    def get_outbound_generalizations(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence')]
         return outbounds
 
     def get_outbound_structs(self):
@@ -435,6 +450,7 @@ class Catalog:
         attributes = self.get_attributes()
         classes = self.get_classes()
         associations = self.get_associations()
+        generalizations = self.get_generalizations()
         structs = self.get_structs()
         sets = self.get_sets()
         inbounds = self.get_inbounds()
@@ -476,8 +492,8 @@ class Catalog:
 
         # IC-Generic4: Every edge has at least one inbound
         logger.info("Checking IC-Generic4")
-        matches1_4 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
-        violations1_4 = edges[~edges["name"].isin((matches1_4.reset_index(drop=False))["edges"])]
+        matches1_4 = self.get_inbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
+        violations1_4 = df_difference(edges.reset_index(drop=False)['edges'], matches1_4)
         if violations1_4.shape[0] > 0:
             correct = False
             print("IC-Generic4 violation: There are edges without inbound")
@@ -485,8 +501,8 @@ class Catalog:
 
         # IC-Generic5: Every edge has at least one outbound
         logger.info("Checking IC-Generic5")
-        matches1_5 = outbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
-        violations1_5 = edges[~edges["name"].isin((matches1_5.reset_index(drop=False))["edges"])]
+        matches1_5 = self.get_outbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
+        violations1_5 = df_difference(edges.reset_index(drop=False)['edges'], matches1_5)
         if violations1_5.shape[0] > 0:
             correct = False
             print("IC-Generic4 violation: There are edges without outbound")
@@ -517,15 +533,6 @@ class Catalog:
             display(violations1_8)
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
-        # IC-Atoms1: Every class has one ID which is outbound
-        logger.info("Checking IC-Atoms1")
-        matches2_1 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
-        violations2_1 = classes[~classes["name"].isin((matches2_1.reset_index(drop=False))["edges"])]
-        if violations2_1.shape[0] > 0:
-            correct = False
-            print("IC-Atoms1 violation: There are classes without identifier")
-            display(violations2_1)
-
         # IC-Atoms2: Every ID belongs to one class which is outbound
         logger.info("Checking IC-Atoms2")
         matches2_2 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
@@ -588,6 +595,31 @@ class Catalog:
             correct = False
             print("IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
             display(violations2_8)
+
+        # IC-Atoms9: Every generalization has disjointness and completeness constraints
+        logger.info("Checking IC-Atoms9")
+        matches2_9 = generalizations[generalizations.apply(lambda row: "Disjoint" in row["misc_properties"] and "Complete" in row["misc_properties"], axis=1)]
+        violations2_9 = df_difference(generalizations["name"], matches2_9["name"])
+        if violations2_9.shape[0] > 0:
+            correct = False
+            print("IC-Atoms9 violation: There are generalizations without completeness and disjointness constraints")
+            display(violations2_9)
+
+        # IC-Atoms11: Every generalization outgoing must have a discriminant
+        logger.info("Checking IC-Atoms10 -> TO BE IMPLEMENTED")
+
+        # IC-Atoms12: Generalizations cannot have cycles
+        logger.info("Checking IC-Atoms11 -> TO BE IMPLEMENTED")
+
+        # IC-Atoms1: Every class has one ID which is outbound
+        logger.info("Checking IC-Atoms1")
+        matches2_1 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        violations2_1 = classes[~classes["name"].isin((matches2_1.reset_index(drop=False))["edges"])]
+        if violations2_1.shape[0] > 0:
+            correct = False
+            print("IC-Atoms1 violation: There are classes without identifier")
+            display(violations2_1)
+
 
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
