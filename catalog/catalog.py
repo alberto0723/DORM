@@ -599,7 +599,7 @@ class Catalog:
             print("IC-Atoms7 violation: There are non-binary associations")
             display(violations2_7[violations2_7 != 2])
 
-        # IC-Atoms8: The number of different values of an identified must coincide with the cardinality of its class
+        # IC-Atoms8: The number of different values of an identifier must coincide with the cardinality of its class
         logger.info("Checking IC-Atoms8")
         matches2_8 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
         violations2_8 = matches2_8[matches2_8.apply(lambda row: row["misc_properties"]["Identifier"] and row["misc_properties"]["DistinctVals"] != row["misc_properties_class"]["Count"], axis=1)]
@@ -619,8 +619,7 @@ class Catalog:
 
         # IC-Atoms10: Every generalization outgoing must have a discriminant
         logger.info("Checking IC-Atoms10")
-        matches2_10 = self.get_outbound_generalizations()[self.get_outbound_generalizations().apply(lambda row: "Constraint" in row["misc_properties"], axis=1)].reset_index(drop=False)['edges']
-        violations2_10 = df_difference(generalizations.reset_index(drop=False)['edges'], matches2_10)
+        violations2_10 = self.get_outbound_generalizations()[~self.get_outbound_generalizations().apply(lambda row: "Constraint" in row["misc_properties"], axis=1)]
         if violations2_10.shape[0] > 0:
             correct = False
             print("IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
@@ -635,7 +634,7 @@ class Catalog:
             display(violations2_11)
 
         # IC-Atoms12: Every class has one ID which is outbound
-        logger.info("Checking IC-Atoms1")
+        logger.info("Checking IC-Atoms12")
         matches2_12 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_12 = classes[~classes["name"].isin((matches2_12.reset_index(drop=False))["edges"])]
         for row in possible_violations2_12.itertuples():
