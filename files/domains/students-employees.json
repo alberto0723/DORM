@@ -51,13 +51,13 @@
           {
             "name": "Students",
             "prop": {
-              "constraint": "P_occupation='studies'"
+              "Constraint": "P_occupation='studies'"
             }
           },
           {
             "name": "Workers",
             "prop": {
-              "constraint": "P_occupation='works'"
+              "Constraint": "P_occupation='works'"
             }
           }
         ]

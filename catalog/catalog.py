@@ -605,10 +605,16 @@ class Catalog:
             print("IC-Atoms9 violation: There are generalizations without completeness and disjointness constraints")
             display(violations2_9)
 
-        # IC-Atoms11: Every generalization outgoing must have a discriminant
-        logger.info("Checking IC-Atoms10 -> TO BE IMPLEMENTED")
+        # IC-Atoms10: Every generalization outgoing must have a discriminant
+        logger.info("Checking IC-Atoms10")
+        matches2_10 = self.get_outbound_generalizations()[self.get_outbound_generalizations().apply(lambda row: "Constraint" in row["misc_properties"], axis=1)].reset_index(drop=False)['edges']
+        violations2_10 = df_difference(generalizations.reset_index(drop=False)['edges'], matches2_10)
+        if violations2_10.shape[0] > 0:
+            correct = False
+            print("IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
+            display(violations2_10)
 
-        # IC-Atoms12: Generalizations cannot have cycles
+        # IC-Atoms11: Generalizations cannot have cycles
         logger.info("Checking IC-Atoms11 -> TO BE IMPLEMENTED")
 
         # IC-Atoms1: Every class has one ID which is outbound
