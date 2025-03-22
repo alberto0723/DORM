@@ -244,6 +244,18 @@ class Catalog:
                 attribute_names.append(elem)
         return attribute_names
 
+    def get_superclasses_by_class_name(self, class_name, visited):
+        superclasses = []
+        all_links = self.get_inbound_generalizations().reset_index(level="nodes", drop=False).merge(self.get_outbound_generalizations().reset_index(level="nodes", drop=False), on="edges", suffixes=("_superclass", "_subclass"), how="inner")
+        direct_superclasses = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
+        for l in direct_superclasses["nodes_superclass"].tolist():
+            superclass = self.get_edge_by_phantom_name(l)
+            if superclass not in superclasses:
+                superclasses.append(superclass)
+                if superclass not in visited:
+                    superclasses.extend(self.get_superclasses_by_class_name(superclass, visited+[class_name]))
+        return superclasses
+
     def is_attribute(self, name):
         return name in self.get_attributes().index
 
@@ -615,10 +627,15 @@ class Catalog:
             display(violations2_10)
 
         # IC-Atoms11: Generalizations cannot have cycles
-        logger.info("Checking IC-Atoms11 -> TO BE IMPLEMENTED")
+        logger.info("Checking IC-Atoms11")
+        violations2_11 = classes[classes.apply(lambda row: row["name"] in self.get_superclasses_by_class_name(row["name"], []), axis=1)]
+        if violations2_11.shape[0] > 0:
+            correct = False
+            print("IC-Atoms11 violation: There are some cyclic generalizations")
+            display(violations2_11)
 
         # IC-Atoms1: Every class has one ID which is outbound
-        logger.info("Checking IC-Atoms1")
+        logger.info("Checking IC-Atoms1 -> TO BE FIXED")
         matches2_1 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
         violations2_1 = classes[~classes["name"].isin((matches2_1.reset_index(drop=False))["edges"])]
         if violations2_1.shape[0] > 0:
