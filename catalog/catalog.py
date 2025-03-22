@@ -634,15 +634,15 @@ class Catalog:
             print("IC-Atoms11 violation: There are some cyclic generalizations")
             display(violations2_11)
 
-        # IC-Atoms1: Every class has one ID which is outbound
-        logger.info("Checking IC-Atoms1 -> TO BE FIXED")
-        matches2_1 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
-        violations2_1 = classes[~classes["name"].isin((matches2_1.reset_index(drop=False))["edges"])]
-        if violations2_1.shape[0] > 0:
-            correct = False
-            print("IC-Atoms1 violation: There are classes without identifier")
-            display(violations2_1)
-
+        # IC-Atoms12: Every class has one ID which is outbound
+        logger.info("Checking IC-Atoms1")
+        matches2_12 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        possible_violations2_12 = classes[~classes["name"].isin((matches2_12.reset_index(drop=False))["edges"])]
+        for row in possible_violations2_12.itertuples():
+            superclasses = self.get_superclasses_by_class_name(row.Index, [])
+            if set(superclasses) == set([s for s in superclasses if s in possible_violations2_12.index]):
+                correct = False
+                print(f"IC-Atoms12 violation: There is some class '{row.Index}' without identifier (neither direct, nor inherited from a superclass)")
 
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
