@@ -68,7 +68,12 @@ class Catalog:
         return ids
 
     def get_class_id_by_name(self, class_name):
-        class_outbounds = self.get_outbound_class_by_name(class_name)
+        superclasses = self.get_superclasses_by_class_name(class_name, [])
+        if not superclasses:
+            class_outbounds = self.get_outbound_class_by_name(class_name)
+        else:
+            # The top of the hierarchy should be the first in the list
+            class_outbounds = self.get_outbound_class_by_name(superclasses[0])
         class_id = class_outbounds[class_outbounds["misc_properties"].apply(lambda x: x['Identifier'])]
         return class_id.index[0][1]
 
@@ -245,16 +250,18 @@ class Catalog:
         return attribute_names
 
     def get_superclasses_by_class_name(self, class_name, visited):
-        superclasses = []
-        all_links = self.get_inbound_generalizations().reset_index(level="nodes", drop=False).merge(self.get_outbound_generalizations().reset_index(level="nodes", drop=False), on="edges", suffixes=("_superclass", "_subclass"), how="inner")
+        all_links = self.get_inbound_generalizations().reset_index(level="nodes", drop=False).merge(
+            self.get_outbound_generalizations().reset_index(level="nodes", drop=False), on="edges",
+            suffixes=("_superclass", "_subclass"), how="inner")
         direct_superclasses = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
-        for l in direct_superclasses["nodes_superclass"].tolist():
-            superclass = self.get_edge_by_phantom_name(l)
-            if superclass not in superclasses:
-                superclasses.append(superclass)
-                if superclass not in visited:
-                    superclasses.extend(self.get_superclasses_by_class_name(superclass, visited+[class_name]))
-        return superclasses
+        if direct_superclasses.empty:
+            return []
+        else:
+            superclass = self.get_edge_by_phantom_name(direct_superclasses.iloc[0]["nodes_superclass"])
+            if superclass in visited:
+                return []
+            else:
+                return self.get_superclasses_by_class_name(superclass, visited + [class_name])+[superclass]
 
     def is_attribute(self, name):
         return name in self.get_attributes().index
@@ -592,12 +599,12 @@ class Catalog:
 
         # IC-Atoms7: Every association has two ends (Definition 4)
         logger.info("Checking IC-Atoms7")
-        matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(associations, on='edges', rsuffix='_edges', how='inner')
-        violations2_7 = matches2_7.groupby(matches2_7.index.get_level_values('edges')).size()
-        if violations2_7[violations2_7 != 2].shape[0] > 0:
+        matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(associations, on='edges', rsuffix='_edges', how='inner').groupby(['edges']).size()
+        violations2_7 = matches2_7[matches2_7 != 2]
+        if violations2_7.shape[0] > 0:
             correct = False
             print("IC-Atoms7 violation: There are non-binary associations")
-            display(violations2_7[violations2_7 != 2])
+            display(violations2_7)
 
         # IC-Atoms8: The number of different values of an identifier must coincide with the cardinality of its class
         logger.info("Checking IC-Atoms8")
@@ -608,13 +615,13 @@ class Catalog:
             print("IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
             display(violations2_8)
 
-        # IC-Atoms9: Every generalization has disjointness and completeness constraints
+        # IC-Atoms9: One class cannot have more than one direct superclass
         logger.info("Checking IC-Atoms9")
-        matches2_9 = generalizations[generalizations.apply(lambda row: "Disjoint" in row["misc_properties"] and "Complete" in row["misc_properties"], axis=1)]
-        violations2_9 = df_difference(generalizations["name"], matches2_9["name"])
+        matches2_9 = self.get_outbound_generalizations().groupby(["nodes"]).size()
+        violations2_9 = matches2_9[matches2_9 > 1]
         if violations2_9.shape[0] > 0:
             correct = False
-            print("IC-Atoms9 violation: There are generalizations without completeness and disjointness constraints")
+            print("IC-Atoms9 violation: There are classes with more than one superclass")
             display(violations2_9)
 
         # IC-Atoms10: Every generalization outgoing must have a discriminant
@@ -625,23 +632,43 @@ class Catalog:
             print("IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
             display(violations2_10)
 
-        # IC-Atoms11: Generalizations cannot have cycles
+        # IC-Atoms11: Every generalization has disjointness and completeness constraints
         logger.info("Checking IC-Atoms11")
-        violations2_11 = classes[classes.apply(lambda row: row["name"] in self.get_superclasses_by_class_name(row["name"], []), axis=1)]
+        matches2_11 = generalizations[generalizations.apply(lambda row: "Disjoint" in row["misc_properties"] and "Complete" in row["misc_properties"], axis=1)]
+        violations2_11 = df_difference(generalizations["name"], matches2_11["name"])
         if violations2_11.shape[0] > 0:
             correct = False
-            print("IC-Atoms11 violation: There are some cyclic generalizations")
+            print("IC-Atoms11 violation: There are generalizations without completeness and disjointness constraints")
             display(violations2_11)
 
-        # IC-Atoms12: Every class has one ID which is outbound
+        # IC-Atoms12: Generalizations cannot have cycles
         logger.info("Checking IC-Atoms12")
-        matches2_12 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
-        possible_violations2_12 = classes[~classes["name"].isin((matches2_12.reset_index(drop=False))["edges"])]
-        for row in possible_violations2_12.itertuples():
+        violations2_12 = classes[classes.apply(lambda row: row["name"] in self.get_superclasses_by_class_name(row["name"], []), axis=1)]
+        if violations2_12.shape[0] > 0:
+            correct = False
+            print("IC-Atoms12 violation: There are some cyclic generalizations")
+            display(violations2_12)
+
+        # IC-Atoms13: Every class has one ID which is outbound
+        logger.info("Checking IC-Atoms13")
+        matches2_13 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        possible_violations2_13 = classes[~classes["name"].isin((matches2_13.reset_index(drop=False))["edges"])]
+        for row in possible_violations2_13.itertuples():
             superclasses = self.get_superclasses_by_class_name(row.Index, [])
-            if set(superclasses) == set([s for s in superclasses if s in possible_violations2_12.index]):
+            if set(superclasses) == set([s for s in superclasses if s in possible_violations2_13.index]):
                 correct = False
-                print(f"IC-Atoms12 violation: There is some class '{row.Index}' without identifier (neither direct, nor inherited from a superclass)")
+                print(f"IC-Atoms13 violation: There is some class '{row.Index}' without identifier (neither direct, nor inherited from a superclass)")
+
+        # IC-Atoms14: Not two classes in a hierarchy can have ID
+        logger.info("Checking IC-Atoms14")
+        matches2_14 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        possible_violations2_14 = classes[classes["name"].isin((matches2_14.reset_index(drop=False))["edges"])]
+        for row in possible_violations2_14.itertuples():
+            superclasses = self.get_superclasses_by_class_name(row.Index, [])
+            identified_superclasses = [s for s in superclasses if s in possible_violations2_14.index]
+            if identified_superclasses:
+                correct = False
+                print(f"IC-Atoms14 violation: There is some class '{row.Index}' with identifier in a generalization hierarchy with also identifiers '{identified_superclasses}'")
 
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
