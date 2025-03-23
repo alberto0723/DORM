@@ -75,7 +75,10 @@ class Catalog:
             # The top of the hierarchy should be the first in the list
             class_outbounds = self.get_outbound_class_by_name(superclasses[0])
         class_id = class_outbounds[class_outbounds["misc_properties"].apply(lambda x: x['Identifier'])]
-        return class_id.index[0][1]
+        if class_id.empty:
+            return None
+        else:
+            return class_id.index[0][1]
 
     def get_phantoms(self):
         nodes = self.get_nodes()
@@ -163,9 +166,14 @@ class Catalog:
         outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
         return outbounds
 
-    def get_outbound_generalizations(self):
+    def get_outbound_generalization_superclasses(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence')]
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Superclass')]
+        return outbounds
+
+    def get_outbound_generalization_subclasses(self):
+        incidences = self.get_incidences()
+        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Subclass')]
         return outbounds
 
     def get_outbound_structs(self):
@@ -250,8 +258,8 @@ class Catalog:
         return attribute_names
 
     def get_superclasses_by_class_name(self, class_name, visited):
-        all_links = self.get_inbound_generalizations().reset_index(level="nodes", drop=False).merge(
-            self.get_outbound_generalizations().reset_index(level="nodes", drop=False), on="edges",
+        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
+            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
             suffixes=("_superclass", "_subclass"), how="inner")
         direct_superclasses = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
         if direct_superclasses.empty:
@@ -259,7 +267,8 @@ class Catalog:
         else:
             superclass = self.get_edge_by_phantom_name(direct_superclasses.iloc[0]["nodes_superclass"])
             if superclass in visited:
-                return []
+                # This should not happen, because it means there is a cycle, but we need to stop recursion
+                return [superclass]
             else:
                 return self.get_superclasses_by_class_name(superclass, visited + [class_name])+[superclass]
 
@@ -283,6 +292,9 @@ class Catalog:
 
     def is_association(self, name):
         return name in self.get_associations().index
+
+    def is_generalization(self, name):
+        return name in self.get_generalizations().index
 
     def is_struct(self, name):
         return name in self.get_structs().index
@@ -351,7 +363,7 @@ class Catalog:
                 raise ValueError(f"The class '{end['name']}' in '{association_name}' does not exists")
             end['prop']['Kind'] = 'AssociationIncidence'
             end['prop']['Direction'] = 'Outbound'
-            incidences.append((association_name, self.config.prepend_phantom+end['name'], end['prop']))
+            incidences.append((association_name, self.get_phantom_of_edge_by_name(end['name']), end['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_generalization(self, generalization_name, properties, superclass, subclasses_list):
@@ -364,19 +376,26 @@ class Catalog:
         if self.is_hyperedge(generalization_name):
             raise ValueError(f"The hyperedge '{generalization_name}' already exists")
         self.H.add_edge(generalization_name, Kind='Generalization', Disjoint=properties.get('Disjoint', False), Complete=properties.get('Complete', False))
+        # This adds a special phantom node required to represent different cases of inclusion in structs
+        self.H.add_node(self.config.prepend_phantom+generalization_name, Kind='Phantom', Subkind='Generalization')
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(generalization_name, self.config.prepend_phantom+generalization_name, {'Kind': 'GeneralizationIncidence', 'Direction': 'Inbound'})]
         if not self.is_class(superclass):
             raise ValueError(f"The superclass '{superclass}' in '{generalization_name}' does not exists")
         # First element in the pair of incidences is the edge name and the second the node
-        incidences = [(generalization_name,  self.config.prepend_phantom+superclass, {'Kind': 'GeneralizationIncidence', 'Direction': 'Inbound'})]
+        incidences.append((generalization_name,  self.get_phantom_of_edge_by_name(superclass), {'Kind': 'GeneralizationIncidence', 'Subkind': 'Superclass', 'Direction': 'Outbound'}))
         if len(subclasses_list) < 1:
             raise ValueError(f"The generalization '{generalization_name}' should have at least one subclass")
         for sub in subclasses_list:
+            if superclass == sub['name']:
+                raise ValueError(f"The same class '{superclass}' cannot play super and sub roles in generalization '{generalization_name}'")
             if not self.is_class(sub['name']):
                 raise ValueError(f"The subclass '{superclass}' in '{generalization_name}' does not exists")
             # TODO: Discriminant should be validated here
             sub['prop']['Kind'] = 'GeneralizationIncidence'
+            sub['prop']['Subkind'] = 'Subclass'
             sub['prop']['Direction'] = 'Outbound'
-            incidences.append((generalization_name, self.config.prepend_phantom+sub['name'], sub['prop']))
+            incidences.append((generalization_name, self.get_phantom_of_edge_by_name(sub['name']), sub['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_struct(self, struct_name, anchor, elements):
@@ -386,9 +405,8 @@ class Catalog:
         for element in anchor:
             if not self.is_class(element) and not self.is_association(element):
                 raise ValueError(f"The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a association")
-        # Check if the anchor is connected
-        # TODO: Does this need to be checked?
-        # Check if the struct is connected
+        # TODO: Check if the anchor is connected
+        # TODO: Check if the struct is connected
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
@@ -412,6 +430,8 @@ class Catalog:
                             incidences.append((struct_name, transitive_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
                 except KeyError:
                     pass
+            elif self.is_generalization(elem):
+                pass
             else:
                 raise ValueError(f"Creating struct '{struct_name}' could not find '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
@@ -617,16 +637,16 @@ class Catalog:
 
         # IC-Atoms9: One class cannot have more than one direct superclass
         logger.info("Checking IC-Atoms9")
-        matches2_9 = self.get_outbound_generalizations().groupby(["nodes"]).size()
+        matches2_9 = self.get_outbound_generalization_subclasses().groupby(["nodes"]).size()
         violations2_9 = matches2_9[matches2_9 > 1]
         if violations2_9.shape[0] > 0:
             correct = False
             print("IC-Atoms9 violation: There are classes with more than one superclass")
             display(violations2_9)
 
-        # IC-Atoms10: Every generalization outgoing must have a discriminant
+        # IC-Atoms10: Every generalization outgoing of a subclass must have a discriminant
         logger.info("Checking IC-Atoms10")
-        violations2_10 = self.get_outbound_generalizations()[~self.get_outbound_generalizations().apply(lambda row: "Constraint" in row["misc_properties"], axis=1)]
+        violations2_10 = self.get_outbound_generalization_subclasses()[~self.get_outbound_generalization_subclasses().apply(lambda row: "Constraint" in row["misc_properties"], axis=1)]
         if violations2_10.shape[0] > 0:
             correct = False
             print("IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
@@ -649,13 +669,13 @@ class Catalog:
             print("IC-Atoms12 violation: There are some cyclic generalizations")
             display(violations2_12)
 
-        # IC-Atoms13: Every class has one ID which is outbound
+        # IC-Atoms13: Every class has one ID or belongs to a generalization hierarchy
         logger.info("Checking IC-Atoms13")
         matches2_13 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_13 = classes[~classes["name"].isin((matches2_13.reset_index(drop=False))["edges"])]
         for row in possible_violations2_13.itertuples():
             superclasses = self.get_superclasses_by_class_name(row.Index, [])
-            if set(superclasses) == set([s for s in superclasses if s in possible_violations2_13.index]):
+            if not superclasses:
                 correct = False
                 print(f"IC-Atoms13 violation: There is some class '{row.Index}' without identifier (neither direct, nor inherited from a superclass)")
 
@@ -669,6 +689,15 @@ class Catalog:
             if identified_superclasses:
                 correct = False
                 print(f"IC-Atoms14 violation: There is some class '{row.Index}' with identifier in a generalization hierarchy with also identifiers '{identified_superclasses}'")
+
+        # IC-Atoms15: The top of every hierarchy has an ID
+        logger.info("Checking IC-Atoms15")
+        matches2_15 = df_difference(self.get_outbound_generalization_superclasses().reset_index(drop=False)['nodes'], self.get_outbound_generalization_subclasses().reset_index(drop=False)['nodes'])
+        for top_phantom in matches2_15:
+            top_class = self.get_edge_by_phantom_name(top_phantom)
+            if self.get_class_id_by_name(top_class) is None:
+                correct = False
+                print(f"IC-Atoms15 violation: The class '{top_class}' in the top of a hierarchy should have an identifier")
 
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
