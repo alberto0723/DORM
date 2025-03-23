@@ -95,6 +95,11 @@ class Catalog:
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Association')]
         return phantoms
 
+    def get_phantom_generalizations(self):
+        nodes = self.get_nodes()
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Generalization')]
+        return phantoms
+
     def get_edge_by_phantom_name(self, phantom_name):
         return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
 
@@ -243,6 +248,22 @@ class Catalog:
         anchor_points = loose_ends+classes
         return anchor_points
 
+    def get_anchor_end_names_by_struct_name(self, struct_name):
+        elements = self.get_outbound_struct_by_name(struct_name)
+        elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        inbounds = self.get_inbound_associations()
+        inbounds["edges"] = inbounds.index.get_level_values("edges")
+        associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
+        outbounds = self.get_outbound_associations()
+        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
+        loose_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
+        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.tolist()
+        if not loose_ends.empty:
+            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).tolist()
+            return end_names+classes
+        else:
+            return classes
+
     def get_restricted_struct_hypergraph(self, struct_name):
         edge_names = []
         for elem in drop_duplicates(self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist() + self.get_anchor_points_by_struct_name(struct_name)):
@@ -304,6 +325,9 @@ class Catalog:
 
     def is_association_phantom(self, name):
         return name in self.get_phantom_associations().index
+
+    def is_generalization_phantom(self, name):
+        return name in self.get_phantom_generalizations().index
 
     def is_hyperedge(self, name):
         return name in self.get_edges()["name"]
@@ -377,11 +401,11 @@ class Catalog:
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(association_name, self.config.prepend_phantom+association_name, {'Kind': 'AssociationIncidence', 'Direction': 'Inbound'})]
         for end in ends_list:
-            if not self.is_class(end['name']):
-                raise ValueError(f"The class '{end['name']}' in '{association_name}' does not exists")
+            if not self.is_class(end['class']):
+                raise ValueError(f"The class '{end['class']}' in '{association_name}' does not exists")
             end['prop']['Kind'] = 'AssociationIncidence'
             end['prop']['Direction'] = 'Outbound'
-            incidences.append((association_name, self.get_phantom_of_edge_by_name(end['name']), end['prop']))
+            incidences.append((association_name, self.get_phantom_of_edge_by_name(end['class']), end['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_generalization(self, generalization_name, properties, superclass, subclasses_list):
@@ -405,15 +429,15 @@ class Catalog:
         if len(subclasses_list) < 1:
             raise ValueError(f"The generalization '{generalization_name}' should have at least one subclass")
         for sub in subclasses_list:
-            if superclass == sub['name']:
+            if superclass == sub['class']:
                 raise ValueError(f"The same class '{superclass}' cannot play super and sub roles in generalization '{generalization_name}'")
-            if not self.is_class(sub['name']):
+            if not self.is_class(sub['class']):
                 raise ValueError(f"The subclass '{superclass}' in '{generalization_name}' does not exists")
             # TODO: Discriminant should be validated here
             sub['prop']['Kind'] = 'GeneralizationIncidence'
             sub['prop']['Subkind'] = 'Subclass'
             sub['prop']['Direction'] = 'Outbound'
-            incidences.append((generalization_name, self.get_phantom_of_edge_by_name(sub['name']), sub['prop']))
+            incidences.append((generalization_name, self.get_phantom_of_edge_by_name(sub['class']), sub['prop']))
         self.H.add_incidences_from(incidences)
 
     def add_struct(self, struct_name, anchor, elements):

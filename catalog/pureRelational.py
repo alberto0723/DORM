@@ -71,30 +71,34 @@ class PostgreSQL(Relational):
             struct_name = self.get_edge_by_phantom_name(struct_phantoms.index[0][1])
             elements = self.get_outbound_struct_by_name(struct_name)
             # For each element in the table
-            attribute_list = []
+            attribute_dicc = {}
             for elem in elements.itertuples():
                 if self.is_attribute(elem.Index[1]):
-                    attribute_list.append(elem.Index[1])
+                    attribute_dicc[elem.Index[1]] = elem.Index[1]
                 elif self.is_class_phantom(elem.Index[1]):
-                    attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1])))
+                    attribute_dicc[self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
                 elif self.is_association_phantom(elem.Index[1]):
                     ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
                     for end in ends.itertuples():
-                        attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
+                        attribute_dicc[end.misc_properties['End_name']] = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
+                elif self.is_generalization_phantom(elem.Index[1]):
+                    pass
                 else:
                     raise ValueError(f"Some element in a struct is not expected: '{elem.Index[1]}'")
-            attribute_list = list(set(attribute_list))
-            for attr_name in attribute_list:
+            for attr_alias, attr_name in attribute_dicc.items():
                 attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
-                sentence += "  " + attr_name
+                sentence += "  " + attr_alias
                 if attribute.iloc[0]["misc_properties"].get("DataType") == "String":
                     sentence += " VarChar(" + str(attribute.iloc[0]["misc_properties"].get("Size")) + "),\n"
                 else:
                     sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
             # If the anchor is a class, its ID is the PK
             key_list = []
-            for key in self.get_anchor_points_by_struct_name(struct_name):
-                key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+            for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                if self.is_class_phantom(key):
+                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                else:
+                    key_list.append(key)
             if len(key_list) > 0:
                 clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
             else:

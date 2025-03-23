@@ -29,12 +29,13 @@
     {
       "name": "Friends",
       "ends": [
-        { "name": "Students",
-          "prop": { "Multiplicity": 3.5 }
+        {
+          "class": "Students",
+          "prop": {"End_name": "Friends_Students", "Multiplicity": 3.5 }
           },
         {
-          "name": "Workers",
-          "prop": { "Multiplicity": 5.5 }
+          "class": "Workers",
+          "prop": {"End_name": "Friends_Workers", "Multiplicity": 5.5 }
           }
         ]
       }
@@ -49,13 +50,13 @@
         "superclass": "People",
         "subclasses": [
           {
-            "name": "Students",
+            "class": "Students",
             "prop": {
               "Constraint": "P_occupation='studies'"
             }
           },
           {
-            "name": "Workers",
+            "class": "Workers",
             "prop": {
               "Constraint": "P_occupation='works'"
             }
