@@ -261,16 +261,34 @@ class Catalog:
         all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
             self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
             suffixes=("_superclass", "_subclass"), how="inner")
-        direct_superclasses = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
-        if direct_superclasses.empty:
+        direct_superclass = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
+        if direct_superclass.empty:
             return []
         else:
-            superclass = self.get_edge_by_phantom_name(direct_superclasses.iloc[0]["nodes_superclass"])
+            # This means there is one superclass (multiple-inheritance is not allowed)
+            superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
             if superclass in visited:
                 # This should not happen, because it means there is a cycle, but we need to stop recursion
                 return [superclass]
             else:
                 return self.get_superclasses_by_class_name(superclass, visited + [class_name])+[superclass]
+
+    def get_generalizations_by_class_name(self, class_name, visited):
+        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
+            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
+            suffixes=("_superclass", "_subclass"), how="inner")
+        direct_superclass = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
+        if direct_superclass.empty:
+            return []
+        else:
+            # This means there is one superclass (multiple-inheritance is not allowed)
+            superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
+            generalization = direct_superclass.index[0]
+            if superclass in visited:
+                # This should not happen, because it means there is a cycle, but we need to stop recursion
+                return [generalization]
+            else:
+                return self.get_superclasses_by_class_name(superclass, visited + [class_name])+[generalization]
 
     def is_attribute(self, name):
         return name in self.get_attributes().index
@@ -405,7 +423,7 @@ class Catalog:
         for element in anchor:
             if not self.is_class(element) and not self.is_association(element):
                 raise ValueError(f"The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a association")
-        # TODO: Check if the anchor is connected
+        # TODO: Check if the associations in the anchor are connected (considering inheritance of associations)
         # TODO: Check if the struct is connected
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
@@ -415,10 +433,19 @@ class Catalog:
         for elem in drop_duplicates(anchor+elements):
             if self.is_attribute(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-            elif self.is_class(elem) or self.is_association(elem):
+            elif self.is_association(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-                if self.is_class(elem):
-                    incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+            elif self.is_class(elem):
+                superclasses = self.get_superclasses_by_class_name(elem, [])
+                incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+                for c in superclasses+[elem]:
+                    # Only one element of a hierarchy can be included by the user in a struct
+                    if c != elem and c in anchor+elements:
+                        raise ValueError(f"Only one class per hierarchy can be included in a struct ('{struct_name}' got '{elem} and '{c}')")
+                    else:
+                        incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+                for g in self.get_generalizations_by_class_name(elem, []):
+                    incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_struct(elem) or self.is_set(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 for outbound_elem in self.get_outbounds().loc[elem].index:
