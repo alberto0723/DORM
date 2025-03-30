@@ -1,14 +1,15 @@
-# Wise Object-Relational Mapping (WORM)
+# Dynamic Object-Relational Mapping (DORM)
 
 This tool (based on [Modithas Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis) allows to generate database schemas and queries in a flexible way. 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
+Hence, mappings dynamically change as database schema design evolves.
 
 There are three different inputs:
 
 - **Domain**: Concepts to be represented in the database in terms of *classes*, *attributes* and *relationships*. 
 You can find a basic example about [Books and Authors](files/domains/book-authors.json).
 - **Design**: Structure of the database expressed in terms of *structs* and *sets*.
-You can find an [exemplary design](files/designs/book-authors_pureRelational.json) corresponding to a normalized relational database.
+You can find an [exemplary design](files/designs/book-authors_normalized.json) corresponding to a normalized relational database.
 - **Queries**: Select-Project-Join expressions in terms of the domain concepts.
 You can find some [query exemples](files/queries/book-authors.json) over the same domain.
 

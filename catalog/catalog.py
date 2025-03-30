@@ -528,7 +528,7 @@ class Catalog:
         # Textual display
         show_textual_hypergraph(self.H)
 
-    def is_correct(self, design=False):
+    def is_correct(self, design=False, verbose=True):
         """This method checks all the integrity constrains of the catalog
         It can be expensive, so just do it at the end, not for each operation
         """
@@ -899,9 +899,10 @@ class Catalog:
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
-                correct = False
-                print("IC-Design3 violation: Some atoms do not belong to any struct")
-                display(violations5_3)
+                #correct = False
+                if (verbose):
+                    print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
+                    display(violations5_3)
 
         return correct
 

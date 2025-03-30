@@ -31,11 +31,11 @@
       "name": "Made",
       "ends": [
         { "name": "Artist",
-          "prop": { "Multiplicity": 2.5 }
+          "prop": {"End_name": "Made_Artist", "Multiplicity": 2.5 }
           },
         {
           "name": "Record",
-          "prop": { "Multiplicity": 5 }
+          "prop": {"End_name": "Made_Record", "Multiplicity": 5 }
           }
         ]
       },
@@ -43,11 +43,11 @@
       "name": "Has",
       "ends": [
         { "name": "Record",
-          "prop": { "Multiplicity": 1 }
+          "prop": {"End_name": "Has_Record", "Multiplicity": 1 }
           },
         {
           "name": "Track",
-          "prop": { "Multiplicity": 15 }
+          "prop": {"End_name": "Has_Track", "Multiplicity": 15 }
           }
         ]
       }

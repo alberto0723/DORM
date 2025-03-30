@@ -3,7 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 import json
-from catalog import catalog, relational, pureRelational
+from catalog import catalog, relational, normalized
 
 # Path definitions
 base_path = Path(__file__).parent
@@ -49,7 +49,7 @@ def design(args):
 
 def recover(args):
     logging.info("Recovering catalog: "+args.hypergraph)
-    cat = pureRelational.PostgreSQL(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
+    cat = normalized.Normalized(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
     return cat
 
 # ---------------------------------------------------------------------------- #
@@ -74,11 +74,11 @@ design_parser = subparsers.add_parser("design", help="Uses a hypergraph with a f
 # ---------------------------------------------------------------------- Schemas
 domain_parser.set_defaults(state="domain")  # This is the subfolder where hypergraphs are stored
 domain_parser.add_argument("--dom_path", type=Path, default=default_domains_path, help="Path to domains folder", metavar="<path>")
-domain_parser.add_argument("--dom_spec", type=str, default="specification", help="Specification of the domain (only atomic elements) in a JSON file", metavar="<domain>")
+domain_parser.add_argument("--dom_spec", type=str, default="default_specification", help="Specification of the domain (only atomic elements) in a JSON file", metavar="<domain>")
 # ---------------------------------------------------------------------- Designs
 design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
 design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
-design_parser.add_argument("--dsg_spec", type=str, default="specification", help="Specification of the design in a JSON file", metavar="<design>")
+design_parser.add_argument("--dsg_spec", type=str, default="default_specification", help="Specification of the design in a JSON file", metavar="<design>")
 design_parser.add_argument("--translate", help="Translates the design into the database schema (e.g., create tables)", action="store_true")
 
 

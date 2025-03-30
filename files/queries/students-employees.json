@@ -1,0 +1,16 @@
+{
+  "queries": [
+    {
+      "project": ["P_ID"],
+      "join": ["People"]
+    },
+    {
+      "project": ["P_ID"],
+      "join": ["Students"]
+    },
+    {
+      "project": ["P_ID"],
+      "join": ["Workers"]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+    "domain": "students-employees",
+    "hyperedges": [
+        {"kind": "Struct",
+         "name": "People_type",
+         "anchor": ["People"],
+         "elements": ["P_ID", "P_name", "P_occupation", "Students", "S_university", "Workers", "W_company"]},
+        {"kind": "Set",
+         "name": "People_table",
+         "elements": ["People_type"]},
+        {"kind": "Struct",
+         "name": "Friends_type",
+         "anchor": ["Friends"],
+         "elements": []},
+        {"kind": "Set",
+         "name": "Friends_table",
+         "elements": ["Friends_type"]}
+    ]
+}

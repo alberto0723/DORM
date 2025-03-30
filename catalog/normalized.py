@@ -12,8 +12,8 @@ from .tools import df_difference, show_textual_hypergraph, show_graphical_hyperg
 
 logger = logging.getLogger("pureRelational")
 
-class PostgreSQL(Relational):
-    """This is a subclass of Relational that implements the code generation in PostgreSQL
+class Normalized(Relational):
+    """This is a subclass of Relational that implements the code generation as normalized in 1NF
     """
     def __init__(self, file=None):
         super().__init__(file)
