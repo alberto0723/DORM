@@ -63,7 +63,6 @@ class Normalized(Relational):
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
-            clause_PK = None
             logger.info("-- Creating table " + table.Index[0])
             sentence = "CREATE TABLE IF NOT EXISTS " + table.Index[0] + " (\n"
             struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
@@ -99,13 +98,13 @@ class Normalized(Relational):
                     key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
                 else:
                     key_list.append(key)
-            if len(key_list) > 0:
-                clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
-            else:
+            if not key_list:
                 raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
+            clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
             sentence += clause_PK + "  );"
             if verbose:
                 print(sentence)
+        # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
 
     def generate_joins(self, tables, query_classes, query_associations, visited, alias_table, alias_attr):
         first_table = (visited == {})

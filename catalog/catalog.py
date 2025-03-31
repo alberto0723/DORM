@@ -950,18 +950,30 @@ class Catalog:
                 superclasses.extend(self.get_generalizations_by_class_name(e, []))
         print(superclasses)
         restricted_domain = self.H.restrict_to_edges(join_edges+superclasses)
+        print("Restricted Domain")
+        display(restricted_domain.nodes.dataframe)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
             raise ValueError(f"Some query elements (i.e., attributes, classes and associations) are not connected")
 
-        # Check if the restricted domain contains all the required attributes
-        # TODO: Include association ends in the check
-        hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_classes().reset_index(drop=False), left_on="uid", right_on="nodes", suffixes=('_classPhantoms', '_inbounds'), how="inner")
-        hop2 = pd.merge(hop1, self.get_outbound_classes().reset_index(drop=False), left_on="edges", right_on="edges", suffixes=('', '_outbounds'), how="inner")
-        hop3 = pd.merge(hop2, self.get_attributes().reset_index(drop=False), left_on="nodes_outbounds", right_on="nodes", suffixes=('_carriedOutbounds', '_attributes'), how="inner")
-        implicit_ids = hop3[hop3["misc_properties_attributes"].apply(lambda x: x.get('Identifier', False))]["nodes_attributes"]
-        explicit = restricted_domain.nodes.dataframe.reset_index(drop=False)["uid"]
-        missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([explicit, implicit_ids], ignore_index=True))
+        # Check if the restricted domain contains all the required attributes and association ends
+        attributes = pd.merge(restricted_domain.nodes.dataframe, self.get_attributes(), left_index=True, right_index=True, how="inner")["name"]
+        hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_associations().reset_index(drop=False), left_index=True, right_on="nodes", suffixes=('_associationPhantoms', '_inbounds'), how="inner")
+        hop2 = pd.merge(hop1, self.get_outbound_associations().reset_index(drop=False), left_on="edges", right_on="edges", suffixes=('_inbounds', '_outbounds'), how="inner")
+        association_ends = hop2.apply(lambda row: row["misc_properties"]["End_name"], axis=1)
+        association_ends.name = "name"
+        if attributes.empty:
+            print("--Association_ends")
+            display(association_ends)
+            missing_attributes = df_difference(pd.DataFrame(required_attributes), association_ends)
+        elif association_ends.empty:
+            print("--Attributes")
+            display(attributes)
+            missing_attributes = df_difference(pd.DataFrame(required_attributes), attributes)
+        else:
+            print("--Both")
+            display(pd.concat([attributes, association_ends], axis=0))
+            missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
