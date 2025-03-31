@@ -12,7 +12,7 @@ if __name__ == '__main__':
     c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_normalized_test1.HyperNetX"))
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_partitioned.HyperNetX"))
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/artist-record-track_pureRelational_test1.HyperNetX"))
-    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/students-employees_normalized_OneClassOneTable.HyperNetX"))
+    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/students-workers_normalized_OneClassOneTable.HyperNetX"))
     c.show_textual()
     # #c.save(file=base_path.joinpath("files/hypergraphs/test.HyperNetX"))
     # if not c.is_correct(design=True):
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     # Open and load the JSON file
     with open("files/queries/book-authors.json", 'r') as file:
     #with open("files/queries/artist-record-track.json", 'r') as file:
-    #with open("files/queries/students-employees.json", 'r') as file:
+    #with open("files/queries/students-workers.json", 'r') as file:
         queries = json.load(file).get("queries")
     for i, query in enumerate(queries):
         print("--*********************************** ", i)

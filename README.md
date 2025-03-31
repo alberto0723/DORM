@@ -4,14 +4,55 @@ This tool (based on [Modithas Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
 Hence, mappings dynamically change as database schema design evolves.
 
+## Inputs
+
 There are three different inputs:
 
-- **Domain**: Concepts to be represented in the database in terms of *classes*, *attributes* and *relationships*. 
-You can find a basic example about [Books and Authors](files/domains/book-authors.json).
-- **Design**: Structure of the database expressed in terms of *structs* and *sets*.
+### 1- Domain
+Concepts to be represented in the database in terms of *classes*, *attributes* and *relationships*. 
+You can find a basic example about [Books and Authors](files/domains/book-authors.json) and [Students and Workers]().
+
+The contents of the domain files are as follows:
+1. A list of ``classes`` is required:
+   - Every class has a ``name``, some properties including a counter of instances and a list of attributes.
+      - Every attribute has a name and some properties: ``DataType``, ``Size``, ``DistincVals``, and ``Identifier``.
+1. An optional list of binary ``associations``:
+   - Every association has a ``name`` and two ends.
+      - Every end has a ``class`` and some properties: ``End_name`` and ``Multiplicity``.
+1. An optional list of ``generalizations``:
+   - Every generalization has a ``name``, some properties (i.e., ``Disjoint`` and ``Complete``), a ``superclass``, and a list of ``subclasses'':
+      - Every subclass has a ``class`` and some properties: ``Constraint`` (which is a predicate over the attributes of the class).
+
+#### Semantics and constraints
+About classes:
+- Classes must have an identifier (unless they are in a generalization hierarchy).
+- Both class and attribute names must be unique.
+About associations:
+- Associations can only have two ends.
+- Ends must have unique names.
+About generalizations:
+- Generalization names must be unique.
+- A class can have at most a superclass.
+- The top of every generalization hierarchy must have an identifier.
+- Only the top of a generalization hierarchy can have identifier.
+
+### 2- Design
+Structure of the database expressed in terms of *structs* and *sets*.
 You can find an [exemplary design](files/designs/book-authors_normalized.json) corresponding to a normalized relational database.
-- **Queries**: Select-Project-Join expressions in terms of the domain concepts.
+
+The contents of the design files are as follows:
+1. 
+
+#### Semantics and constraints
+
+### 3- Queries
+Select-Project-Join expressions in terms of the domain concepts.
 You can find some [query exemples](files/queries/book-authors.json) over the same domain.
+
+The content of the query files is just a list of SPJ queries, whose structure is as follows:
+1. 
+
+#### Semantics and constraints
 
 ## Setup
 

@@ -263,10 +263,17 @@ class Catalog:
 
     def get_anchor_associations_by_struct_name(self, struct_name):
         elements = self.get_outbound_struct_by_name(struct_name)
+        #print("Elements...")
+        #display(elements["misc_properties"])
         anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        #print("Anchor elements...")
+        #display(anchor_elements)
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
+        #print("Inbound elements...")
+        #display(inbounds)
         anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].tolist()
+        #print("Anchor associations...", anchor_associations)
         return anchor_associations
 
     def get_anchor_points_by_struct_name(self, struct_name):

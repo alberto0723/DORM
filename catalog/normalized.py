@@ -107,6 +107,7 @@ class Normalized(Relational):
         # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
 
     def generate_joins(self, tables, query_classes, query_associations, visited, alias_table, alias_attr):
+        print("Generating joins...", tables, query_classes, query_associations, visited)
         first_table = (visited == {})
         unjoinable = []
         while tables:
@@ -115,19 +116,26 @@ class Normalized(Relational):
             #  (associations should be used to choose the right one)
             # Generate joins for classes already in visited
             struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(current_table).index[0][1])
-            current_classes = []
-            # If all associations in the anchor are in the query, then anchor points are considered for join
-            if all(rel in query_associations for rel in self.get_anchor_associations_by_struct_name(struct_name)):
+            current_links = []
+            # Get potential links of the current table
+            # If all associations in the anchor are in the query, then anchor points are considered links for join
+            print("Struct...", struct_name)
+            print("Anchors...", self.get_association_ends_by_struct_name(struct_name))
+            for association_end in self.get_association_ends_by_struct_name(struct_name):
                 for phantom_name in self.get_anchor_points_by_struct_name(struct_name):
-                    current_classes.append(self.get_edge_by_phantom_name(phantom_name))
-            # If classes are in the query, they are considered for join
+                    current_links.append(self.get_edge_by_phantom_name(phantom_name))
+            # If classes are in the query, they are considered links for join
             for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
                 if self.is_class_phantom(incidence.Index[1]):
+                    print(incidence)
                     class_name = self.get_edge_by_phantom_name(incidence.Index[1])
+                    print(class_name)
                     if class_name in query_classes:
-                        current_classes.append(class_name)
+                        current_links.append(class_name)
+            print("current classes: ", drop_duplicates(current_links))
+            # Check if current links have been visited before
             joins = []
-            for c in drop_duplicates(current_classes):
+            for c in drop_duplicates(current_links):
                 if c in visited:
                     identifier = self.get_class_id_by_name(c)
                     joins.append(alias_table[visited[c]]+"."+identifier+"="+alias_table[current_table]+"."+identifier)
@@ -139,7 +147,7 @@ class Normalized(Relational):
                 break
         # Get all the classes in the table and mark them as visited
         # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
-        for c in current_classes:
+        for c in current_links:
             visited[c] = current_table
         # Create the join clause
         join_clause = current_table + " " + alias_table[current_table]

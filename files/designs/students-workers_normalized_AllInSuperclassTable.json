@@ -1,5 +1,5 @@
 {
-    "domain": "students-employees",
+    "domain": "students-workers",
     "hyperedges": [
         {"kind": "Struct",
          "name": "People_type",
