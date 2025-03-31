@@ -222,6 +222,8 @@ class Normalized(Relational):
                     for attr in contained_attributes.itertuples():
                         alias_attr[attr.Index[1]] = alias_table[table]
                 # Build the SELECT clause
+                print(project_attributes)
+                print(alias_attr)
                 sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
                 sentence += "\nFROM "+self.generate_joins(option, classes, associations,{}, alias_table, alias_attr)

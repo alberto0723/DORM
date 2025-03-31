@@ -5,7 +5,7 @@
       "prop": { "Count": 4000000 },
       "attr": [
         { "name": "B_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 4000000, "Identifier": true}},
-        { "name": "B_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}}
+        { "name": "B_title", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}}
         ]
       },
     {
@@ -22,11 +22,11 @@
     {
       "name": "Writes",
       "ends": [
-        { "name": "Author",
+        { "class": "Author",
           "prop": {"End_name": "Writes_Author", "Multiplicity": 1}
           },
         {
-          "name": "Book",
+          "class": "Book",
           "prop": {"End_name": "Writes_Book", "Multiplicity": 1 }
           }
         ]

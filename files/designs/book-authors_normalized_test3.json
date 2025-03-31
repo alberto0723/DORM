@@ -4,7 +4,7 @@
         {"kind": "Struct",
          "name": "Writes_type",
          "anchor": ["Writes"],
-         "elements": ["B_ID","B_name","Book","Author","A_ID","A_name"]},
+         "elements": ["B_ID","B_title","Book","Author","A_ID","A_name"]},
         {"kind": "Set",
          "name": "Writes_table",
          "elements": ["Writes_type"]}

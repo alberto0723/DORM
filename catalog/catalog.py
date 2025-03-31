@@ -63,11 +63,12 @@ class Catalog:
 
     def get_association_ends(self):
         ends = self.get_outbound_associations()
-        ends.reset_index(drop=False, inplace=True)
-        ends['multiplicity'] = ends.apply(lambda x: x["misc_properties"]["Multiplicity"], axis=1)
-        ends['name'] = ends.apply(lambda x: x["misc_properties"]["End_name"], axis=1)
-        ends.set_index('name', drop=False, inplace=True)
-        ends.drop(columns=['weight', 'misc_properties'], inplace=True)
+        if not ends.empty:
+            ends.reset_index(drop=False, inplace=True)
+            ends["multiplicity"] = ends.apply(lambda x: x["misc_properties"].get("Multiplicity", None), axis=1)
+            ends["name"] = ends.apply(lambda x: x["misc_properties"]["End_name"], axis=1)
+            ends.set_index('name', drop=False, inplace=True)
+            ends.drop(columns=['weight', 'misc_properties'], inplace=True)
         return ends
 
     def get_ids(self):
@@ -172,27 +173,42 @@ class Catalog:
 
     def get_outbounds(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
         return outbounds
 
     def get_outbound_associations(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
         return outbounds
 
     def get_outbound_generalization_superclasses(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Superclass')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Superclass')]
         return outbounds
 
     def get_outbound_generalization_subclasses(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Subclass')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Subclass')]
         return outbounds
 
     def get_outbound_structs(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
     def get_outbound_association_by_name(self, rel_name):
@@ -213,17 +229,26 @@ class Catalog:
 
     def get_outbound_sets(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
         return outbounds
 
     def get_outbound_classes(self):
         incidences = self.get_incidences()
-        outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'ClassIncidence')]
+        if incidences.empty:
+            outbounds = incidences
+        else:
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'ClassIncidence')]
         return outbounds
 
     def get_transitives(self):
         incidences = self.get_incidences()
-        transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
+        if incidences.empty:
+            transitives = incidences
+        else:
+            transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
         return transitives
 
     def get_transitives_by_edge_name(self, edge):

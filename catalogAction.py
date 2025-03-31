@@ -24,9 +24,9 @@ def create(args):
     cat = catalog.Catalog()
     for cl in domain.get("classes"):
         cat.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
-    for ass in domain.get("associations"):
+    for ass in domain.get("associations", []):
         cat.add_association(ass.get("name"), ass.get("ends"))
-    for gen in domain.get("generalizations"):
+    for gen in domain.get("generalizations", []):
         cat.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
     return cat
 

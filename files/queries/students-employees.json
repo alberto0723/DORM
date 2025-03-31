@@ -15,6 +15,10 @@
     {
       "project": ["Friends_Students", "Friends_Workers"],
       "join": ["Friends"]
+    },
+    {
+      "project": ["P_ID", "Friends_Students", "Friends_Workers"],
+      "join": ["Students","Friends"]
     }
   ]
 }
