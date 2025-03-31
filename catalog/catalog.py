@@ -61,6 +61,15 @@ class Catalog:
         attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
         return attributes
 
+    def get_association_ends(self):
+        ends = self.get_outbound_associations()
+        ends.reset_index(drop=False, inplace=True)
+        ends['multiplicity'] = ends.apply(lambda x: x["misc_properties"]["Multiplicity"], axis=1)
+        ends['name'] = ends.apply(lambda x: x["misc_properties"]["End_name"], axis=1)
+        ends.set_index('name', drop=False, inplace=True)
+        ends.drop(columns=['weight', 'misc_properties'], inplace=True)
+        return ends
+
     def get_ids(self):
         outbounds = self.get_outbound_classes()
         incidences = outbounds[outbounds["misc_properties"].apply(lambda x: x['Identifier'])].reset_index(level='edges', drop=True)
@@ -314,6 +323,9 @@ class Catalog:
     def is_attribute(self, name):
         return name in self.get_attributes().index
 
+    def is_association_end(self, name):
+        return name in self.get_association_ends().index
+
     def is_id(self, name):
         return name in self.get_ids().index
 
@@ -351,8 +363,8 @@ class Catalog:
         DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding class "+class_name)
-        if self.is_hyperedge(class_name):
-            raise ValueError(f"Some hyperedge called '{class_name}' already exists")
+        if self.is_attribute(class_name) or self.is_association_end(class_name) or self.is_hyperedge(class_name):
+            raise ValueError(f"Some element called '{class_name}' already exists")
         # First element in the pair is the name and the second its properties
         properties["Kind"] = 'Class'
         edges = [(class_name, properties)]
@@ -366,11 +378,12 @@ class Catalog:
         if len(unique_attr) < len(att_list):
             raise ValueError(f"Some attribute in '{class_name}' is repeated")
         for att in att_list:
-            if att['name'] in self.get_nodes()["name"]:
-                raise ValueError(f"Some node called '{att['name']}' already exists")
-            incidence_properties = {'Kind': 'ClassIncidence', 'Direction': 'Outbound'}
-            incidence_properties['DistinctVals'] = att['prop'].pop('DistinctVals')
-            incidence_properties['Identifier'] = att['prop'].pop('Identifier', False)
+            if self.is_attribute(att['name']) or self.is_association_end(att['name']) or self.is_hyperedge(att['name']):
+                raise ValueError(f"Some element end called '{att['name']}' already exists")
+            incidence_properties = {'Kind': 'ClassIncidence',
+                                    'Direction': 'Outbound',
+                                    'DistinctVals': att['prop'].pop('DistinctVals'),
+                                    'Identifier': att['prop'].pop('Identifier', False)}
             incidences.append((class_name, att['name'], incidence_properties))
             if att['name'] in self.get_nodes()["name"]:
                 if att['prop']['DataType'] != self.H.get_properties(att['name'], level=1, prop_name="DataType"):
@@ -391,8 +404,8 @@ class Catalog:
         'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding association "+association_name)
-        if self.is_hyperedge(association_name):
-            raise ValueError(f"The hyperedge '{association_name}' already exists")
+        if self.is_attribute(association_name) or self.is_association_end(association_name) or self.is_hyperedge(association_name):
+            raise ValueError(f"The element '{association_name}' already exists")
         if len(ends_list) != 2:
             raise ValueError(f"The association '{association_name}' should have exactly two ends, but has {len(ends_list)}")
         self.H.add_edge(association_name, Kind='Association')
@@ -403,6 +416,14 @@ class Catalog:
         for end in ends_list:
             if not self.is_class(end['class']):
                 raise ValueError(f"The class '{end['class']}' in '{association_name}' does not exists")
+            end_name = end['prop'].get('End_name', None)
+            if end_name is None:
+                raise ValueError(f"'{association_name}' does not have a name for its end towards '{end['class']}'")
+            else:
+                if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_hyperedge(end_name):
+                    raise ValueError(f"There is already an element called '{end_name}'")
+            if end['prop'].get('Multiplicity', None) is None:
+                raise ValueError(f"'{association_name}' does not have multiplicity for its end '{end_name}'")
             end['prop']['Kind'] = 'AssociationIncidence'
             end['prop']['Direction'] = 'Outbound'
             incidences.append((association_name, self.get_phantom_of_edge_by_name(end['class']), end['prop']))
@@ -415,8 +436,8 @@ class Catalog:
         The latter is another dictionary that contains at least one constraint predicate that discriminates the subclass.
         """
         logger.info("Adding generalization "+generalization_name)
-        if self.is_hyperedge(generalization_name):
-            raise ValueError(f"The hyperedge '{generalization_name}' already exists")
+        if self.is_attribute(generalization_name) or self.is_association_end(generalization_name) or self.is_hyperedge(generalization_name):
+            raise ValueError(f"The element called '{generalization_name}' already exists")
         self.H.add_edge(generalization_name, Kind='Generalization', Disjoint=properties.get('Disjoint', False), Complete=properties.get('Complete', False))
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+generalization_name, Kind='Phantom', Subkind='Generalization')
@@ -906,15 +927,14 @@ class Catalog:
 
         return correct
 
-
     def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
         # Check if the hypergraph contains all the projected attributes
-        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
+        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         # Check if the hypergraph contains all the filter attributes
-        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes()])["name"].reset_index(drop=True))
+        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
@@ -923,12 +943,19 @@ class Catalog:
         if non_existing_associations.shape[0] > 0:
             raise ValueError(f"Some class or association in the join does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
-        restricted_domain = self.H.restrict_to_edges(join_edges)
+        superclasses = []
+        for e in join_edges:
+            if self.is_class(e):
+                superclasses.extend(self.get_superclasses_by_class_name(e, []))
+                superclasses.extend(self.get_generalizations_by_class_name(e, []))
+        print(superclasses)
+        restricted_domain = self.H.restrict_to_edges(join_edges+superclasses)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
             raise ValueError(f"Some query elements (i.e., attributes, classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes
+        # TODO: Include association ends in the check
         hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_classes().reset_index(drop=False), left_on="uid", right_on="nodes", suffixes=('_classPhantoms', '_inbounds'), how="inner")
         hop2 = pd.merge(hop1, self.get_outbound_classes().reset_index(drop=False), left_on="edges", right_on="edges", suffixes=('', '_outbounds'), how="inner")
         hop3 = pd.merge(hop2, self.get_attributes().reset_index(drop=False), left_on="nodes_outbounds", right_on="nodes", suffixes=('_carriedOutbounds', '_attributes'), how="inner")
@@ -942,8 +969,8 @@ class Catalog:
         # Get the query and parse it
         project_attributes = query.get("project")
         for a in project_attributes:
-            if not self.is_attribute(a):
-                raise ValueError(f"Projected '{a}' is not an attribute")
+            if not (self.is_attribute(a) or self.is_association_end(a)):
+                raise ValueError(f"Projected '{a}' is neither an attribute nor an association end")
         join_edges = query.get("join")
         for e in join_edges:
             if not (self.is_class(e) or self.is_association(e)):
