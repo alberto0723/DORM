@@ -69,6 +69,7 @@ class Normalized(Relational):
             # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
             struct_name = self.get_edge_by_phantom_name(struct_phantoms.index[0][1])
             elements = self.get_outbound_struct_by_name(struct_name)
+            loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
             # For each element in the table
             attribute_dicc = {}
             for elem in elements.itertuples():
@@ -79,7 +80,8 @@ class Normalized(Relational):
                 elif self.is_association_phantom(elem.Index[1]):
                     ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
                     for end in ends.itertuples():
-                        attribute_dicc[end.misc_properties['End_name']] = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
+                        if end.misc_properties["End_name"] in loose_ends:
+                            attribute_dicc[end.misc_properties['End_name']] = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
                 elif self.is_generalization_phantom(elem.Index[1]):
                     pass
                 else:

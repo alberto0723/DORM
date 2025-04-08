@@ -329,7 +329,7 @@ class Catalog:
                 edge_names.append(self.get_edge_by_phantom_name(elem))
         return self.H.restrict_to_edges(edge_names)
 
-    def get_attributes_by_struct_name(self, struct_name):
+    def get_attribute_names_by_struct_name(self, struct_name):
         attribute_names = []
         for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
             if self.is_attribute(elem):
@@ -904,7 +904,7 @@ class Catalog:
             # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-b)
             logger.info("Checking IC-Structs-b")
             for struct_name in structs.index:
-                attribute_names = self.get_attributes_by_struct_name(struct_name)
+                attribute_names = self.get_attribute_names_by_struct_name(struct_name)
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
                 if not restricted_struct.is_connected(s=1):
