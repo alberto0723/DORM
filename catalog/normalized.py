@@ -59,6 +59,16 @@ class Normalized(Relational):
         return correct
 
     def create_schema(self, verbose=False):
+        '''
+        Creates the tables in the design. One table is created for every set in the first level (i.e., without parent).
+        One or more structs are expected inside the set, but all of them should generate the same attributes.
+        Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
+        of the associations.
+        The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
+        ends of the associations in the anchor.
+        :param verbose: Indicates if the DDL should be printed
+        :return: ???
+        '''
         logger.info("Creating tables")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
@@ -108,7 +118,62 @@ class Normalized(Relational):
                 print(sentence)
         # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
 
+    def create_bucket_combinations(self, join_edges, required_attributes):
+        '''
+        For each required domain elements, create a bucket with all the tables where it can come from.
+        Then, combine all these buckets to cover all elements
+        :param join_edges: List of classes and associations in the query
+        :param required_attributes: List of attributes used in the query
+        :return: List of combinations of tables covering all the required elements
+        :return: List of classes required
+        :return: List of associations required
+        '''
+        tables = []
+        classes = []
+        associations = []
+        for elem in join_edges:
+            # Find the tables (aka fist level elements) where the element belongs
+            node_name = self.get_phantom_of_edge_by_name(elem)
+            second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes') == node_name]
+            inbounds = self.get_inbound_structs()
+            inbounds["nodes"] = inbounds.index.get_level_values('nodes')
+            second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
+            # No need to check if they are at first level, because sets always are (no nested structures are allowed)
+            #first_levels = self.get_outbound_sets()[(self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)) & (self.get_outbound_sets().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+            first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+            first_levels.sort()
+            # Split join edges into classes and associations
+            if self.is_association(elem):
+                associations.append(elem)
+                # If the element is an association, any table containing it is an option
+                tables.append(first_levels)
+            if self.is_class(elem):
+                classes.append(elem)
+                # If it is a class, it may be vertically partitioned
+                # We need to generate joins of these tables that cover all required attributes one by one
+                # Get the tables independently for every attribute in the class
+                for attr in required_attributes:
+                    attr_tables = []
+                    for table in first_levels:
+                        kind = self.H.get_cell_properties(table, attr, "Kind")
+                        if kind is not None:
+                            attr_tables.append(table)
+                    if attr_tables:
+                        tables.append(attr_tables)
+        # Generate combinations of the buckets of each element to get the combinations that cover all of them
+        return combine_tables(drop_duplicates(tables)), classes, associations
+
     def generate_joins(self, tables, query_classes, query_associations, visited, alias_table, alias_attr):
+        '''
+        This uses the bucket algorithm to generate all possible joins to retrieve the required classes and associations
+        :param tables: List of tables
+        :param query_classes: List of classes to be provided by the query
+        :param query_associations: List of associations to be provided by the query
+        :param alias_table: Dictionary with the alias of every table in the query
+        :param alias_attr: Dictionary indicating from which table each attribute must be taken
+        :param visited: Dictionary with all visited classes and from which table they are taken
+        :return: String containing the join clause of the tables received as parameter
+        '''
         print("Generating joins...", tables, query_classes, query_associations, visited)
         first_table = (visited == {})
         unjoinable = []
@@ -160,68 +225,40 @@ class Normalized(Relational):
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, visited, alias_table, alias_attr)
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited)
 
     def generate_SQL(self, query, verbose=True):
+        '''
+        Generates SQL statements corresponding to the given query
+        :param query: A JSON containing the select-project-join information
+        :param verbose: Whether to print the SQL statements
+        :return: A list with all possible SQL statements ascendently sorted by the number of tables
+        '''
         logger.info("Executing query")
         project_attributes, filter_attributes, join_edges, required_attributes, filter_clause = self.parse_query(query)
-        # Get the tables where each required domain elements is found
-        tables = []
-        classes = []
-        associations = []
-        for elem in join_edges:
-            # Find the tables (aka fist level elements) where the element belongs
-            node_name = self.get_phantom_of_edge_by_name(elem)
-            second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes') == node_name]
-            inbounds = self.get_inbound_structs()
-            inbounds["nodes"] = inbounds.index.get_level_values('nodes')
-            second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
-            # No need to check if they are at first level, because sets always are (no nested structures are allowed)
-            #first_levels = self.get_outbound_sets()[(self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)) & (self.get_outbound_sets().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
-            first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
-            first_levels.sort()
-            # Split join edges into classes and associations
-            if self.is_association(elem):
-                associations.append(elem)
-                # If the element is an association, any table containing it is an option
-                tables.append(first_levels)
-            if self.is_class(elem):
-                classes.append(elem)
-                # If it is a class, it may be vertically partitioned
-                # We need to generate joins of these tables that cover all required attributes one by one
-                # Get the tables independently for every attribute in the class
-                for attr in required_attributes:
-                    attr_tables = []
-                    for table in first_levels:
-                        kind = self.H.get_cell_properties(table, attr, "Kind")
-                        if kind is not None:
-                            attr_tables.append(table)
-                    if attr_tables:
-                        tables.append(attr_tables)
 
-        # Generate combinations of the tables of each element to get the combinations that cover all of them
-        query_options = combine_tables(drop_duplicates(tables))
+        query_options, classes, associations = self.create_bucket_combinations(join_edges, required_attributes)
         if len(query_options) > 1:
             if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
             query_options = sorted(query_options, key=len)
         # For each option, generate an SQL query
         sentences = []
-        for option in query_options:
+        for tables_combination in query_options:
             modified_filter_clause = filter_clause
             # Simple case of only one table required by the query
-            if len(option) == 1:
+            if len(tables_combination) == 1:
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join(project_attributes)
                 # Build the FROM clause
-                sentence += "\nFROM " + option[0]
+                sentence += "\nFROM " + tables_combination[0]
             # Case with several tables that require joins
             else:
                 # Determine the aliases of tables and required attributes
                 alias_table = {}
                 alias_attr = {}
                 # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
-                for index, table in enumerate(reversed(option)):
-                    alias_table[table] = self.config.prepend_table_alias+str(len(option)-index)
+                for index, table in enumerate(reversed(tables_combination)):
+                    alias_table[table] = self.config.prepend_table_alias+str(len(tables_combination)-index)
                     # TODO: There could be more than one struct
                     struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(table).index[0][1])
                     implicit_classes = [self.get_edge_by_phantom_name(p) for p in self.get_anchor_points_by_struct_name(struct_name)]
@@ -236,7 +273,7 @@ class Normalized(Relational):
                 print(alias_attr)
                 sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
-                sentence += "\nFROM "+self.generate_joins(option, classes, associations,{}, alias_table, alias_attr)
+                sentence += "\nFROM "+self.generate_joins(tables_combination, classes, associations, alias_table, alias_attr,{})
                 # Add alias to the WHERE clause if there is more than one table
                 for attr in alias_attr.items():
                     modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+attr[0])

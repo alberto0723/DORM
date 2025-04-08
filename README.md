@@ -23,7 +23,7 @@ The contents of the domain files are as follows:
    - Every generalization has a ``name``, some properties (i.e., ``Disjoint`` and ``Complete``), a ``superclass``, and a list of ``subclasses'':
       - Every subclass has a ``class`` and some properties: ``Constraint`` (which is a predicate over the attributes of the class).
 
-#### Semantics and constraints
+#### Constraints
 General:
 - The domain cannot be empty
 - All element names must be unique
@@ -53,9 +53,20 @@ The contents of the design files are as follows:
 1. The name of the corresponding domain.
 1. A list of hyperedges with a different name each, that can be of two kids
    1. ``Set``: Contains a list of elements (either classes or associations) contained in the set.
-   1. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the anchor elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
+   1. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the ``anchor`` elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
 
-#### Semantics and constraints
+#### Semantics
+*Sets* are abstractions that represent tables, collections, arrays.
+
+*Structs* are abstractions that contain different elements (a.k.a. classes, attributes and associations) from the domain, and represent kinds of entities, semantic types, etc.
+A class contained in a struct means that at least its identifier belongs to it.
+
+*Loose association ends* are those in the extremes of a chain of associations without a class.
+They generate pointers (a.k.a. attributes) underneath, but do not indicate the whole class is contained in the struct.
+All structs have an *anchor* that defines their identity.
+The anchor of a struct inside a set generates an identifier composed of the identifiers of all classes in its anchor, together with the loose ends in there.
+
+#### Constraints
 General:
 - All elements in the domain must be (potentially by transitivity) inside some set.
 - All elements in the domain must be inside some struct.
@@ -71,8 +82,6 @@ About structs:
 - The anchor must be a connected subgraph of the domain.
 - The elements and the anchor together must be a connected subgraph of the domain.
 - There is only one path from every element in a struct to its anchor.
-- Loose association ends generate attributes underneath, but do not indicate the whole class has to be stored.
-- The anchor of a struct inside a set generates an identifier composed of the identifiers of all classes in its anchor, together with the loose ends in there (loose ends are those in the extremes of a chain of associations).
 - Loose ends in the anchor must be loose ends in the struct.
   
 ### 3- Queries
@@ -84,7 +93,7 @@ The content of the query files is just a list of SPJ queries, whose structure is
 1. ``join`` contains a list of classes and associations in the domain, which cannot be empty.
 1. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 
-#### Semantics and constraints
+#### Constraints
 - All elements in the three parts of a query must be connected (potentially by generalization).
 - Generalizations cannot be explicited in the query.
 - The join clause can not contain two classes (directly or transitively) related by generalization. 
