@@ -83,7 +83,7 @@ class Normalized(Relational):
                 elif self.is_generalization_phantom(elem.Index[1]):
                     pass
                 else:
-                    raise ValueError(f"Some element in a struct is not expected: '{elem.Index[1]}'")
+                    raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
             for attr_alias, attr_name in attribute_dicc.items():
                 attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
                 sentence += "  " + attr_alias

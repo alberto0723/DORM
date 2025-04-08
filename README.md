@@ -1,6 +1,6 @@
 # Dynamic Object-Relational Mapping (DORM)
 
-This tool (based on [Modithas Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis) allows to generate database schemas and queries in a flexible way. 
+This tool (based on [Moditha Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis) allows to generate database schemas and queries in a flexible way. 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
 Hence, mappings dynamically change as database schema design evolves.
 
@@ -24,14 +24,23 @@ The contents of the domain files are as follows:
       - Every subclass has a ``class`` and some properties: ``Constraint`` (which is a predicate over the attributes of the class).
 
 #### Semantics and constraints
+General:
+- The domain cannot be empty
+- All element names must be unique
+- The domain must be connected
+
 About classes:
 - Classes must have an identifier (unless they are in a generalization hierarchy).
-- Both class and attribute names must be unique.
+- Attributes belong only to one class.
+- The number of different values of an attribute must be less or equal than the cardinality of its class.
+- The number of different values of an identifier must coincide with the cardinality of its class.
+
 About associations:
 - Associations can only have two ends.
 - Ends must have unique names.
+
 About generalizations:
-- Generalization names must be unique.
+- Generalizations are acyclic.
 - A class can have at most a superclass.
 - The top of every generalization hierarchy must have an identifier.
 - Only the top of a generalization hierarchy can have identifier.
@@ -41,18 +50,44 @@ Structure of the database expressed in terms of *structs* and *sets*.
 You can find an [exemplary design](files/designs/book-authors_normalized.json) corresponding to a normalized relational database.
 
 The contents of the design files are as follows:
-1. 
+1. The name of the corresponding domain.
+1. A list of hyperedges with a different name each, that can be of two kids
+   1. ``Set``: Contains a list of elements (either classes or associations) contained in the set.
+   1. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the anchor elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
 
 #### Semantics and constraints
+General:
+- All elements in the domain must be (potentially by transitivity) inside some set.
+- All elements in the domain must be inside some struct.
 
+About sets:
+- Can contain structs inside, but not directly sets. 
+
+About structs:
+- Every struct must be ultimately contained either in a set or another struct.
+- The anchor cannot be empty.
+- Anchor and elements should be disjoint (actually all anchors are considered automatically elements of the struct).
+- Elements and anchors in a struct can not contain two classes (directly or transitively) related by generalization.
+- The anchor must be a connected subgraph of the domain.
+- The elements and the anchor together must be a connected subgraph of the domain.
+- There is only one path from every element in a struct to its anchor.
+- Loose association ends generate attributes underneath, but do not indicate the whole class has to be stored.
+- The anchor of a struct inside a set generates an identifier composed of the identifiers of all classes in its anchor, together with the loose ends in there (loose ends are those in the extremes of a chain of associations).
+- Loose ends in the anchor must be loose ends in the struct.
+  
 ### 3- Queries
 Select-Project-Join expressions in terms of the domain concepts.
 You can find some [query exemples](files/queries/book-authors.json) over the same domain.
 
 The content of the query files is just a list of SPJ queries, whose structure is as follows:
-1. 
+1. ``project`` contains a list of attributes in the domain, which cannot be empty.
+1. ``join`` contains a list of classes and associations in the domain, which cannot be empty.
+1. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 
 #### Semantics and constraints
+- All elements in the three parts of a query must be connected (potentially by generalization).
+- Generalizations cannot be explicited in the query.
+- The join clause can not contain two classes (directly or transitively) related by generalization. 
 
 ## Setup
 
