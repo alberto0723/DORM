@@ -274,10 +274,10 @@ class Normalized(Relational):
                     alias_table[table] = self.config.prepend_table_alias+str(len(tables_combination)-index)
                     # TODO: There could be more than one struct
                     struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(table).index[0][1])
-                    implicit_classes = [self.get_edge_by_phantom_name(p) for p in self.get_anchor_points_by_struct_name(struct_name)]
-                    implicit_ids = self.get_outbound_classes()[(self.get_outbound_classes().index.get_level_values("edges").isin(implicit_classes)) & (self.get_outbound_classes().index.get_level_values("nodes").isin(self.get_ids()["name"]))]
-                    for id in implicit_ids.itertuples():
-                        alias_attr[id.Index[1]] = alias_table[table]
+                    #implicit_classes = [self.get_edge_by_phantom_name(p) for p in self.get_anchor_points_by_struct_name(struct_name)]
+                    #implicit_ids = self.get_outbound_classes()[(self.get_outbound_classes().index.get_level_values("edges").isin(implicit_classes)) & (self.get_outbound_classes().index.get_level_values("nodes").isin(self.get_ids()["name"]))]
+                    for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
+                        alias_attr[end_name] = alias_table[table]
                     contained_attributes = self.get_transitives_by_edge_name(table)[self.get_transitives_by_edge_name(table).index.get_level_values("nodes").isin(required_attributes)]
                     for attr in contained_attributes.itertuples():
                         alias_attr[attr.Index[1]] = alias_table[table]

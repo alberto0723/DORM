@@ -13,12 +13,16 @@
       "pattern": ["Author"]
     },
     {
+      "project": ["Writes_Book", "Writes_Author"],
+      "pattern": ["Writes"]
+    },
+    {
       "project": ["A_ID", "B_ID"],
       "pattern": ["Book", "Writes", "Author"]
     },
     {
-      "project": ["B_ID"],
-      "pattern": ["Author", "Book", "Writes"],
+      "project": ["Writes_Book"],
+      "pattern": ["Author", "Writes"],
       "filter": "A_name = 'hello'"
     },
     {

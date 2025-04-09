@@ -97,10 +97,12 @@ The content of the query files is just a list of SPJ queries, whose structure is
 - The use of generalizations is implicit.
 - The pattern may not contain any association.
 - The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
+- The attribute names in the projection are those of the attributes in the classes, except for the identifiers of classes not explicit in the pattern.
+In this case, the corresponding association end should be used.
 
 #### Constraints
 - All elements in the three parts of a query must be connected (potentially by generalization).
-- Generalizations cannot be explicited in the query.
+- Generalizations cannot be explicit in the query.
 - The pattern can not contain two classes (directly or transitively) related by generalization. 
 
 ## Setup
