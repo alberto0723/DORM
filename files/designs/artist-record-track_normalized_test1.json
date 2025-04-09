@@ -24,8 +24,8 @@
          "elements": ["Made_type"]},
         {"kind": "Struct",
          "name": "Has_type",
-         "anchor": ["Has"],
-         "elements": ["Track", "T_title"]},
+         "anchor": ["Track","Has"],
+         "elements": ["T_title"]},
         {"kind": "Set",
          "name": "Has_table",
          "elements": ["Has_type"]}

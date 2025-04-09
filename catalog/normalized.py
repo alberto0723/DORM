@@ -1,0 +1,294 @@
+import logging
+from IPython.display import display
+import pandas as pd
+from matplotlib import table
+import networkx as nx
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
+from .relational import Relational
+from .tools import df_difference, show_textual_hypergraph, show_graphical_hypergraph, combine_tables, drop_duplicates
+
+logger = logging.getLogger("pureRelational")
+
+class Normalized(Relational):
+    """This is a subclass of Relational that implements the code generation as normalized in 1NF
+    """
+    def __init__(self, file=None):
+        super().__init__(file)
+
+    def check_toOne(self, path):
+        correct = True
+        for i, current in enumerate(path):
+            if self.is_association(current):
+                if len(path) > i+1:
+                    properties = self.H.get_cell_properties(current, path[i+1])
+                    if "Multiplicity" in properties:
+                        correct = correct and (properties.get("Multiplicity") <= 1)
+                    else:
+                        raise ValueError(f"Checking multiplicity: Multiplicity not provided for association '{current}-{path[i+1]}'")
+        return correct
+
+    def is_correct(self, design=False):
+        correct = super().is_correct(design)
+        if correct:
+            # ---------------------------------------------------------------- ICs about being a pure relational catalog
+            # IC-PureRelational1: All associations from the anchor of a struct must be to one (or less)
+            logger.info("Checking IC-PureRelational1")
+            firstlevels = self.get_inbound_firstLevel()
+            # For each table
+            for table in firstlevels.itertuples():
+                for struct in self.get_outbound_sets().query('edges == "'+table.Index[0]+'"').itertuples():
+                    struct_name = self.get_edge_by_phantom_name(struct.Index[1])
+                    members = self.get_outbound_struct_by_name(struct_name).index.get_level_values(1).tolist()
+                    anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+                    dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
+                    restricted_struct = self.get_restricted_struct_hypergraph(struct_name).remove_edges(dont_cross)
+                    bipartite = restricted_struct.bipartite()
+                    for anchor in anchor_points:
+                        for member in set(members)-set(anchor_points):
+                            if self.is_class_phantom(member):
+                                paths = list(nx.all_simple_paths(bipartite, source=anchor, target=member))
+                                if len(paths) == 1:
+                                    if not self.check_toOne(paths[0]):
+                                        correct = False
+                                        print(f"IC-PureRelational1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
+                                elif len(paths) > 1:
+                                    raise ValueError(f"IC-PureRelational1: Something went wrong in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'")
+        return correct
+
+    def create_schema(self, verbose=False):
+        '''
+        Creates the tables in the design. One table is created for every set in the first level (i.e., without parent).
+        One or more structs are expected inside the set, but all of them should generate the same attributes.
+        Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
+        of the associations.
+        The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
+        ends of the associations in the anchor.
+        :param verbose: Indicates if the DDL should be printed
+        :return: ???
+        '''
+        logger.info("Creating tables")
+        firstlevels = self.get_inbound_firstLevel()
+        # For each table
+        for table in firstlevels.itertuples():
+            logger.info("-- Creating table " + table.Index[0])
+            sentence = "DROP TABLE IF EXISTS "+table.Index[0]+" CASCADE; CREATE TABLE " + table.Index[0] + " (\n"
+            struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
+            # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
+            struct_name = self.get_edge_by_phantom_name(struct_phantoms.index[0][1])
+            elements = self.get_outbound_struct_by_name(struct_name)
+            loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
+            # For each element in the table
+            attribute_dicc = {}
+            for elem in elements.itertuples():
+                if self.is_attribute(elem.Index[1]):
+                    attribute_dicc[elem.Index[1]] = elem.Index[1]
+                elif self.is_class_phantom(elem.Index[1]):
+                    attribute_dicc[self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
+                elif self.is_association_phantom(elem.Index[1]):
+                    ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
+                    for end in ends.itertuples():
+                        if end.misc_properties["End_name"] in loose_ends:
+                            attribute_dicc[end.misc_properties['End_name']] = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
+                elif self.is_generalization_phantom(elem.Index[1]):
+                    pass
+                else:
+                    raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
+            for attr_alias, attr_name in attribute_dicc.items():
+                attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
+                sentence += "  " + attr_alias
+                if attribute.iloc[0]["misc_properties"].get("DataType") == "String":
+                    sentence += " VarChar(" + str(attribute.iloc[0]["misc_properties"].get("Size")) + "),\n"
+                else:
+                    sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
+            # If the anchor is a class, its ID is the PK
+            key_list = []
+            for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                if self.is_class_phantom(key):
+                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                else:
+                    key_list.append(key)
+            if not key_list:
+                raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
+            clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
+            sentence += clause_PK + "  );"
+            if verbose:
+                print(sentence)
+        # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
+
+    def create_bucket_combinations(self, join_edges, required_attributes):
+        '''
+        For each required domain elements, create a bucket with all the tables where it can come from.
+        Then, combine all these buckets to cover all elements
+        :param join_edges: List of classes and associations in the query
+        :param required_attributes: List of attributes used in the query
+        :return: List of combinations of tables covering all the required elements
+        :return: List of classes required
+        :return: List of associations required
+        '''
+        tables = []
+        classes = []
+        associations = []
+        for elem in join_edges:
+            # Find the tables (aka fist level elements) where the element belongs
+            node_name = self.get_phantom_of_edge_by_name(elem)
+            second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes') == node_name]
+            inbounds = self.get_inbound_structs()
+            inbounds["nodes"] = inbounds.index.get_level_values('nodes')
+            second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
+            # No need to check if they are at first level, because sets always are (no nested structures are allowed)
+            #first_levels = self.get_outbound_sets()[(self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)) & (self.get_outbound_sets().index.get_level_values('edges').isin(self.get_edges_firstlevel()["edges"]))].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+            first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].reset_index(drop=False)["edges"].drop_duplicates().values.tolist()
+            first_levels.sort()
+            # Split join edges into classes and associations
+            if self.is_association(elem):
+                associations.append(elem)
+                # If the element is an association, any table containing it is an option
+                tables.append(first_levels)
+            if self.is_class(elem):
+                classes.append(elem)
+                current_attributes = self.get_outbound_class_by_name(elem)[self.get_outbound_class_by_name(elem).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes')
+                # If it is a class, it may be vertically partitioned
+                # We need to generate joins of these tables that cover all required attributes one by one
+                # Get the tables independently for every attribute in the class
+                for attr in current_attributes:
+                    if not self.is_id(attr) or len(current_attributes) == 1:
+                        attr_tables = []
+                        for table in first_levels:
+                            kind = self.H.get_cell_properties(table, attr, "Kind")
+                            if kind is not None:
+                                attr_tables.append(table)
+                        if attr_tables:
+                            tables.append(attr_tables)
+        # Generate combinations of the buckets of each element to get the combinations that cover all of them
+        return combine_tables(drop_duplicates(tables)), classes, associations
+
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited):
+        '''
+        Find the connections between tables, according to the required classes and associations
+        end generate the corresponding join clause
+        Consider that the pattern of associations is acyclic, which means that we can add joins incrementally one by one
+        There are four cases of potential joins
+        1- a class in common between the current table and a visited one
+        2- a class in the current table corresponding to a loose end in a visited one
+        3- a loose end in the current table corresponding to a class in a visited one
+        4- a loose end in the current table corresponding to another loose end in a visited one, and the corresponding class is not in the query
+        :param tables: List of tables
+        :param query_classes: List of classes to be provided by the query (can be empty)
+        :param query_associations: List of associations to be provided by the query (can be empty)
+        :param alias_table: Dictionary with the alias of every table in the query
+        :param alias_attr: Dictionary indicating from which table each attribute must be taken
+        :param visited: Dictionary with all visited classes and from which table they are taken
+        :return: String containing the join clause of the tables received as parameter
+        '''
+        # TODO: Consider that there could be more than one connected component (provided by the query) in the table
+        #   (associations should be used to choose the right one)
+        first_table = (visited == {})
+        unjoinable = []
+        associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
+        while tables:
+            # Take any table and find all its potentially connection points
+            current_table = tables.pop(0)
+            struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(current_table).index[0][1])
+            # Get potential attributes to plug the current table
+            plugs = [] # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
+            for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
+                if self.is_class_phantom(incidence.Index[1]):
+                    class_name = self.get_edge_by_phantom_name(incidence.Index[1])
+                    if class_name in query_classes:
+                        # Any class in the query is a potential connection point per se
+                        plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
+                        # Also, it can connect to a loose end if it participates in an association
+                        for ass in associations.itertuples():
+                            if class_name == self.get_edge_by_phantom_name(ass.Index[1]):
+                                plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
+            for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
+                for ass in associations.itertuples():
+                    if end_name == ass.misc_properties["End_name"]:
+                        # Loose end can connect to a class id
+                        plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
+                        # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
+                        if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
+                            plugs.append((end_name, end_name))
+            # Check if the other ends of any of the connection points has been visited before
+            joins = []
+            for plug in plugs:
+                if plug[1] in visited:
+                    joins.append(alias_table[visited[plug[1]]]+"."+plug[1]+"="+alias_table[current_table]+"."+plug[0])
+            if not first_table and not joins:
+                unjoinable.append(current_table)
+            else:
+                tables += unjoinable
+                unjoinable = []
+                break
+        # Get all the connection point in the table and mark them as visited
+        # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
+        for plug in plugs:
+            visited[plug[0]] = current_table
+        # Create the join clause
+        join_clause = current_table + " " + alias_table[current_table]
+        if not first_table:
+            if unjoinable:
+                raise ValueError(f"Tables '{unjoinable}' are not joinable in the query")
+            join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)
+        if not tables:
+            return join_clause
+        else:
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited)
+
+    def generate_SQL(self, query, verbose=True):
+        '''
+        Generates SQL statements corresponding to the given query.
+        It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
+        retrieve the required classes and associations
+        :param query: A JSON containing the select-project-join information
+        :param verbose: Whether to print the SQL statements
+        :return: A list with all possible SQL statements ascendently sorted by the number of tables
+        '''
+        logger.info("Executing query")
+        project_attributes, filter_attributes, join_edges, required_attributes, filter_clause = self.parse_query(query)
+
+        query_options, classes, associations = self.create_bucket_combinations(join_edges, required_attributes)
+        if len(query_options) > 1:
+            if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
+            query_options = sorted(query_options, key=len)
+        # For each combination of tables, generate an SQL query
+        sentences = []
+        for tables_combination in query_options:
+            modified_filter_clause = filter_clause
+            # Simple case of only one table required by the query
+            if len(tables_combination) == 1:
+                # Build the SELECT clause
+                sentence = "SELECT " + ", ".join(project_attributes)
+                # Build the FROM clause
+                sentence += "\nFROM " + tables_combination[0]
+            # Case with several tables that require joins
+            else:
+                # Determine the aliases of tables and required attributes
+                alias_table = {}
+                alias_attr = {}
+                # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
+                for index, table in enumerate(reversed(tables_combination)):
+                    alias_table[table] = self.config.prepend_table_alias+str(len(tables_combination)-index)
+                    # TODO: There could be more than one struct
+                    struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(table).index[0][1])
+                    #implicit_classes = [self.get_edge_by_phantom_name(p) for p in self.get_anchor_points_by_struct_name(struct_name)]
+                    #implicit_ids = self.get_outbound_classes()[(self.get_outbound_classes().index.get_level_values("edges").isin(implicit_classes)) & (self.get_outbound_classes().index.get_level_values("nodes").isin(self.get_ids()["name"]))]
+                    for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
+                        alias_attr[end_name] = alias_table[table]
+                    contained_attributes = self.get_transitives_by_edge_name(table)[self.get_transitives_by_edge_name(table).index.get_level_values("nodes").isin(required_attributes)]
+                    for attr in contained_attributes.itertuples():
+                        alias_attr[attr.Index[1]] = alias_table[table]
+                # Build the SELECT clause
+                sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
+                # Build the FROM clause
+                sentence += "\nFROM "+self.generate_joins(tables_combination, classes, associations, alias_table, alias_attr,{})
+                # Add alias to the WHERE clause if there is more than one table
+                for attr in alias_attr.items():
+                    modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+attr[0])
+            # Build the WHERE clause
+            sentence += "\nWHERE " + modified_filter_clause + ";"
+            sentences.append(sentence)
+        return sentences

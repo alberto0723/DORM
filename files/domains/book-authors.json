@@ -22,16 +22,16 @@
       }
 
     ],
-  "relationships": [
+  "associations": [
     {
       "name": "Writes",
       "ends": [
-        { "name": "Author",
-          "prop": { "Multiplicity": 3.5 }
+        { "class": "Author",
+          "prop": {"End_name": "Writes_Author", "Multiplicity": 3.5 }
           },
         {
-          "name": "Book",
-          "prop": { "Multiplicity": 5.5 }
+          "class": "Book",
+          "prop": {"End_name": "Writes_Book", "Multiplicity": 5.5 }
           }
         ]
       }

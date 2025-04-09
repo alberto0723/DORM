@@ -22,7 +22,7 @@ def combine_tables(patterns_list):
         combinations = []
         for combination in combine_tables(patterns_list):
             for current_table in current_pattern:
-                if not current_table in combination:
+                if current_table not in combination:
                     temp = combination + [current_table]
                     temp.sort()
                     combinations.append(temp)

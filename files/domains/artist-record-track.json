@@ -26,28 +26,28 @@
       }
 
     ],
-  "relationships": [
+  "associations": [
     {
       "name": "Made",
       "ends": [
-        { "name": "Artist",
-          "prop": { "Multiplicity": 2.5 }
+        { "class": "Artist",
+          "prop": {"End_name": "Made_Artist", "Multiplicity": 2.5 }
           },
         {
-          "name": "Record",
-          "prop": { "Multiplicity": 5 }
+          "class": "Record",
+          "prop": {"End_name": "Made_Record", "Multiplicity": 5 }
           }
         ]
       },
         {
       "name": "Has",
       "ends": [
-        { "name": "Record",
-          "prop": { "Multiplicity": 1 }
+        { "class": "Record",
+          "prop": {"End_name": "Has_Record", "Multiplicity": 1 }
           },
         {
-          "name": "Track",
-          "prop": { "Multiplicity": 15 }
+          "class": "Track",
+          "prop": {"End_name": "Has_Track", "Multiplicity": 15 }
           }
         ]
       }
