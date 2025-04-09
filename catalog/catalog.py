@@ -994,7 +994,6 @@ class Catalog:
                 if (verbose):
                     print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
-
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
@@ -1018,10 +1017,7 @@ class Catalog:
             if self.is_class(e):
                 superclasses.extend(self.get_superclasses_by_class_name(e, []))
                 superclasses.extend(self.get_generalizations_by_class_name(e, []))
-        print(superclasses)
         restricted_domain = self.H.restrict_to_edges(join_edges+superclasses)
-        print("Restricted Domain")
-        display(restricted_domain.nodes.dataframe)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
             raise ValueError(f"Some query elements (i.e., attributes, classes and associations) are not connected")
@@ -1033,27 +1029,25 @@ class Catalog:
         association_ends = hop2.apply(lambda row: row["misc_properties"]["End_name"], axis=1)
         association_ends.name = "name"
         if attributes.empty:
-            print("--Association_ends")
-            display(association_ends)
             missing_attributes = df_difference(pd.DataFrame(required_attributes), association_ends)
         elif association_ends.empty:
-            print("--Attributes")
-            display(attributes)
             missing_attributes = df_difference(pd.DataFrame(required_attributes), attributes)
         else:
-            print("--Both")
-            display(pd.concat([attributes, association_ends], axis=0))
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
     def parse_query(self, query):
         # Get the query and parse it
-        project_attributes = query.get("project")
+        project_attributes = query.get("project", [])
+        if not project_attributes:
+            raise ValueError("Empty projection is not allowed in a query")
         for a in project_attributes:
             if not (self.is_attribute(a) or self.is_association_end(a)):
                 raise ValueError(f"Projected '{a}' is neither an attribute nor an association end")
-        join_edges = query.get("join")
+        join_edges = query.get("pattern", [])
+        if not join_edges:
+            raise ValueError("Empty pattern is not allowed in the query")
         for e in join_edges:
             if not (self.is_class(e) or self.is_association(e)):
                 raise ValueError(f"Chosen edge '{e}' is neither a class nor a association")

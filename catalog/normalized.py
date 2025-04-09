@@ -74,7 +74,7 @@ class Normalized(Relational):
         # For each table
         for table in firstlevels.itertuples():
             logger.info("-- Creating table " + table.Index[0])
-            sentence = "CREATE TABLE IF NOT EXISTS " + table.Index[0] + " (\n"
+            sentence = "DROP TABLE IF EXISTS "+table.Index[0]+" CASCADE; CREATE TABLE " + table.Index[0] + " (\n"
             struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
             # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
             struct_name = self.get_edge_by_phantom_name(struct_phantoms.index[0][1])
@@ -149,73 +149,84 @@ class Normalized(Relational):
                 tables.append(first_levels)
             if self.is_class(elem):
                 classes.append(elem)
+                current_attributes = self.get_outbound_class_by_name(elem)[self.get_outbound_class_by_name(elem).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes')
                 # If it is a class, it may be vertically partitioned
                 # We need to generate joins of these tables that cover all required attributes one by one
                 # Get the tables independently for every attribute in the class
-                for attr in required_attributes:
-                    attr_tables = []
-                    for table in first_levels:
-                        kind = self.H.get_cell_properties(table, attr, "Kind")
-                        if kind is not None:
-                            attr_tables.append(table)
-                    if attr_tables:
-                        tables.append(attr_tables)
+                for attr in current_attributes:
+                    if not self.is_id(attr) or len(current_attributes) == 1:
+                        attr_tables = []
+                        for table in first_levels:
+                            kind = self.H.get_cell_properties(table, attr, "Kind")
+                            if kind is not None:
+                                attr_tables.append(table)
+                        if attr_tables:
+                            tables.append(attr_tables)
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_tables(drop_duplicates(tables)), classes, associations
 
-    def generate_joins(self, tables, query_classes, query_associations, visited, alias_table, alias_attr):
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited):
         '''
-        This uses the bucket algorithm to generate all possible joins to retrieve the required classes and associations
+        Find the connections between tables, according to the required classes and associations
+        end generate the corresponding join clause
+        Consider that the pattern of associations is acyclic, which means that we can add joins incrementally one by one
+        There are four cases of potential joins
+        1- a class in common between the current table and a visited one
+        2- a class in the current table corresponding to a loose end in a visited one
+        3- a loose end in the current table corresponding to a class in a visited one
+        4- a loose end in the current table corresponding to another loose end in a visited one, and the corresponding class is not in the query
         :param tables: List of tables
-        :param query_classes: List of classes to be provided by the query
-        :param query_associations: List of associations to be provided by the query
+        :param query_classes: List of classes to be provided by the query (can be empty)
+        :param query_associations: List of associations to be provided by the query (can be empty)
         :param alias_table: Dictionary with the alias of every table in the query
         :param alias_attr: Dictionary indicating from which table each attribute must be taken
         :param visited: Dictionary with all visited classes and from which table they are taken
         :return: String containing the join clause of the tables received as parameter
         '''
-        print("Generating joins...", tables, query_classes, query_associations, visited)
+        # TODO: Consider that there could be more than one connected component (provided by the query) in the table
+        #   (associations should be used to choose the right one)
         first_table = (visited == {})
         unjoinable = []
+        associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
         while tables:
+            # Take any table and find all its potentially connection points
             current_table = tables.pop(0)
-            # TODO: Consider that there could be more than one connected component (provided by the query) in the table
-            #  (associations should be used to choose the right one)
-            # Generate joins for classes already in visited
             struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(current_table).index[0][1])
-            current_links = []
-            # Get potential links of the current table
-            # If all associations in the anchor are in the query, then anchor points are considered links for join
-            print("Struct...", struct_name)
-            print("Anchors...", self.get_association_ends_by_struct_name(struct_name))
-            for association_end in self.get_association_ends_by_struct_name(struct_name):
-                for phantom_name in self.get_anchor_points_by_struct_name(struct_name):
-                    current_links.append(self.get_edge_by_phantom_name(phantom_name))
-            # If classes are in the query, they are considered links for join
+            # Get potential attributes to plug the current table
+            plugs = [] # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
             for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
                 if self.is_class_phantom(incidence.Index[1]):
-                    print(incidence)
                     class_name = self.get_edge_by_phantom_name(incidence.Index[1])
-                    print(class_name)
                     if class_name in query_classes:
-                        current_links.append(class_name)
-            print("current classes: ", drop_duplicates(current_links))
-            # Check if current links have been visited before
+                        # Any class in the query is a potential connection point per se
+                        plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
+                        # Also, it can connect to a loose end if it participates in an association
+                        for ass in associations.itertuples():
+                            if class_name == self.get_edge_by_phantom_name(ass.Index[1]):
+                                plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
+            for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
+                for ass in associations.itertuples():
+                    if end_name == ass.misc_properties["End_name"]:
+                        # Loose end can connect to a class id
+                        plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
+                        # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
+                        if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
+                            plugs.append((end_name, end_name))
+            # Check if the other ends of any of the connection points has been visited before
             joins = []
-            for c in drop_duplicates(current_links):
-                if c in visited:
-                    identifier = self.get_class_id_by_name(c)
-                    joins.append(alias_table[visited[c]]+"."+identifier+"="+alias_table[current_table]+"."+identifier)
+            for plug in plugs:
+                if plug[1] in visited:
+                    joins.append(alias_table[visited[plug[1]]]+"."+plug[1]+"="+alias_table[current_table]+"."+plug[0])
             if not first_table and not joins:
                 unjoinable.append(current_table)
             else:
                 tables += unjoinable
                 unjoinable = []
                 break
-        # Get all the classes in the table and mark them as visited
+        # Get all the connection point in the table and mark them as visited
         # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
-        for c in current_links:
-            visited[c] = current_table
+        for plug in plugs:
+            visited[plug[0]] = current_table
         # Create the join clause
         join_clause = current_table + " " + alias_table[current_table]
         if not first_table:
@@ -229,7 +240,9 @@ class Normalized(Relational):
 
     def generate_SQL(self, query, verbose=True):
         '''
-        Generates SQL statements corresponding to the given query
+        Generates SQL statements corresponding to the given query.
+        It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
+        retrieve the required classes and associations
         :param query: A JSON containing the select-project-join information
         :param verbose: Whether to print the SQL statements
         :return: A list with all possible SQL statements ascendently sorted by the number of tables
@@ -241,7 +254,7 @@ class Normalized(Relational):
         if len(query_options) > 1:
             if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
             query_options = sorted(query_options, key=len)
-        # For each option, generate an SQL query
+        # For each combination of tables, generate an SQL query
         sentences = []
         for tables_combination in query_options:
             modified_filter_clause = filter_clause
@@ -269,8 +282,6 @@ class Normalized(Relational):
                     for attr in contained_attributes.itertuples():
                         alias_attr[attr.Index[1]] = alias_table[table]
                 # Build the SELECT clause
-                print(project_attributes)
-                print(alias_attr)
                 sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
                 # Build the FROM clause
                 sentence += "\nFROM "+self.generate_joins(tables_combination, classes, associations, alias_table, alias_attr,{})

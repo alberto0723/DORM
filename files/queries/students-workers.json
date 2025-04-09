@@ -2,23 +2,23 @@
   "queries": [
     {
       "project": ["P_ID"],
-      "join": ["People"]
+      "pattern": ["People"]
     },
     {
       "project": ["P_ID"],
-      "join": ["Students"]
+      "pattern": ["Students"]
     },
     {
       "project": ["P_ID"],
-      "join": ["Workers"]
+      "pattern": ["Workers"]
     },
     {
       "project": ["Friends_Students", "Friends_Workers"],
-      "join": ["Friends"]
+      "pattern": ["Friends"]
     },
     {
       "project": ["P_ID", "Friends_Students", "Friends_Workers"],
-      "join": ["Students","Friends"]
+      "pattern": ["Students","Friends"]
     }
   ]
 }

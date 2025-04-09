@@ -2,30 +2,30 @@
   "queries": [
     {
       "project": ["A_name"],
-      "join": ["Artist"]
+      "pattern": ["Artist"]
     },
     {
       "project": ["R_ID"],
-      "join": ["Record"],
+      "pattern": ["Record"],
       "filter": "R_name = 'value'"
     },
     {
       "project": ["T_ID"],
-      "join": ["Track"],
+      "pattern": ["Track"],
       "filter": "T_title = 'value'"
     },
     {
       "project": ["A_ID", "R_ID", "T_ID"],
-      "join": ["Has", "Made"]
+      "pattern": ["Has", "Made"]
     },
     {
       "project": ["R_ID"],
-      "join": ["Artist", "Record", "Track", "Has", "Made"],
+      "pattern": ["Artist", "Record", "Track", "Has", "Made"],
       "filter": "A_name = 'value1' AND R_name = 'value2'"
     },
     {
       "project": ["T_ID", "A_ID"],
-      "join": ["Artist", "Record", "Track", "Has", "Made"],
+      "pattern": ["Artist", "Record", "Track", "Has", "Made"],
       "filter": "T_title = 'value1' OR T_title = 'value2'"
     }
   ]

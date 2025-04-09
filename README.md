@@ -90,13 +90,18 @@ You can find some [query exemples](files/queries/book-authors.json) over the sam
 
 The content of the query files is just a list of SPJ queries, whose structure is as follows:
 1. ``project`` contains a list of attributes in the domain, which cannot be empty.
-1. ``join`` contains a list of classes and associations in the domain, which cannot be empty.
+1. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
 1. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
+
+#### Semantics
+- The use of generalizations is implicit.
+- The pattern may not contain any association.
+- The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
 
 #### Constraints
 - All elements in the three parts of a query must be connected (potentially by generalization).
 - Generalizations cannot be explicited in the query.
-- The join clause can not contain two classes (directly or transitively) related by generalization. 
+- The pattern can not contain two classes (directly or transitively) related by generalization. 
 
 ## Setup
 

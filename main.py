@@ -9,8 +9,8 @@ base_path = Path(__file__).parent
 if __name__ == '__main__':
     logging.disable()
     logging.info("BEGIN")
-    c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_normalized_test1.HyperNetX"))
-    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_partitioned.HyperNetX"))
+    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_normalized_test1.HyperNetX"))
+    c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_partitioned.HyperNetX"))
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/artist-record-track_pureRelational_test1.HyperNetX"))
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/students-workers_normalized_OneClassOneTable.HyperNetX"))
     c.show_textual()

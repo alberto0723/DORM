@@ -2,37 +2,37 @@
   "queries": [
     {
       "project": ["A_ID"],
-      "join": ["Author"]
+      "pattern": ["Author"]
     },
     {
       "project": ["B_title"],
-      "join": ["Book"]
+      "pattern": ["Book"]
     },
     {
       "project": ["A_ID", "A_name"],
-      "join": ["Author"]
+      "pattern": ["Author"]
     },
     {
       "project": ["A_ID", "B_ID"],
-      "join": ["Book", "Writes", "Author"]
+      "pattern": ["Book", "Writes", "Author"]
     },
     {
       "project": ["B_ID"],
-      "join": ["Author", "Book", "Writes"],
+      "pattern": ["Author", "Book", "Writes"],
       "filter": "A_name = 'hello'"
     },
     {
       "project": ["A_ID", "B_ID"],
-      "join": ["Author", "Book", "Writes"],
+      "pattern": ["Author", "Book", "Writes"],
       "filter": "A_name = 'hello'"
     },
     {
       "project": ["B_ID", "B_title", "B_editorial"],
-      "join": ["Book"]
+      "pattern": ["Book"]
     },
     {
       "project": ["A_ID", "A_name", "A_gender", "A_age", "A_address"],
-      "join": ["Author"]
+      "pattern": ["Author"]
     }
   ]
 }
