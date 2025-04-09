@@ -211,7 +211,9 @@ class Normalized(Relational):
                         plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
                         # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
                         if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
-                            plugs.append((end_name, end_name))
+                            for ass2 in associations.itertuples():
+                                if ass.Index[1] == ass2.Index[1]:
+                                    plugs.append((end_name, ass2.misc_properties["End_name"]))
             # Check if the other ends of any of the connection points has been visited before
             joins = []
             for plug in plugs:
@@ -298,7 +300,7 @@ class Normalized(Relational):
                 sentence += "\nFROM " + tables_combination[0]
             # Case with several tables that require joins
             else:
-                 # Build the SELECT clause
+                # Build the SELECT clause
                 sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
                 # Build the FROM clause
                 sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{})

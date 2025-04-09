@@ -1048,9 +1048,12 @@ class Catalog:
         join_edges = query.get("pattern", [])
         if not join_edges:
             raise ValueError("Empty pattern is not allowed in the query")
+        identifiers = []
         for e in join_edges:
             if not (self.is_class(e) or self.is_association(e)):
                 raise ValueError(f"Chosen edge '{e}' is neither a class nor a association")
+            if self.is_class(e):
+                identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
         filter_attributes = []
         if "filter" in query:
@@ -1066,7 +1069,8 @@ class Catalog:
                             if not self.is_attribute(token.value):
                                 raise ValueError(f"Filtering '{token.value}' is not an attribute")
                             filter_attributes.append(token.value)
-        required_attributes = list(set(project_attributes + filter_attributes))
+        # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
+        required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 
         self.check_query_structure(project_attributes, filter_attributes, join_edges, required_attributes)
         return project_attributes, filter_attributes, join_edges, required_attributes, filter_clause

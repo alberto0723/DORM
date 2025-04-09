@@ -29,7 +29,7 @@
     },
     {
       "project": ["T_ID", "A_ID"],
-      "pattern": ["Artist", "Record", "Track", "Has", "Made"],
+      "pattern": ["Artist", "Record","Track", "Has", "Made"],
       "filter": "T_title = 'value1' OR T_title = 'value2'"
     }
   ]
