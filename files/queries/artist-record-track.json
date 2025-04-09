@@ -15,7 +15,11 @@
       "filter": "T_title = 'value'"
     },
     {
-      "project": ["A_ID", "R_ID", "T_ID"],
+      "project": ["Made_Artist", "Made_Record", "Has_Track"],
+      "pattern": ["Has", "Made"]
+    },
+    {
+      "project": ["Made_Artist", "Has_Record", "Has_Track"],
       "pattern": ["Has", "Made"]
     },
     {

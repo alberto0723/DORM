@@ -4,14 +4,16 @@
         {"kind": "Struct",
          "name": "Books_type",
          "anchor": ["Book"],
-         "elements": ["B_title", "Writes"]},
+         "elements": ["B_title","B_editorial", "Writes"]},
         {"kind": "Set",
          "name": "Books_table",
          "elements": ["Books_type"]},
+
+
         {"kind": "Struct",
          "name": "Authors_type",
          "anchor": ["Author"],
-         "elements": ["A_name"]},
+         "elements": ["A_name","A_age","A_gender","A_address"]},
         {"kind": "Set",
          "name": "Authors_table",
          "elements": ["Authors_type"]}

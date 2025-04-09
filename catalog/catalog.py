@@ -211,8 +211,8 @@ class Catalog:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
         return outbounds
 
-    def get_outbound_association_by_name(self, rel_name):
-        elements = self.get_outbound_associations().query('edges == "' + rel_name + '"')
+    def get_outbound_association_by_name(self, ass_name):
+        elements = self.get_outbound_associations().query('edges == "' + ass_name + '"')
         return elements
 
     def get_outbound_struct_by_name(self, struct_name):

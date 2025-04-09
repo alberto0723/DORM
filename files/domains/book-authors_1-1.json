@@ -5,7 +5,8 @@
       "prop": { "Count": 4000000 },
       "attr": [
         { "name": "B_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 4000000, "Identifier": true}},
-        { "name": "B_title", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}}
+        { "name": "B_title", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}},
+        { "name": "B_editorial", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100, "Identifier": false}}
         ]
       },
     {
@@ -13,7 +14,10 @@
       "prop": { "Count": 2500000 },
       "attr": [
         { "name": "A_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 2500000, "Identifier": true}},
-        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}}
+        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100000, "Identifier": false}},
+        { "name": "A_age", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 100, "Identifier": false}},
+        { "name": "A_gender", "prop": {"DataType": "Char", "Size": 1, "DistinctVals": 3, "Identifier": false}},
+        { "name": "A_address", "prop": {"DataType": "String", "Size": 50, "DistinctVals": 2400000, "Identifier": false}}
         ]
       }
 

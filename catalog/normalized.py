@@ -250,44 +250,61 @@ class Normalized(Relational):
         logger.info("Executing query")
         project_attributes, filter_attributes, join_edges, required_attributes, filter_clause = self.parse_query(query)
 
-        query_options, classes, associations = self.create_bucket_combinations(join_edges, required_attributes)
+        query_options, class_names, association_names = self.create_bucket_combinations(join_edges, required_attributes)
         if len(query_options) > 1:
             if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
             query_options = sorted(query_options, key=len)
+
         # For each combination of tables, generate an SQL query
         sentences = []
         for tables_combination in query_options:
             modified_filter_clause = filter_clause
+            # Determine the aliases of tables and required attributes
+            alias_table = {}
+            alias_attr = {}
+            location_attr = {}
+            # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
+            for index, table in enumerate(reversed(tables_combination)):
+                alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
+                # TODO: There could be more than one struct
+                struct_name = self.get_edge_by_phantom_name(
+                    self.get_outbound_set_by_name(table).index.get_level_values("nodes")[0])
+                associations = self.get_inbound_associations()[
+                    self.get_inbound_associations().index.get_level_values("nodes").isin(
+                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
+                                 on="nodes", how="inner").index)]
+                association_ends = self.get_outbound_associations()[
+                    self.get_outbound_associations().index.get_level_values("edges").isin(
+                        associations.index.get_level_values("edges"))]
+                # Set the location of all association ends
+                for end in association_ends.itertuples():
+                    location_attr[end.misc_properties["End_name"]] = alias_table[table]
+                    alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
+                        self.get_edge_by_phantom_name(end.Index[1]))
+                # Supersede the location of loose ens
+                for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
+                    location_attr[end_name] = alias_table[table]
+                    alias_attr[end_name] = end_name
+                contained_attributes = self.get_transitives_by_edge_name(table)[
+                    self.get_transitives_by_edge_name(table).index.get_level_values("nodes").isin(required_attributes)]
+                for attr in contained_attributes.itertuples():
+                    location_attr[attr.Index[1]] = alias_table[table]
+                    alias_attr[attr.Index[1]] = attr.Index[1]
             # Simple case of only one table required by the query
             if len(tables_combination) == 1:
                 # Build the SELECT clause
-                sentence = "SELECT " + ", ".join(project_attributes)
+                sentence = "SELECT " + ", ".join([alias_attr[a] for a in project_attributes])
                 # Build the FROM clause
                 sentence += "\nFROM " + tables_combination[0]
             # Case with several tables that require joins
             else:
-                # Determine the aliases of tables and required attributes
-                alias_table = {}
-                alias_attr = {}
-                # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
-                for index, table in enumerate(reversed(tables_combination)):
-                    alias_table[table] = self.config.prepend_table_alias+str(len(tables_combination)-index)
-                    # TODO: There could be more than one struct
-                    struct_name = self.get_edge_by_phantom_name(self.get_outbound_set_by_name(table).index[0][1])
-                    #implicit_classes = [self.get_edge_by_phantom_name(p) for p in self.get_anchor_points_by_struct_name(struct_name)]
-                    #implicit_ids = self.get_outbound_classes()[(self.get_outbound_classes().index.get_level_values("edges").isin(implicit_classes)) & (self.get_outbound_classes().index.get_level_values("nodes").isin(self.get_ids()["name"]))]
-                    for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
-                        alias_attr[end_name] = alias_table[table]
-                    contained_attributes = self.get_transitives_by_edge_name(table)[self.get_transitives_by_edge_name(table).index.get_level_values("nodes").isin(required_attributes)]
-                    for attr in contained_attributes.itertuples():
-                        alias_attr[attr.Index[1]] = alias_table[table]
-                # Build the SELECT clause
-                sentence = "SELECT " + ", ".join([alias_attr[a]+"."+a for a in project_attributes])
+                 # Build the SELECT clause
+                sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
                 # Build the FROM clause
-                sentence += "\nFROM "+self.generate_joins(tables_combination, classes, associations, alias_table, alias_attr,{})
+                sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{})
                 # Add alias to the WHERE clause if there is more than one table
-                for attr in alias_attr.items():
-                    modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+attr[0])
+                for attr in location_attr.items():
+                    modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+alias_attr[attr[0]])
             # Build the WHERE clause
             sentence += "\nWHERE " + modified_filter_clause + ";"
             sentences.append(sentence)
