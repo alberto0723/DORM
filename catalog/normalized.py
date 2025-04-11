@@ -8,7 +8,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
 from .relational import Relational
-from .tools import df_difference, show_textual_hypergraph, show_graphical_hypergraph, combine_tables, drop_duplicates
+from .tools import df_difference, combine_tables, drop_duplicates
 
 logger = logging.getLogger("pureRelational")
 

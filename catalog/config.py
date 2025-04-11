@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 class Config(object):
 
     # Graphical representations
-    phantom = False
+    show_phantoms = False
 
     # Optimizer constants
     prepend_phantom = "Phantom_"
