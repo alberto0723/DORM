@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import logging
 from IPython.display import display
 import pandas as pd
@@ -49,3 +50,7 @@ class Relational(Catalog):
                 display(violations6_1)
 
         return correct
+
+    @abstractmethod
+    def is_correct_with_specific_implementation(self):
+        pass

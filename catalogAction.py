@@ -37,7 +37,7 @@ def design(args):
     with open(args.dsg_path.joinpath(args.dsg_spec + ".json"), 'r') as file:
         design = json.load(file)
     # Create and fill the catalog
-    cat = relational.Relational(args.hg_path.joinpath("domain").joinpath(design.get("domain") + ".HyperNetX"))
+    cat = normalized.Normalized(args.hg_path.joinpath("domain").joinpath(design.get("domain") + ".HyperNetX"))
     for h in design.get("hyperedges"):
         if h.get("kind") == "Struct":
             cat.add_struct(h.get("name"), h.get("anchor"), h.get("elements"))

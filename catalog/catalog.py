@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import logging
 import networkx as nx
 from IPython.display import display
@@ -11,7 +12,7 @@ from .HyperNetXWrapper import HyperNetXWrapper
 
 logger = logging.getLogger("Catalog")
 
-class Catalog(HyperNetXWrapper):
+class Catalog(HyperNetXWrapper, ABC):
     """This class manages the catalog of a database using hypergraphs
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
@@ -507,11 +508,6 @@ class Catalog(HyperNetXWrapper):
                         correct = False
                         print(f"IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct}', which is not a loose end (i.e., it has not the class in the anchor, but only in its elements)")
 
-            # IC-Structs8: A struct containing siblings by some generalization must also contain the discriminant attribute
-            logger.info("Checking IC-Structs8 -> TO BE IMPLEMENTED")
-            #for struct in structs.index:
-
-
             # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-b)
             logger.info("Checking IC-Structs-b")
             for struct_name in structs.index:
@@ -607,7 +603,11 @@ class Catalog(HyperNetXWrapper):
                 if (verbose):
                     print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
-        return correct
+        return correct and self.is_correct_with_specific_implementation()
+
+    @abstractmethod
+    def is_correct_with_specific_implementation(self):
+        pass
 
     def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
         # Check if the hypergraph contains all the projected attributes
