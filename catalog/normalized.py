@@ -44,8 +44,8 @@ class Normalized(Relational):
                     members = self.get_outbound_struct_by_name(struct_name).index.get_level_values(1).tolist()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                     dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
-                    restricted_struct = self.get_restricted_struct_hypergraph(struct_name).remove_edges(dont_cross)
-                    bipartite = restricted_struct.bipartite()
+                    restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                    bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
                     for anchor in anchor_points:
                         for member in set(members)-set(anchor_points):
                             if self.is_class_phantom(member):

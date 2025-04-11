@@ -266,17 +266,10 @@ class HyperNetXWrapper:
 
     def get_anchor_associations_by_struct_name(self, struct_name):
         elements = self.get_outbound_struct_by_name(struct_name)
-        #print("Elements...")
-        #display(elements["misc_properties"])
         anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
-        #print("Anchor elements...")
-        #display(anchor_elements)
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
-        #print("Inbound elements...")
-        #display(inbounds)
         anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].tolist()
-        #print("Anchor associations...", anchor_associations)
         return anchor_associations
 
     def get_anchor_points_by_struct_name(self, struct_name):
@@ -330,7 +323,7 @@ class HyperNetXWrapper:
         for elem in drop_duplicates(self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist() + self.get_anchor_points_by_struct_name(struct_name)):
             if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):
                 edge_names.append(self.get_edge_by_phantom_name(elem))
-        return self.H.restrict_to_edges(edge_names)
+        return HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
 
     def get_attribute_names_by_struct_name(self, struct_name):
         attribute_names = []

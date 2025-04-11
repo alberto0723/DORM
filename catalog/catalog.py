@@ -518,12 +518,12 @@ class Catalog(HyperNetXWrapper):
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
-                if not restricted_struct.is_connected(s=1):
+                if not restricted_struct.H.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-b violation: The struct '{struct_name}' is not connected")
-                    show_textual_hypergraph(restricted_struct)
+                    restricted_struct.show_textual()
                 anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                bipartite = restricted_struct.remove_edges(self.get_anchor_associations_by_struct_name(struct_name)).bipartite()
+                bipartite = restricted_struct.H.remove_edges(self.get_anchor_associations_by_struct_name(struct_name)).bipartite()
                 for attr in attribute_names:
                     paths = []
                     for anchor in anchor_points:
@@ -544,10 +544,10 @@ class Catalog(HyperNetXWrapper):
             for struct_name in self.get_structs().index:
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
-                if not restricted_struct.is_connected(s=1):
+                if not restricted_struct.H.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-e violation: The struct '{struct_name}' is not connected")
-                    show_textual_hypergraph(restricted_struct)
+                    restricted_struct.show_textual()
 
             # ---------------------------------------------------------------------------------------------- ICs on sets
             # IC-Sets1: Every set has one phantom
