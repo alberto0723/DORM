@@ -58,6 +58,36 @@ class Normalized(Relational):
                                     raise ValueError(f"IC-PureRelational1: Something went wrong in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'")
         return correct
 
+    def get_struct_attributes(self, struct_name):
+        '''
+        This generates the correspondence between attribute names in a table and their corresponding attribute.
+        It is necessary to do it to consider foreign keys
+        :param struct_name:
+        :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
+        '''
+        elements = self.get_outbound_struct_by_name(struct_name)
+        loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
+        # For each element in the table
+        attribute_dicc = {}
+        for elem in elements.itertuples():
+            if self.is_attribute(elem.Index[1]):
+                attribute_dicc[elem.Index[1]] = elem.Index[1]
+            elif self.is_class_phantom(elem.Index[1]):
+                attribute_dicc[
+                    self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = (
+                    self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1])))
+            elif self.is_association_phantom(elem.Index[1]):
+                ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
+                for end in ends.itertuples():
+                    if end.misc_properties["End_name"] in loose_ends:
+                        attribute_dicc[end.misc_properties['End_name']] = (
+                            self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
+            elif self.is_generalization_phantom(elem.Index[1]):
+                pass
+            else:
+                raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
+        return attribute_dicc
+
     def create_schema(self, verbose=False):
         '''
         Creates the tables in the design. One table is created for every set in the first level (i.e., without parent).
@@ -69,33 +99,17 @@ class Normalized(Relational):
         :param verbose: Indicates if the DDL should be printed
         :return: ???
         '''
+        # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
         logger.info("Creating tables")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
             logger.info("-- Creating table " + table.Index[0])
-            sentence = "DROP TABLE IF EXISTS "+table.Index[0]+" CASCADE; CREATE TABLE " + table.Index[0] + " (\n"
+            sentence = "DROP TABLE IF EXISTS " + table.Index[0]+" CASCADE;\nCREATE TABLE " + table.Index[0] + " (\n"
             struct_phantoms = self.get_outbound_sets().query('edges == "'+table.Index[0]+'"')
             # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
             struct_name = self.get_edge_by_phantom_name(struct_phantoms.index[0][1])
-            elements = self.get_outbound_struct_by_name(struct_name)
-            loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
-            # For each element in the table
-            attribute_dicc = {}
-            for elem in elements.itertuples():
-                if self.is_attribute(elem.Index[1]):
-                    attribute_dicc[elem.Index[1]] = elem.Index[1]
-                elif self.is_class_phantom(elem.Index[1]):
-                    attribute_dicc[self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
-                elif self.is_association_phantom(elem.Index[1]):
-                    ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
-                    for end in ends.itertuples():
-                        if end.misc_properties["End_name"] in loose_ends:
-                            attribute_dicc[end.misc_properties['End_name']] = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
-                elif self.is_generalization_phantom(elem.Index[1]):
-                    pass
-                else:
-                    raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
+            attribute_dicc = self.get_struct_attributes(struct_name)
             for attr_alias, attr_name in attribute_dicc.items():
                 attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
                 sentence += "  " + attr_alias
@@ -116,9 +130,8 @@ class Normalized(Relational):
             sentence += clause_PK + "  );"
             if verbose:
                 print(sentence)
-        # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
 
-    def create_bucket_combinations(self, join_edges, required_attributes):
+    def create_bucket_combinations(self, pattern, required_attributes):
         '''
         For each required domain elements, create a bucket with all the tables where it can come from.
         Then, combine all these buckets to cover all elements
@@ -131,7 +144,7 @@ class Normalized(Relational):
         tables = []
         classes = []
         associations = []
-        for elem in join_edges:
+        for elem in pattern:
             # Find the tables (aka fist level elements) where the element belongs
             node_name = self.get_phantom_of_edge_by_name(elem)
             second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes') == node_name]
@@ -149,7 +162,9 @@ class Normalized(Relational):
                 tables.append(first_levels)
             if self.is_class(elem):
                 classes.append(elem)
-                current_attributes = self.get_outbound_class_by_name(elem)[self.get_outbound_class_by_name(elem).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes')
+                current_attributes = self.get_outbound_class_by_name(elem)[self.get_outbound_class_by_name(elem).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').values.tolist()
+                if self.get_class_id_by_name(elem) not in current_attributes:
+                    current_attributes.append(self.get_class_id_by_name(elem))
                 # If it is a class, it may be vertically partitioned
                 # We need to generate joins of these tables that cover all required attributes one by one
                 # Get the tables independently for every attribute in the class
@@ -260,38 +275,54 @@ class Normalized(Relational):
         # For each combination of tables, generate an SQL query
         sentences = []
         for tables_combination in query_options:
-            modified_filter_clause = filter_clause
-            # Determine the aliases of tables and required attributes
+            modified_filter_clauses = [filter_clause]
             alias_table = {}
             alias_attr = {}
             location_attr = {}
             # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
             for index, table in enumerate(reversed(tables_combination)):
+                # -- Determine the aliases of tables and required attributes
                 alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
                 # TODO: There could be more than one struct
                 struct_name = self.get_edge_by_phantom_name(
                     self.get_outbound_set_by_name(table).index.get_level_values("nodes")[0])
+                for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
+                    location_attr[intable_name] = alias_table[table]
+                    alias_attr[intable_name] = intable_name
                 associations = self.get_inbound_associations()[
                     self.get_inbound_associations().index.get_level_values("nodes").isin(
                         pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
                                  on="nodes", how="inner").index)]
+                classes = self.get_inbound_classes()[
+                    self.get_inbound_classes().index.get_level_values("nodes").isin(
+                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
+                                 on="nodes", how="inner").index)]
                 association_ends = self.get_outbound_associations()[
-                    self.get_outbound_associations().index.get_level_values("edges").isin(
-                        associations.index.get_level_values("edges"))]
-                # Set the location of all association ends
+                    (self.get_outbound_associations().index.get_level_values("edges").isin(
+                        associations.index.get_level_values("edges"))) & (self.get_outbound_associations().index.get_level_values("nodes").isin(classes.index.get_level_values("nodes")))]
+                # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
                 for end in association_ends.itertuples():
                     location_attr[end.misc_properties["End_name"]] = alias_table[table]
                     alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
                         self.get_edge_by_phantom_name(end.Index[1]))
-                # Supersede the location of loose ens
-                for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
-                    location_attr[end_name] = alias_table[table]
-                    alias_attr[end_name] = end_name
-                contained_attributes = self.get_transitives_by_edge_name(table)[
-                    self.get_transitives_by_edge_name(table).index.get_level_values("nodes").isin(required_attributes)]
-                for attr in contained_attributes.itertuples():
-                    location_attr[attr.Index[1]] = alias_table[table]
-                    alias_attr[attr.Index[1]] = attr.Index[1]
+                # -- Find required discriminants
+                # Foll all classes in the current table
+                for class_name1 in classes.index.get_level_values("edges"):
+                    # If the current one is in the query
+                    if class_name1 in class_names:
+                        superclasses1 = self.get_superclasses_by_class_name(class_name1, [])
+                        # It it has superclasses
+                        if superclasses1:
+                            # Check all other classes in the table
+                            for class_name2 in classes.index.get_level_values("edges"):
+                                if class_name1 != class_name2:
+                                    # Get their superclasses
+                                    superclasses2 = self.get_superclasses_by_class_name(class_name2, [])
+                                    # Check if they are siblings
+                                    if [s for s in superclasses1 if s in superclasses2]:
+                                        # Add the corresponding discriminant (this works because we have single inheritance)
+                                        modified_filter_clauses.append(self.get_outbound_generalization_subclasses().reset_index(level="edges",
+                                                                                                  drop=True).loc[self.get_phantom_of_edge_by_name(class_name1)].misc_properties["Constraint"])
             # Simple case of only one table required by the query
             if len(tables_combination) == 1:
                 # Build the SELECT clause
@@ -306,8 +337,8 @@ class Normalized(Relational):
                 sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{})
                 # Add alias to the WHERE clause if there is more than one table
                 for attr in location_attr.items():
-                    modified_filter_clause = modified_filter_clause.replace(attr[0], attr[1]+"."+alias_attr[attr[0]])
+                    modified_filter_clauses = [s.replace(attr[0], attr[1]+"."+alias_attr[attr[0]]) for s in modified_filter_clauses]
             # Build the WHERE clause
-            sentence += "\nWHERE " + modified_filter_clause + ";"
+            sentence += "\nWHERE " + " AND ".join(modified_filter_clauses) + ";"
             sentences.append(sentence)
         return sentences

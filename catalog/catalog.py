@@ -325,7 +325,7 @@ class Catalog:
     def get_restricted_struct_hypergraph(self, struct_name):
         edge_names = []
         for elem in drop_duplicates(self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist() + self.get_anchor_points_by_struct_name(struct_name)):
-            if self.is_class_phantom(elem) or self.is_association_phantom(elem):
+            if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):
                 edge_names.append(self.get_edge_by_phantom_name(elem))
         return self.H.restrict_to_edges(edge_names)
 
@@ -524,20 +524,21 @@ class Catalog:
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
-        for elem in drop_duplicates(anchor+elements):
+        for elem in drop_duplicates(elements+anchor):
             if self.is_attribute(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_association(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_class(elem):
-                superclasses = self.get_superclasses_by_class_name(elem, [])
+                # Add the identifier to the struct
                 incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+                # Add this and all superclasses to the struct
+                superclasses = self.get_superclasses_by_class_name(elem, [])
                 for c in superclasses+[elem]:
-                    # Only one element of a hierarchy can be included by the user in a struct
-                    if c != elem and c in anchor+elements:
-                        raise ValueError(f"Only one class per hierarchy can be included in a struct ('{struct_name}' got '{elem} and '{c}')")
-                    else:
-                        incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+                    # Only one element of a hierarchy can be included by the user in the elements of a struct
+                    if c != elem and c in elements:
+                        raise ValueError(f"Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{c}')")
+                    incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 for g in self.get_generalizations_by_class_name(elem, []):
                     incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_struct(elem) or self.is_set(elem):
@@ -910,6 +911,7 @@ class Catalog:
                 if not restricted_struct.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-b violation: The struct '{struct_name}' is not connected")
+                    show_textual_hypergraph(restricted_struct)
                 anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                 bipartite = restricted_struct.remove_edges(self.get_anchor_associations_by_struct_name(struct_name)).bipartite()
                 for attr in attribute_names:
@@ -935,6 +937,7 @@ class Catalog:
                 if not restricted_struct.is_connected(s=1):
                     correct = False
                     print(f"IC-Structs-e violation: The struct '{struct_name}' is not connected")
+                    show_textual_hypergraph(restricted_struct)
 
             # ---------------------------------------------------------------------------------------------- ICs on sets
             # IC-Sets1: Every set has one phantom

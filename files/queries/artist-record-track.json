@@ -31,6 +31,11 @@
       "project": ["T_ID", "A_ID"],
       "pattern": ["Artist", "Record","Track", "Has", "Made"],
       "filter": "T_title = 'value1' OR T_title = 'value2'"
+    },
+    {
+      "project": ["T_ID", "A_ID"],
+      "pattern": ["Artist", "Track", "Has", "Made"],
+      "filter": "A_name = 'value1'"
     }
   ]
 }
