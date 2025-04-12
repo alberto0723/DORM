@@ -50,7 +50,3 @@ class Relational(Catalog):
                 display(violations6_1)
 
         return correct
-
-    @abstractmethod
-    def is_correct_with_specific_implementation(self):
-        pass

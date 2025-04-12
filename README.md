@@ -66,10 +66,13 @@ They generate pointers (a.k.a. attributes) underneath, but do not indicate the w
 All structs have an *anchor* that defines their identity.
 The anchor of a struct inside a set generates an identifier composed of the identifiers of all classes in its anchor, together with the loose ends in there.
 
+In the presence of a *generalization*, subclasses can directly access the attributes of the superclass.
+Hence, the superclass does not need to be explicitly included in the struct of the subclass.
+
 #### Constraints
 General:
-- All elements in the domain must be (potentially by transitivity) inside some set.
-- All elements in the domain must be inside some struct.
+- All elements in the domain must be (potentially by transitivity) inside some set (except superclasses).
+- All elements in the domain must be inside some struct (except superclasses).
 
 About sets:
 - Can contain structs inside, but not directly sets. 

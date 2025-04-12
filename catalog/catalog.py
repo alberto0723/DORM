@@ -508,6 +508,38 @@ class Catalog(HyperNetXWrapper, ABC):
                         correct = False
                         print(f"IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct}', which is not a loose end (i.e., it has not the class in the anchor, but only in its elements)")
 
+            # IC-Structs8: A struct containing siblings by some generalization must also contain the discriminant attribute
+            logger.info("Checking IC-Structs8")
+            for struct_name in self.get_structs().index:
+                discriminants = []
+                restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                restricted_struct.show_textual()
+                restricted_classes = restricted_struct.get_classes()
+                # Foll all classes in the current struct
+                for class_name1 in restricted_classes.index.get_level_values("edges"):
+                    superclasses1 = restricted_struct.get_superclasses_by_class_name(class_name1, [])
+                    # If it has superclasses
+                    if superclasses1:
+                        # Check all other classes in the struct
+                        for class_name2 in restricted_classes.index.get_level_values("edges"):
+                            if class_name1 != class_name2:
+                                # Get their superclasses
+                                superclasses2 = restricted_struct.get_superclasses_by_class_name(class_name2, [])
+                                # Check if they are siblings
+                                if [s for s in superclasses1 if s in superclasses2]:
+                                    # Check if the corresponding discriminant attribute is present(this works because we have single inheritance)
+                                    discriminants.append(
+                                        restricted_struct.get_outbound_generalization_subclasses().reset_index(
+                                            level="edges", drop=True).loc[
+                                            self.get_phantom_of_edge_by_name(class_name1)].misc_properties[
+                                            "Constraint"])
+                attribute_names = drop_duplicates(self.parse_predicate(" AND ".join(discriminants)))
+                for attr in attribute_names:
+                    kind = self.H.get_cell_properties(struct_name, attr, "Kind")
+                    if kind is None:
+                        correct = False
+                        print(f"IC-Structs8 violation: The struct '{struct_name}' should have attribute '{attr}' to be used as a discriminant in a generalization")
+
             # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-b)
             logger.info("Checking IC-Structs-b")
             for struct_name in structs.index:
@@ -603,11 +635,7 @@ class Catalog(HyperNetXWrapper, ABC):
                 if (verbose):
                     print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
-        return correct and self.is_correct_with_specific_implementation()
-
-    @abstractmethod
-    def is_correct_with_specific_implementation(self):
-        pass
+        return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
         # Check if the hypergraph contains all the projected attributes
@@ -650,6 +678,22 @@ class Catalog(HyperNetXWrapper, ABC):
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
 
+    def parse_predicate(self, predicate):
+        attributes = []
+        where_clause = "WHERE "+predicate
+        where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
+
+        # This extracts the attribute names
+        # TODO: Parenthesis are not considered by now. It will require some kind of recursion
+        for atom in where_parsed.tokens:
+            if atom.ttype is None:  # This is a clause in the predicate
+                for token in atom.tokens:
+                    if token.ttype is None:  # This is an attribute in the predicate
+                        if not self.is_attribute(token.value):
+                            raise ValueError(f"'{token.value}' (in a filter or constraint) is not an attribute")
+                        attributes.append(token.value)
+        return attributes
+
     def parse_query(self, query):
         # Get the query and parse it
         project_attributes = query.get("project", [])
@@ -668,20 +712,7 @@ class Catalog(HyperNetXWrapper, ABC):
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
-        filter_attributes = []
-        if "filter" in query:
-            where_clause = "WHERE "+filter_clause
-            where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
-
-            # This extracts the attribute names
-            # TODO: Parenthesis are not considered by now. It will require some kind of recursion
-            for atom in where_parsed.tokens:
-                if atom.ttype is None:  # This is a clause in the predicate
-                    for token in atom.tokens:
-                        if token.ttype is None:  # This is an attribute in the predicate
-                            if not self.is_attribute(token.value):
-                                raise ValueError(f"Filtering '{token.value}' is not an attribute")
-                            filter_attributes.append(token.value)
+        filter_attributes = self.parse_predicate(filter_clause)
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 

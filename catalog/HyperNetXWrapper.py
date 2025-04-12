@@ -17,6 +17,7 @@ logger = logging.getLogger("HyperNetXWrapper")
 
 class HyperNetXWrapper:
     """This class manages the basics of the catalog of a database using hypergraphs
+    It implements all the basic stuff and auxiliary, private functions of the catalog.
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
     def __init__(self, file=None, hypergraph=None):
@@ -319,10 +320,15 @@ class HyperNetXWrapper:
             return end_names
 
     def get_restricted_struct_hypergraph(self, struct_name):
+        anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+        outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
         edge_names = []
-        for elem in drop_duplicates(self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist() + self.get_anchor_points_by_struct_name(struct_name)):
+        for elem in drop_duplicates(outbounds + anchor_points):
             if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):
                 edge_names.append(self.get_edge_by_phantom_name(elem))
+                if self.is_class_phantom(elem) and elem in outbounds:
+                    edge_names.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(elem), []))
+                    edge_names.extend(self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(elem), []))
         return HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
 
     def get_attribute_names_by_struct_name(self, struct_name):

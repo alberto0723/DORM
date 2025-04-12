@@ -59,38 +59,6 @@ class Normalized(Relational):
 
         return correct
 
-    def is_correct_with_specific_implementation(self):
-        correct = True
-
-        # IC-StructWithSpecificImplementation-Normalized1: A struct containing siblings by some generalization must also contain the discriminant attribute
-        # This is not really purely relational, but the discriminant parser is
-        logger.info("Checking IC-StructWithSpecificImplementation-Normalized1 -> TO BE IMPLEMENTED")
-        for struct_name in self.get_structs().index:
-            print("===================================", struct_name)
-            discriminants = []
-            restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-            restricted_struct.show_textual()
-            restricted_classes = restricted_struct.get_classes()
-            # Foll all classes in the current struct
-            for class_name1 in restricted_classes.index.get_level_values("edges"):
-                superclasses1 = restricted_struct.get_superclasses_by_class_name(class_name1, [])
-                # If it has superclasses
-                if superclasses1:
-                    # Check all other classes in the struct
-                    for class_name2 in restricted_classes.index.get_level_values("edges"):
-                        if class_name1 != class_name2:
-                            # Get their superclasses
-                            superclasses2 = restricted_struct.get_superclasses_by_class_name(class_name2, [])
-                            # Check if they are siblings
-                            if [s for s in superclasses1 if s in superclasses2]:
-                                # Check if the corresponding discriminant attribute is present(this works because we have single inheritance)
-                                discriminants.append(
-                                    restricted_struct.get_outbound_generalization_subclasses().reset_index(
-                                        level="edges", drop=True).loc[
-                                        self.get_phantom_of_edge_by_name(class_name1)].misc_properties["Constraint"])
-            print("SELECT * FROM DUAL WHERE " + " AND ".join(discriminants) + ";")
-        return correct
-
     def get_struct_attributes(self, struct_name):
         '''
         This generates the correspondence between attribute names in a table and their corresponding attribute.
@@ -295,12 +263,12 @@ class Normalized(Relational):
         retrieve the required classes and associations
         :param query: A JSON containing the select-project-join information
         :param verbose: Whether to print the SQL statements
-        :return: A list with all possible SQL statements ascendently sorted by the number of tables
+        :return: A list with all possible SQL statements ascendantly sorted by the number of tables
         '''
         logger.info("Executing query")
-        project_attributes, filter_attributes, join_edges, required_attributes, filter_clause = self.parse_query(query)
+        project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(query)
 
-        query_options, class_names, association_names = self.create_bucket_combinations(join_edges, required_attributes)
+        query_options, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
         if len(query_options) > 1:
             if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
             query_options = sorted(query_options, key=len)
