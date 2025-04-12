@@ -637,7 +637,7 @@ class Catalog(HyperNetXWrapper, ABC):
                     display(violations5_3)
         return correct
 
-    def check_query_structure(self, project_attributes, filter_attributes, join_edges, required_attributes):
+    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes):
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:
@@ -648,17 +648,17 @@ class Catalog(HyperNetXWrapper, ABC):
         if non_existing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
-        # Check if the hypergraph contains all the join hyperedges
-        non_existing_associations = df_difference(pd.DataFrame(join_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
+        # Check if the hypergraph contains all the pattern hyperedges
+        non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if non_existing_associations.shape[0] > 0:
             raise ValueError(f"Some class or association in the join does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
         superclasses = []
-        for e in join_edges:
+        for e in pattern_edges:
             if self.is_class(e):
                 superclasses.extend(self.get_superclasses_by_class_name(e, []))
                 superclasses.extend(self.get_generalizations_by_class_name(e, []))
-        restricted_domain = self.H.restrict_to_edges(join_edges+superclasses)
+        restricted_domain = self.H.restrict_to_edges(pattern_edges+superclasses)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
             raise ValueError(f"Some query elements (i.e., attributes, classes and associations) are not connected")
@@ -676,7 +676,7 @@ class Catalog(HyperNetXWrapper, ABC):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if missing_attributes.shape[0] > 0:
-            raise ValueError(f"Some attribute in the query is not covered by the joined elements: {missing_attributes.values.tolist()[0]}")
+            raise ValueError(f"Some attribute in the query is not covered by the elements in the pattern: {missing_attributes.values.tolist()[0]}")
 
     def parse_predicate(self, predicate):
         attributes = []
@@ -702,11 +702,11 @@ class Catalog(HyperNetXWrapper, ABC):
         for a in project_attributes:
             if not (self.is_attribute(a) or self.is_association_end(a)):
                 raise ValueError(f"Projected '{a}' is neither an attribute nor an association end")
-        join_edges = query.get("pattern", [])
-        if not join_edges:
+        pattern_edges = query.get("pattern", [])
+        if not pattern_edges:
             raise ValueError("Empty pattern is not allowed in the query")
         identifiers = []
-        for e in join_edges:
+        for e in pattern_edges:
             if not (self.is_class(e) or self.is_association(e)):
                 raise ValueError(f"Chosen edge '{e}' is neither a class nor a association")
             if self.is_class(e):
@@ -716,5 +716,5 @@ class Catalog(HyperNetXWrapper, ABC):
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 
-        self.check_query_structure(project_attributes, filter_attributes, join_edges, required_attributes)
-        return project_attributes, filter_attributes, join_edges, required_attributes, filter_clause
+        self.check_query_structure(project_attributes, filter_attributes, pattern_edges, required_attributes)
+        return project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause

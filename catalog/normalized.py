@@ -268,6 +268,16 @@ class Normalized(Relational):
         logger.info("Executing query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(query)
 
+        # Check if all classes are in some struct
+        classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
+        implicit_classes = classes[~classes.isin(self.get_outbound_structs().index.get_level_values("nodes"))]
+        for class_edge in implicit_classes.itertuples():
+            # TODO: This is assuming that the missing class participates in only one generalization
+            generalization = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[class_edge.Index[1]]
+            subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
+            for subclass_phantom in subclasses.itertuples():
+                print(self.get_edge_by_phantom_name(subclass_phantom.Index))
+
         query_options, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
         if len(query_options) > 1:
             if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
