@@ -68,6 +68,8 @@ The anchor of a struct inside a set generates an identifier composed of the iden
 
 In the presence of a *generalization*, subclasses can directly access the attributes of the superclass.
 Hence, the superclass does not need to be explicitly included in the struct of the subclass.
+In this case, subclasses are identified for the corresponding queries and unions are generated accordingly.
+Notice that, in case of many possible queries for every subclass, this could generate a combinatorial explosion.
 
 #### Constraints
 General:

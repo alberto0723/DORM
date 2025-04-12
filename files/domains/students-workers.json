@@ -30,7 +30,7 @@
       "name": "Friends",
       "ends": [
         {
-          "class": "Students",
+          "class": "People",
           "prop": {"End_name": "Friends_Students", "Multiplicity": 3.5 }
           },
         {

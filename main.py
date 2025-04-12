@@ -30,5 +30,5 @@ if __name__ == '__main__':
         if True:
             for q in c.generate_SQL(query, verbose=False):
                 print("--//////////////////////////////////////////")
-                print(q)
+                print(q+";")
     logging.info("END")

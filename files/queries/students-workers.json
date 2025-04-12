@@ -19,6 +19,10 @@
     {
       "project": ["P_ID", "Friends_Students", "Friends_Workers"],
       "pattern": ["Students","Friends"]
+    },
+    {
+      "project": ["P_ID", "Friends_Students", "Friends_Workers"],
+      "pattern": ["People","Friends"]
     }
   ]
 }

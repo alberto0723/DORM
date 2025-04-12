@@ -1,7 +1,7 @@
 import logging
-from IPython.display import display
+import itertools
 import pandas as pd
-from matplotlib import table
+from IPython.display import display
 import networkx as nx
 
 pd.set_option('display.max_columns', None)
@@ -267,89 +267,94 @@ class Normalized(Relational):
         '''
         logger.info("Executing query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(query)
-
-        # Check if all classes are in some struct
-        classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
-        implicit_classes = classes[~classes.isin(self.get_outbound_structs().index.get_level_values("nodes"))]
-        for class_edge in implicit_classes.itertuples():
-            # TODO: This is assuming that the missing class participates in only one generalization
-            generalization = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[class_edge.Index[1]]
-            subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
-            for subclass_phantom in subclasses.itertuples():
-                print(self.get_edge_by_phantom_name(subclass_phantom.Index))
-
-        query_options, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
-        if len(query_options) > 1:
-            if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
-            query_options = sorted(query_options, key=len)
-
         # For each combination of tables, generate an SQL query
         sentences = []
-        for tables_combination in query_options:
-            modified_filter_clauses = [filter_clause]
-            alias_table = {}
-            alias_attr = {}
-            location_attr = {}
-            # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
-            for index, table in enumerate(reversed(tables_combination)):
-                # -- Determine the aliases of tables and required attributes
-                alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
-                # TODO: There could be more than one struct
-                struct_name = self.get_edge_by_phantom_name(
-                    self.get_outbound_set_by_name(table).index.get_level_values("nodes")[0])
-                for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
-                    location_attr[intable_name] = alias_table[table]
-                    alias_attr[intable_name] = intable_name
-                associations = self.get_inbound_associations()[
-                    self.get_inbound_associations().index.get_level_values("nodes").isin(
-                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
-                                 on="nodes", how="inner").index)]
-                classes = self.get_inbound_classes()[
-                    self.get_inbound_classes().index.get_level_values("nodes").isin(
-                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
-                                 on="nodes", how="inner").index)]
-                association_ends = self.get_outbound_associations()[
-                    (self.get_outbound_associations().index.get_level_values("edges").isin(
-                        associations.index.get_level_values("edges"))) & (self.get_outbound_associations().index.get_level_values("nodes").isin(classes.index.get_level_values("nodes")))]
-                # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
-                for end in association_ends.itertuples():
-                    location_attr[end.misc_properties["End_name"]] = alias_table[table]
-                    alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
-                        self.get_edge_by_phantom_name(end.Index[1]))
-                # -- Find required discriminants
-                # Foll all classes in the current table
-                for class_name1 in classes.index.get_level_values("edges"):
-                    # If the current one is in the query
-                    if class_name1 in class_names:
-                        superclasses1 = self.get_superclasses_by_class_name(class_name1, [])
-                        # If it has superclasses
-                        if superclasses1:
-                            # Check all other classes in the table
-                            for class_name2 in classes.index.get_level_values("edges"):
-                                if class_name1 != class_name2:
-                                    # Get their superclasses
-                                    superclasses2 = self.get_superclasses_by_class_name(class_name2, [])
-                                    # Check if they are siblings
-                                    if [s for s in superclasses1 if s in superclasses2]:
-                                        # Add the corresponding discriminant (this works because we have single inheritance)
-                                        modified_filter_clauses.append(self.get_outbound_generalization_subclasses().reset_index(level="edges",
-                                                                                                  drop=True).loc[self.get_phantom_of_edge_by_name(class_name1)].misc_properties["Constraint"])
-            # Simple case of only one table required by the query
-            if len(tables_combination) == 1:
-                # Build the SELECT clause
-                sentence = "SELECT " + ", ".join([alias_attr[a] for a in project_attributes])
-                # Build the FROM clause
-                sentence += "\nFROM " + tables_combination[0]
-            # Case with several tables that require joins
-            else:
-                # Build the SELECT clause
-                sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
-                # Build the FROM clause
-                sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{})
-                # Add alias to the WHERE clause if there is more than one table
-                for attr in location_attr.items():
-                    modified_filter_clauses = [s.replace(attr[0], attr[1]+"."+alias_attr[attr[0]]) for s in modified_filter_clauses]
-            # Build the WHERE clause
-            sentence += "\nWHERE " + " AND ".join(modified_filter_clauses) + ";"
-            sentences.append(sentence)
+        # Check if all classes are in some struct
+        classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
+        implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
+        if not implicit_classes.empty:
+            superclass_name = implicit_classes.index[0][0]
+            superclass_phantom_name = implicit_classes.index[0][1]
+            subqueries = []
+            generalization = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[superclass_phantom_name]
+            subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
+            for subclass_phantom in subclasses.itertuples():
+                new_query = query.copy()
+                new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom.Index) if elem == superclass_name else elem for elem in new_query["pattern"]]
+                subqueries.append(self.generate_SQL(new_query))
+            for combination in list(itertools.product(*subqueries)):
+                sentences.append("\nUNION\n".join(combination))
+        else:
+            query_options, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
+            if len(query_options) > 1:
+                if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
+                query_options = sorted(query_options, key=len)
+
+            for tables_combination in query_options:
+                modified_filter_clauses = [filter_clause]
+                alias_table = {}
+                alias_attr = {}
+                location_attr = {}
+                # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
+                for index, table in enumerate(reversed(tables_combination)):
+                    # -- Determine the aliases of tables and required attributes
+                    alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
+                    # TODO: There could be more than one struct
+                    struct_name = self.get_edge_by_phantom_name(
+                        self.get_outbound_set_by_name(table).index.get_level_values("nodes")[0])
+                    for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
+                        location_attr[intable_name] = alias_table[table]
+                        alias_attr[intable_name] = intable_name
+                    associations = self.get_inbound_associations()[
+                        self.get_inbound_associations().index.get_level_values("nodes").isin(
+                            pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
+                                     on="nodes", how="inner").index)]
+                    classes = self.get_inbound_classes()[
+                        self.get_inbound_classes().index.get_level_values("nodes").isin(
+                            pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
+                                     on="nodes", how="inner").index)]
+                    association_ends = self.get_outbound_associations()[
+                        (self.get_outbound_associations().index.get_level_values("edges").isin(
+                            associations.index.get_level_values("edges"))) & (self.get_outbound_associations().index.get_level_values("nodes").isin(classes.index.get_level_values("nodes")))]
+                    # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
+                    for end in association_ends.itertuples():
+                        location_attr[end.misc_properties["End_name"]] = alias_table[table]
+                        alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
+                            self.get_edge_by_phantom_name(end.Index[1]))
+                    # -- Find required discriminants
+                    # Foll all classes in the current table
+                    for class_name1 in classes.index.get_level_values("edges"):
+                        # If the current one is in the query
+                        if class_name1 in class_names:
+                            superclasses1 = self.get_superclasses_by_class_name(class_name1, [])
+                            # If it has superclasses
+                            if superclasses1:
+                                # Check all other classes in the table
+                                for class_name2 in classes.index.get_level_values("edges"):
+                                    if class_name1 != class_name2:
+                                        # Get their superclasses
+                                        superclasses2 = self.get_superclasses_by_class_name(class_name2, [])
+                                        # Check if they are siblings
+                                        if [s for s in superclasses1 if s in superclasses2]:
+                                            # Add the corresponding discriminant (this works because we have single inheritance)
+                                            modified_filter_clauses.append(self.get_outbound_generalization_subclasses().reset_index(level="edges",
+                                                                                                      drop=True).loc[self.get_phantom_of_edge_by_name(class_name1)].misc_properties["Constraint"])
+                # Simple case of only one table required by the query
+                if len(tables_combination) == 1:
+                    # Build the SELECT clause
+                    sentence = "SELECT " + ", ".join([alias_attr[a] for a in project_attributes])
+                    # Build the FROM clause
+                    sentence += "\nFROM " + tables_combination[0]
+                # Case with several tables that require joins
+                else:
+                    # Build the SELECT clause
+                    sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
+                    # Build the FROM clause
+                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{})
+                    # Add alias to the WHERE clause if there is more than one table
+                    for attr in location_attr.items():
+                        modified_filter_clauses = [s.replace(attr[0], attr[1]+"."+alias_attr[attr[0]]) for s in modified_filter_clauses]
+                # Build the WHERE clause
+                sentence += "\nWHERE " + " AND ".join(modified_filter_clauses)
+                sentences.append(sentence)
         return sentences
