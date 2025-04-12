@@ -31,7 +31,7 @@
       "ends": [
         {
           "class": "People",
-          "prop": {"End_name": "Friends_Students", "Multiplicity": 3.5 }
+          "prop": {"End_name": "Friends_People", "Multiplicity": 3.5 }
           },
         {
           "class": "Workers",

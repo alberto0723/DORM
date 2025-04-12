@@ -8,6 +8,11 @@ def drop_duplicates(dirty_list):
 
 
 def combine_tables(patterns_list):
+    '''
+    Combines all lists of patterns in a smart way, by removing duplicates ASAP
+    :param patterns_list:
+    :return: list of combinations without duplicates
+    '''
     if len(patterns_list) == 0:
         return [[]]
     else:

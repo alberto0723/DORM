@@ -218,7 +218,7 @@ class Normalized(Relational):
                         plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
                         # Also, it can connect to a loose end if it participates in an association
                         for ass in associations.itertuples():
-                            if class_name == self.get_edge_by_phantom_name(ass.Index[1]):
+                            if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name, []):
                                 plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
             for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
                 for ass in associations.itertuples():

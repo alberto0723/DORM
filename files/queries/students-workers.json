@@ -13,15 +13,15 @@
       "pattern": ["Workers"]
     },
     {
-      "project": ["Friends_Students", "Friends_Workers"],
+      "project": ["Friends_People", "Friends_Workers"],
       "pattern": ["Friends"]
     },
     {
-      "project": ["P_ID", "Friends_Students", "Friends_Workers"],
+      "project": ["P_ID", "Friends_People", "Friends_Workers"],
       "pattern": ["Students","Friends"]
     },
     {
-      "project": ["P_ID", "Friends_Students", "Friends_Workers"],
+      "project": ["P_ID", "Friends_People", "Friends_Workers"],
       "pattern": ["People","Friends"]
     }
   ]
