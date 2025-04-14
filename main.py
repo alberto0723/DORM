@@ -12,7 +12,7 @@ if __name__ == '__main__':
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_normalized_test3.HyperNetX"))
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_partitioned.HyperNetX"))
     #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/artist-record-track_normalized_test1.HyperNetX"))
-    c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/students-workers_normalized_OneTablePerSubclass.HyperNetX"))
+    c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/students-workers_normalized_OneClassOneTable.HyperNetX"))
     c.show_textual()
     # #c.save(file=base_path.joinpath("files/hypergraphs/test.HyperNetX"))
     # if not c.is_correct(design=True):
@@ -27,7 +27,7 @@ if __name__ == '__main__':
         queries = json.load(file).get("queries")
     for i, query in enumerate(queries):
         print("--*********************************** ", i)
-        if True:
+        if i==3: #True:
             for q in c.generate_SQL(query, verbose=False):
                 print("--//////////////////////////////////////////")
                 print(q+";")

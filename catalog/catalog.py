@@ -626,7 +626,8 @@ class Catalog(HyperNetXWrapper, ABC):
                 print("IC-Design2 violation: Atoms disconnected from the first level")
                 display(violations5_2)
 
-            # # IC-Design3: All domain elements must appear in some struct
+            # IC-Design3: All domain elements must appear in some struct
+            #             This is relaxed because of generalizations
             logger.info("Checking IC-Design3")
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
@@ -635,6 +636,15 @@ class Catalog(HyperNetXWrapper, ABC):
                 if (verbose):
                     print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
+
+            # IC-Design4: All structs in a set must have the same attributes in the anchor
+            logger.info("Checking IC-Design4 -> TO BE IMPLEMENTED")
+
+
+            # IC-Design5: For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization
+            logger.info("Checking IC-Design5 -> TO BE IMPLEMENTED")
+
+
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes):

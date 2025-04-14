@@ -68,8 +68,6 @@ The anchor of a struct inside a set generates an identifier composed of the iden
 
 In the presence of a *generalization*, subclasses can directly access the attributes of the superclass.
 Hence, the superclass does not need to be explicitly included in the struct of the subclass.
-In this case, subclasses are identified for the corresponding queries and unions are generated accordingly.
-Notice that, in case of many possible queries for every subclass, this could generate a combinatorial explosion.
 
 #### Constraints
 General:
@@ -78,6 +76,8 @@ General:
 
 About sets:
 - Can contain structs inside, but not directly sets. 
+- All structs in a set must share the same anchor attributes. 
+However, some class must be different, and related by generalization.
 
 About structs:
 - Every struct must be ultimately contained either in a set or another struct.
@@ -99,9 +99,11 @@ The content of the query files is just a list of SPJ queries, whose structure is
 1. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 
 #### Semantics
-- The use of generalizations is implicit.
 - The pattern may not contain any association.
 - The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
+- The use of generalizations is implicit.
+In this case, subclasses are still identified for the corresponding queries and unions are generated accordingly.
+Notice that, in case of many possible queries for every subclass, this could generate a combinatorial explosion.
 - The attribute names in the projection are those of the attributes in the classes, except for the identifiers of classes not explicit in the pattern.
 In this case, the corresponding association end should be used.
 - Any element (class or association) present in the pattern entails that one table containing it will participate in the query, even if no attribute is used.

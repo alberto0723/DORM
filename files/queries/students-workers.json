@@ -9,8 +9,16 @@
       "pattern": ["Students"]
     },
     {
-      "project": ["P_ID"],
+      "project": ["P_ID", "P_name"],
       "pattern": ["Workers"]
+    },
+    {
+      "project": ["P_ID", "P_name", "W_company"],
+      "pattern": ["Workers"]
+    },
+    {
+      "project": ["P_ID", "P_name", "W_company", "S_university"],
+      "pattern": ["Workers","Students"]
     },
     {
       "project": ["Friends_People", "Friends_Workers"],

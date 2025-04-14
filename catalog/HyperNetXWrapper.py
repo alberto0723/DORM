@@ -49,12 +49,8 @@ class HyperNetXWrapper:
         edges["name"] = edges.index
         return edges
 
-    def get_edges_firstlevel(self):
-        firstLevelPhantoms = df_difference(
-            pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
-                self.get_outbounds().reset_index()[["nodes"]])
-        firstLevelEdges = pd.merge(firstLevelPhantoms, pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index(drop=False), on="nodes", how="inner")
-        return firstLevelEdges
+    def get_struct_names_inside_set_name(self, set_name):
+        return pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs().reset_index("edges", drop=False), on="nodes", how="inner")["edges"].tolist()
 
     def get_incidences(self):
         incidences = self.H.incidences.dataframe
