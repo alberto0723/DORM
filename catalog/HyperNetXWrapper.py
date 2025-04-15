@@ -61,6 +61,11 @@ class HyperNetXWrapper:
         attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
         return attributes
 
+    def get_attribute_by_name(self, attr_name):
+        attribute = self.get_attributes().query('nodes == "' + attr_name + '"')
+        return attribute.iloc[0]
+
+
     def get_association_ends(self):
         ends = self.get_outbound_associations()
         if not ends.empty:
@@ -328,11 +333,7 @@ class HyperNetXWrapper:
         return HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
 
     def get_attribute_names_by_struct_name(self, struct_name):
-        attribute_names = []
-        for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
-            if self.is_attribute(elem):
-                attribute_names.append(elem)
-        return attribute_names
+        return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.tolist()
 
     def get_superclasses_by_class_name(self, class_name, visited):
         all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(

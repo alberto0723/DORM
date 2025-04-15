@@ -107,18 +107,20 @@ class Normalized(Relational):
         for table in firstlevels.itertuples():
             logger.info("-- Creating table " + table.Index[0])
             sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\nCREATE TABLE " + table.Index[0] + " (\n"
-            # TODO: Consider multiple structs in a set (corresponding to horizontal partitioning)
-            struct_name = self.get_struct_names_inside_set_name(table.Index[0])[0]
-            attribute_dicc = self.get_struct_attributes(struct_name)
-            # Create all the attributes
+            # Get all the attributes in all the structs
+            attribute_dicc = {}
+            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
+                attribute_dicc.update(self.get_struct_attributes(struct_name))
+            # Add all the attributes to the create table sentence
             for attr_alias, attr_name in attribute_dicc.items():
-                attribute = self.get_attributes().query('nodes == "'+attr_name+'"')
+                attribute = self.get_attribute_by_name(attr_name)
                 sentence += "  " + attr_alias
-                if attribute.iloc[0]["misc_properties"].get("DataType") == "String":
-                    sentence += " VarChar(" + str(attribute.iloc[0]["misc_properties"].get("Size")) + "),\n"
+                if attribute["misc_properties"].get("DataType") == "String":
+                    sentence += " VarChar(" + str(attribute["misc_properties"].get("Size")) + "),\n"
                 else:
-                    sentence += " " + attribute.iloc[0]["misc_properties"].get("DataType") + ",\n"
+                    sentence += " " + attribute["misc_properties"].get("DataType") + ",\n"
             # Create the PK
+            # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
                 if self.is_class_phantom(key):
