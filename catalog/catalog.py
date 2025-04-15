@@ -637,31 +637,35 @@ class Catalog(HyperNetXWrapper, ABC):
                     display(violations5_3)
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
+            # IC-Design5: For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization
+            #             Both are checked at the same time to be more precise in the message
             logger.info("Checking IC-Design4")
+            logger.info("Checking IC-Design5")
             for set_name in sets.index:
-                print("Set: ", set_name)
-                anchors = []
-                for struct_phantom in pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs(), on="nodes", how="inner").index:
-                    print("Struct phantom: ", struct_phantom)
-                    key_list = []
+                anchor_concepts = []
+                anchor_attributes = []
+                struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs(), on="nodes", how="inner").index
+                for struct_phantom in struct_phantom_list:
+                    attribute_list = []
+                    concept_list = []
                     for key in self.get_anchor_end_names_by_struct_name(self.get_edge_by_phantom_name(struct_phantom)):
+                        concept_list.append(key)
                         if self.is_class_phantom(key):
-                            key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                            attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
                         # If it is not a class, it is a loose end
                         else:
-                            key_list.append(key)
-                    key_list.sort()
-                    print("Key_list: ", key_list)
-                    anchors.append(key_list)
-                print("Anchors: ", anchors)
-                if len(drop_duplicates(anchors))>1:
+                            attribute_list.append(key)
+                    concept_list.sort()
+                    attribute_list.sort()
+                    anchor_concepts.append(concept_list)
+                    anchor_attributes.append(attribute_list)
+                if len(drop_duplicates(anchor_attributes)) > 1:
                     correct = False
-                    print(f"Anchors of structs in set '{set_name}' do not coincide: '{anchors}'")
-
-            # IC-Design5: For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization
-            logger.info("Checking IC-Design5 -> TO BE IMPLEMENTED")
-
-
+                    print(f"Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
+                # Not really necessary to check if they are generalization, because attributes already coincide
+                elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
+                    correct = False
+                    print(f"Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes):
