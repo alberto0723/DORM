@@ -114,7 +114,6 @@ In this case, the corresponding association end should be used.
 - The pattern can not contain two classes (directly or transitively) related by generalization. 
 
 ## Setup
-
 It is also assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 
 Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt) (generated with ```pip freeze```).
 

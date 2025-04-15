@@ -513,7 +513,6 @@ class Catalog(HyperNetXWrapper, ABC):
             for struct_name in self.get_structs().index:
                 discriminants = []
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-                restricted_struct.show_textual()
                 restricted_classes = restricted_struct.get_classes()
                 # Foll all classes in the current struct
                 for class_name1 in restricted_classes.index.get_level_values("edges"):
@@ -627,7 +626,7 @@ class Catalog(HyperNetXWrapper, ABC):
                 display(violations5_2)
 
             # IC-Design3: All domain elements must appear in some struct
-            #             This is relaxed because of generalizations
+            #             This is relaxed into just a warning, because of generalizations
             logger.info("Checking IC-Design3")
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
@@ -638,8 +637,26 @@ class Catalog(HyperNetXWrapper, ABC):
                     display(violations5_3)
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
-            logger.info("Checking IC-Design4 -> TO BE IMPLEMENTED")
-
+            logger.info("Checking IC-Design4")
+            for set_name in sets.index:
+                print("Set: ", set_name)
+                anchors = []
+                for struct_phantom in pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs(), on="nodes", how="inner").index:
+                    print("Struct phantom: ", struct_phantom)
+                    key_list = []
+                    for key in self.get_anchor_end_names_by_struct_name(self.get_edge_by_phantom_name(struct_phantom)):
+                        if self.is_class_phantom(key):
+                            key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                        # If it is not a class, it is a loose end
+                        else:
+                            key_list.append(key)
+                    key_list.sort()
+                    print("Key_list: ", key_list)
+                    anchors.append(key_list)
+                print("Anchors: ", anchors)
+                if len(drop_duplicates(anchors))>1:
+                    correct = False
+                    print(f"Anchors of structs in set '{set_name}' do not coincide: '{anchors}'")
 
             # IC-Design5: For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization
             logger.info("Checking IC-Design5 -> TO BE IMPLEMENTED")
