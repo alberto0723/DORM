@@ -27,7 +27,7 @@ if __name__ == '__main__':
         queries = json.load(file).get("queries")
     for i, query in enumerate(queries):
         print("--*********************************** ", i)
-        if i==3: #True:
+        if i==4: #True:
             for q in c.generate_SQL(query, verbose=False):
                 print("--//////////////////////////////////////////")
                 print(q+";")

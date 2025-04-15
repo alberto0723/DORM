@@ -237,11 +237,14 @@ class Normalized(Relational):
                         table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name, [])
                         # Check if they are siblings
                         if pattern_class_name != table_class_name and [s for s in pattern_superclasses if s in table_hierarchy]:
+                            # TODO: We need to check if the discriminant is available in the table, which should happen if the generalization is overlapping
                             # Add the corresponding discriminant (this works because we have single inheritance)
                             discriminants.append(
                                 self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
                                     self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties["Constraint"])
-        return discriminants
+        # It should not be necessary to remove duplicates if dessing and query are sound (some extra check may be needed)
+        # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
+        return drop_duplicates(discriminants)
 
     def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited):
         '''
@@ -266,6 +269,10 @@ class Normalized(Relational):
         first_table = (visited == {})
         unjoinable = []
         associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
+        query_superclasses = query_classes.copy()
+        for class_name in query_classes:
+            query_superclasses.extend(self.get_superclasses_by_class_name(class_name, []))
+        query_superclasses = drop_duplicates(query_superclasses)
         while tables:
             # Take any table and find all its potentially connection points
             current_table = tables.pop(0)
@@ -276,7 +283,7 @@ class Normalized(Relational):
             for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
                 if self.is_class_phantom(incidence.Index[1]):
                     class_name = self.get_edge_by_phantom_name(incidence.Index[1])
-                    if class_name in query_classes:
+                    if class_name in query_superclasses:
                         # Any class in the query is a potential connection point per se
                         plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
                         # Also, it can connect to a loose end if it participates in an association
@@ -340,7 +347,7 @@ class Normalized(Relational):
         if implicit_classes.empty:
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
-                if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_options}")
+                if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 alias_table, alias_attr, location_attr = self.get_aliases(tables_combination)
