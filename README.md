@@ -127,7 +127,8 @@ Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirem
 There are some tools available to facilitate usage and testing.
 
 ### catalogAction
-This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into SQL.
+This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into CREATE TABLE statements.
+These can be directly executed in the DBMS.
 
 ```
 usage: catalogAction.py [-h] [--hg_path <path>] [--hypergraph <hypergraph>]
@@ -144,20 +145,16 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  --hg_path <path>      Path to hypergraphs folder (default: C:\Users\alberto.
-                        abello\Documents\PycharmProjects\DORM\files\hypergraph
-                        s)
+  --hg_path <path>      Path to hypergraphs folder (default: path of work directory)
   --hypergraph <hypergraph>
-                        File generated for the hypergraph with pickle
-                        (default: input)
+                        File generated for the hypergraph with pickle (default: input)
   --check               Checks correctness of the catalog (default: False)
   --text                Shows the catalog in text format (default: False)
   --graph               Shows the catalog in graphical format (default: False)
   --create              Creates the catalog (default: False)
   --verbose             Prints the generated statements (default: False)
   --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
-  --ip <ip>             IP address for the database connection (default:
-                        localhost)
+  --ip <ip>             IP address for the database connection (default: localhost)
   --port <port>         Port for the database connection (default: 5432)
   --user <user>         Username for the database connection (default: None)
   --password <password>
@@ -166,3 +163,29 @@ options:
   --dbschema <dbschema>
                         Database schema (default: dorm_default)
   ```
+### queryExecutor
+This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
+
+```
+usage: queryExecutor.py [-h] [--dbms <dbms>] [--ip <ip>] [--port <port>]
+                        [--user <user>] [--password <password>]
+                        [--dbname <dbname>] [--dbschema <dbschema>]
+                        [--verbose] [--print_rows] [--print_counter]
+                        [--query_file <path>]
+
+options:
+  -h, --help            show this help message and exit
+  --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
+  --ip <ip>             IP address for the database connection (default: localhost)
+  --port <port>         Port for the database connection (default: 5432)
+  --user <user>         Username for the database connection (default: None)
+  --password <password>
+                        Password for the database connection (default: None)
+  --dbname <dbname>     Database name (default: postgres)
+  --dbschema <dbschema>
+                        Database schema (default: dorm_default)
+  --verbose             Prints the generated statements (default: False)
+  --print_rows          Prints the resulting rows (default: False)
+  --print_counter       Prints the number of rows (default: False)
+  --query_file <path>   Filename of the json file containing the queries (default: None)
+```

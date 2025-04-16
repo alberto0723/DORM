@@ -15,12 +15,13 @@ pd.set_option('display.width', 1000)
 logger = logging.getLogger("Normalized")
 
 class Normalized(Relational):
-    """This is a subclass of Relational that implements the code generation as normalized in 1NF
+    """
+    This is a subclass of Relational that implements the code generation as normalized in 1NF
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def check_toOne(self, path):
+    def check_to_one(self, path):
         correct = True
         for i, current in enumerate(path):
             if self.is_association(current):
@@ -53,7 +54,7 @@ class Normalized(Relational):
                             if self.is_class_phantom(member):
                                 paths = list(nx.all_simple_paths(bipartite, source=anchor, target=member))
                                 if len(paths) == 1:
-                                    if not self.check_toOne(paths[0]):
+                                    if not self.check_to_one(paths[0]):
                                         correct = False
                                         print(f"IC-PureRelational1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
                                 elif len(paths) > 1:
@@ -61,12 +62,12 @@ class Normalized(Relational):
         return correct
 
     def get_struct_attributes(self, struct_name):
-        '''
+        """
         This generates the correspondence between attribute names in a table and their corresponding attribute.
         It is necessary to do it to consider foreign keys.
         :param struct_name:
         :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
-        '''
+        """
         elements = self.get_outbound_struct_by_name(struct_name)
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the table
@@ -91,7 +92,7 @@ class Normalized(Relational):
         return attribute_dicc
 
     def generate_create_table_statements(self, verbose=False):
-        '''
+        """
         Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
         One or more structs are expected inside the set, but all of them should generate the same attributes.
         Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
@@ -100,7 +101,7 @@ class Normalized(Relational):
         ends of the associations in the anchor.
         :param verbose: Indicates if the DDL should be printed
         :return: list of statements generated (one per table)
-        '''
+        """
         statements = []
         firstlevels = self.get_inbound_firstLevel()
         # For each table
@@ -132,8 +133,8 @@ class Normalized(Relational):
             if not key_list:
                 raise ValueError(
                     f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
-            clause_PK = "  PRIMARY KEY (" + ",".join(key_list) + ")\n"
-            sentence += clause_PK + "  );"
+            clause_pk = "  PRIMARY KEY (" + ",".join(key_list) + ")\n"
+            sentence += clause_pk + "  );"
             if verbose:
                 print(sentence)
             statements.append(sentence)
@@ -153,15 +154,15 @@ class Normalized(Relational):
                 conn.commit()
 
     def create_bucket_combinations(self, pattern, required_attributes):
-        '''
+        """
         For each required domain elements, create a bucket with all the tables where it can come from.
         Then, combine all these buckets to cover all elements
-        :param join_edges: List of classes and associations in the query
+        :param pattern: List of classes and associations in the query
         :param required_attributes: List of attributes used in the query
         :return: List of combinations of tables covering all the required elements
         :return: List of classes required
         :return: List of associations required
-        '''
+        """
         tables = []
         classes = []
         associations = []
@@ -264,7 +265,7 @@ class Normalized(Relational):
         return drop_duplicates(discriminants)
 
     def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited):
-        '''
+        """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
         Consider that the pattern of associations is acyclic, which means that we can add joins incrementally one by one
@@ -280,7 +281,7 @@ class Normalized(Relational):
         :param alias_attr: Dictionary indicating from which table each attribute must be taken
         :param visited: Dictionary with all visited classes and from which table they are taken
         :return: String containing the join clause of the tables received as parameter
-        '''
+        """
         # TODO: Consider that there could be more than one connected component (provided by the query) in the table
         #   (associations should be used to choose the right one)
         first_table = (visited == {})
@@ -344,17 +345,16 @@ class Normalized(Relational):
         else:
             return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited)
 
-    def generate_SQL(self, query, verbose=True):
+    def generate_sql(self, spec, verbose=False):
         '''
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
         retrieve the required classes and associations
-        :param query: A JSON containing the select-project-join information
-        :param verbose: Whether to print the SQL statements
+        :param spec: A JSON containing the select-project-join information
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables
         '''
-        logger.info("Executing query")
-        project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(query)
+        logger.info("Resolving query")
+        project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         # For each combination of tables, generate an SQL query
         sentences = []
         # Check if all classes in the pattern are in some struct
@@ -398,10 +398,10 @@ class Normalized(Relational):
             subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
             subqueries = []
             for subclass_phantom in subclasses.itertuples():
-                new_query = query.copy()
+                new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom.Index) if elem == superclass_name else elem for elem in new_query["pattern"]]
-                subqueries.append(self.generate_SQL(new_query))
+                subqueries.append(self.generate_sql(new_query))
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
                 sentences.append("\nUNION\n".join(combination))

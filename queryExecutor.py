@@ -1,0 +1,62 @@
+import logging
+import sys
+import argparse
+from pathlib import Path
+import json
+from catalog import normalized
+
+# Path definitions
+base_path = Path(__file__).parent
+
+# Enable logging
+logging.basicConfig(level=logging.INFO)
+
+# ---------------------------------------------------------------------------- #
+#                                configure argparse begin                      #
+# ---------------------------------------------------------------------------- #
+base_parser = argparse.ArgumentParser(
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=True
+)
+base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
+base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
+base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
+base_parser.add_argument("--user", type=str, help="Username for the database connection", metavar="<user>")
+base_parser.add_argument("--password", type=str, help="Password for the database connection", metavar="<password>")
+base_parser.add_argument("--dbname", type=str, default="postgres", help="Database name", metavar="<dbname>")
+base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<dbschema>")
+base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
+base_parser.add_argument("--print_rows", help="Prints the resulting rows", action="store_true")
+base_parser.add_argument("--print_counter", help="Prints the number of rows", action="store_true")
+base_parser.add_argument("--query_file", type=Path, help="Filename of the json file containing the queries", metavar="<path>")
+
+
+if __name__ == "__main__":
+    args = base_parser.parse_args()
+    if len(sys.argv) == 1:
+        base_parser.print_help()
+    else:
+        logging.info("BEGIN")
+        cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                    password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+        logging.info("Executing batch queries")
+        # Open and load the JSON file
+        with open(args.query_file, 'r') as file:
+            query_specs = json.load(file).get("queries")
+        for i, spec in enumerate(query_specs):
+            print(f"-- Running query specification {i}")
+            if True:
+                queries = cat.generate_sql(spec, args.verbose)
+                if args.verbose:
+                    print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
+                    if len(queries) > 1:
+                        print(f"Number of queries generated: {len(queries)}")
+                        print("First one is:")
+                    print(queries[0]+";")
+                    print("--//////////////////////////////////////////")
+                rows = cat.execute(queries[0])
+                if args.print_rows:
+                    for row in rows:
+                        print(row)
+                if args.print_counter:
+                    print(f"Number of rows: {len(rows)}")
+        logging.info("END")

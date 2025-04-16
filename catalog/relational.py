@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import logging
 from IPython.display import display
 import pandas as pd
@@ -14,7 +15,7 @@ pd.set_option('display.width', 1000)
 logger = logging.getLogger("Relational")
 
 
-class Relational(Catalog):
+class Relational(Catalog, ABC):
     """This is a subclass of Catalog that implements the constraints for relational databases
     """
     # This contains the connection to the database to store the catalog
@@ -65,9 +66,6 @@ class Relational(Catalog):
                 else:
                     ValueError(f"Missing required tables '{catalog_tables}' in the database")
             self.dbschema = dbschema
-
-    def create_schema(self, verbose):
-        pass
 
     def save(self, file_path=None, verbose=True):
         if file_path is not None:
@@ -129,3 +127,18 @@ class Relational(Catalog):
                 display(violations6_1)
 
         return correct
+
+    @abstractmethod
+    def create_schema(self, verbose):
+        pass
+
+    @abstractmethod
+    def generate_sql(self, spec, verbose):
+        pass
+
+    def execute(self, query):
+        if self.engine is None:
+            ValueError("Queries cannot be executed without a connection to the DBMS")
+        with self.engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text(query))
+        return result.fetchall()
