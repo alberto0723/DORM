@@ -2,7 +2,7 @@ import logging
 import sys
 import argparse
 from pathlib import Path
-from catalog import catalog, relational, normalized
+from catalog import relational, normalized
 
 # Path definitions
 base_path = Path(__file__).parent
@@ -33,7 +33,7 @@ base_parser.add_argument("--port", type=str, default="5432", help="Port for the 
 base_parser.add_argument("--user", type=str, help="Username for the database connection", metavar="<user>")
 base_parser.add_argument("--password", type=str, help="Password for the database connection", metavar="<password>")
 base_parser.add_argument("--dbname", type=str, default="postgres", help="Database name", metavar="<dbname>")
-base_parser.add_argument("--dbschema", type=str, default="public", help="Database schema", metavar="<dbschema>")
+base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<dbschema>")
 
 # ------------------------------------------------------------------------------ #
 #                                   Subparsers                                   #
@@ -60,13 +60,11 @@ if __name__ == "__main__":
             consistent = False
             if args.state == "domain":
                 cat = relational.Relational(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema,
+                                            supersede=True)
                 cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
             elif args.state == "design":
-                if args.user is None or args.password is None:
-                    cat = normalized.Normalized(args.hg_path.joinpath("domain").joinpath(design.get("domain") + ".HyperNetX"))
-                else:
-                    cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                             password=args.password, dbname=args.dbname, dbschema=args.dbschema)
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
@@ -81,14 +79,14 @@ if __name__ == "__main__":
 
         if args.text:
             cat.show_textual()
-        if args.check:
+        if args.check and (args.user is None or args.password is None):
             if cat.is_correct(design=(args.state == "design")):
                 consistent = True
                 print("The catalog is correct")
             else:
                 consistent = False
                 print("WARNING: The catalog is not consistent!!!")
-        if consistent:
+        if consistent or (args.user is not None and args.password is not None):
             if args.state == "domain":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dom_spec + ".HyperNetX"))

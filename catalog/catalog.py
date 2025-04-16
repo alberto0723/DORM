@@ -19,6 +19,9 @@ class Catalog(HyperNetXWrapper):
     """This class manages the catalog of a database using hypergraphs
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
+    # This attributes keep track of the origin of the hypergraph
+    origin = {}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -208,10 +211,11 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
-    def load_domain(self, file):
-        logging.info(f"Loading domain from '{file}'")
+    def load_domain(self, file_path):
+        logger.info(f"Loading domain from '{file_path}'")
+        self.origin["domain"] = str(file_path)
         # Open and load the JSON file
-        with open(file, 'r') as f:
+        with open(file_path, 'r') as f:
             domain = json.load(f)
         # Create and fill the catalog
         for cl in domain.get("classes"):
@@ -221,11 +225,18 @@ class Catalog(HyperNetXWrapper):
         for gen in domain.get("generalizations", []):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
 
-    def load_design(self, file):
-        logging.info(f"Loading design from '{file}'")
+    def load_design(self, file_path):
+        logger.info(f"Loading design from '{file_path}'")
         # Open and load the JSON file
-        with open(file, 'r') as f:
+        with open(file_path, 'r') as f:
             design = json.load(f)
+        if "domain" not in self.origin:
+            self.load_domain(design.get("domain", "Missing"))
+        # Check if the domain in the catalog and that of the design coincide
+        if self.origin.get("domain", "Non-existent") != design.get("domain", "Missing"):
+            raise ValueError(f"The domain of the design '{design.get("domain", "Missing")}' does not coincide with that of the catalog '{self.origin.get("domain", "Non-existent")}'")
+        self.origin["design"] = str(file_path)
+
         # Create and fill the catalog
         for h in design.get("hyperedges"):
             if h.get("kind") == "Struct":
