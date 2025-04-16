@@ -27,6 +27,7 @@ base_parser.add_argument("--text", help="Shows the catalog in text format", acti
 base_parser.add_argument("--graph", help="Shows the catalog in graphical format", action="store_true")
 base_parser.add_argument("--create", help="Creates the catalog", action="store_true")
 base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
+base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
 base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
 base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
 base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
@@ -66,7 +67,7 @@ if __name__ == "__main__":
             elif args.state == "design":
                 cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                             password=args.password, dbname=args.dbname, dbschema=args.dbschema,
-                                            supersede=False)
+                                            supersede=args.supersede)
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")

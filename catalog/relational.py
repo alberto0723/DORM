@@ -20,9 +20,9 @@ class Relational(Catalog):
     # This contains the connection to the database to store the catalog
     engine = None
     dbschema = None
-    TABLE_NODES = 'dorm_catalog_nodes'
-    TABLE_EDGES = 'dorm_catalog_edges'
-    TABLE_INCIDENCES = 'dorm_catalog_incidences'
+    TABLE_NODES = '__dorm_catalog_nodes'
+    TABLE_EDGES = '__dorm_catalog_edges'
+    TABLE_INCIDENCES = '__dorm_catalog_incidences'
 
     def __init__(self, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None, supersede=False):
         if user is None or password is None:
@@ -66,7 +66,10 @@ class Relational(Catalog):
                     ValueError(f"Missing required tables '{catalog_tables}' in the database")
             self.dbschema = dbschema
 
-    def save(self, file_path=None):
+    def create_schema(self, verbose):
+        pass
+
+    def save(self, file_path=None, verbose=True):
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
@@ -82,6 +85,8 @@ class Relational(Catalog):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
+                self.create_schema(verbose=verbose)
+                self.origin["tables_created"] = True
                 with (self.engine.connect() as conn):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.origin)}';"
                     conn.execute(sqlalchemy.text(statement))

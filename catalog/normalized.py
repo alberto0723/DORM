@@ -3,12 +3,14 @@ import itertools
 import pandas as pd
 from IPython.display import display
 import networkx as nx
-
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 1000)
+import sqlalchemy
 
 from .relational import Relational
 from .tools import combine_tables, drop_duplicates
+
+# Library initialization
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
 
 logger = logging.getLogger("Normalized")
 
@@ -102,37 +104,41 @@ class Normalized(Relational):
         # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
         logger.info("Creating tables")
         firstlevels = self.get_inbound_firstLevel()
-        # For each table
-        for table in firstlevels.itertuples():
-            logger.info("-- Creating table " + table.Index[0])
-            sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\nCREATE TABLE " + table.Index[0] + " (\n"
-            # Get all the attributes in all the structs
-            attribute_dicc = {}
-            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-                attribute_dicc.update(self.get_struct_attributes(struct_name))
-            # Add all the attributes to the create table sentence
-            for attr_alias, attr_name in attribute_dicc.items():
-                attribute = self.get_attribute_by_name(attr_name)
-                sentence += "  " + attr_alias
-                if attribute["misc_properties"].get("DataType") == "String":
-                    sentence += " VarChar(" + str(attribute["misc_properties"].get("Size")) + "),\n"
-                else:
-                    sentence += " " + attribute["misc_properties"].get("DataType") + ",\n"
-            # Create the PK
-            # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-            key_list = []
-            for key in self.get_anchor_end_names_by_struct_name(struct_name):
-                if self.is_class_phantom(key):
-                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
-                # If it is not a class, it is a loose end
-                else:
-                    key_list.append(key)
-            if not key_list:
-                raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
-            clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
-            sentence += clause_PK + "  );"
-            if verbose:
-                print(sentence)
+        with self.engine.connect() as conn:
+            # For each table
+            for table in firstlevels.itertuples():
+                logger.info("-- Creating table " + table.Index[0])
+                #sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
+                sentence = "CREATE TABLE " + table.Index[0] + " (\n"
+                # Get all the attributes in all the structs
+                attribute_dicc = {}
+                for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
+                    attribute_dicc.update(self.get_struct_attributes(struct_name))
+                # Add all the attributes to the create table sentence
+                for attr_alias, attr_name in attribute_dicc.items():
+                    attribute = self.get_attribute_by_name(attr_name)
+                    sentence += "  " + attr_alias
+                    if attribute["misc_properties"].get("DataType") == "String":
+                        sentence += " VarChar(" + str(attribute["misc_properties"].get("Size")) + "),\n"
+                    else:
+                        sentence += " " + attribute["misc_properties"].get("DataType") + ",\n"
+                # Create the PK
+                # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
+                key_list = []
+                for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                    if self.is_class_phantom(key):
+                        key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                    # If it is not a class, it is a loose end
+                    else:
+                        key_list.append(key)
+                if not key_list:
+                    raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
+                clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
+                sentence += clause_PK + "  );"
+                if verbose:
+                    print(sentence)
+                conn.execute(sqlalchemy.text(sentence))
+            conn.commit()
 
     def create_bucket_combinations(self, pattern, required_attributes):
         '''
