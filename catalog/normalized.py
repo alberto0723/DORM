@@ -90,55 +90,67 @@ class Normalized(Relational):
                 raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
         return attribute_dicc
 
-    def create_schema(self, verbose=False):
+    def generate_create_table_statements(self, verbose=False):
         '''
-        Creates the tables in the design. One table is created for every set in the first level (i.e., without parent).
+        Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
         One or more structs are expected inside the set, but all of them should generate the same attributes.
         Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
         of the associations.
         The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
         ends of the associations in the anchor.
         :param verbose: Indicates if the DDL should be printed
-        :return: ???
+        :return: list of statements generated (one per table)
         '''
-        # TODO: Connect to the DB and create the table there (better to create all at once to be sure they are all correct)
-        logger.info("Creating tables")
+        statements = []
         firstlevels = self.get_inbound_firstLevel()
-        with self.engine.connect() as conn:
-            # For each table
-            for table in firstlevels.itertuples():
-                logger.info("-- Creating table " + table.Index[0])
-                #sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
-                sentence = "CREATE TABLE " + table.Index[0] + " (\n"
-                # Get all the attributes in all the structs
-                attribute_dicc = {}
-                for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-                    attribute_dicc.update(self.get_struct_attributes(struct_name))
-                # Add all the attributes to the create table sentence
-                for attr_alias, attr_name in attribute_dicc.items():
-                    attribute = self.get_attribute_by_name(attr_name)
-                    sentence += "  " + attr_alias
-                    if attribute["misc_properties"].get("DataType") == "String":
-                        sentence += " VarChar(" + str(attribute["misc_properties"].get("Size")) + "),\n"
-                    else:
-                        sentence += " " + attribute["misc_properties"].get("DataType") + ",\n"
-                # Create the PK
-                # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-                key_list = []
-                for key in self.get_anchor_end_names_by_struct_name(struct_name):
-                    if self.is_class_phantom(key):
-                        key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
-                    # If it is not a class, it is a loose end
-                    else:
-                        key_list.append(key)
-                if not key_list:
-                    raise ValueError(f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
-                clause_PK = "  PRIMARY KEY ("+",".join(key_list)+")\n"
-                sentence += clause_PK + "  );"
-                if verbose:
-                    print(sentence)
-                conn.execute(sqlalchemy.text(sentence))
-            conn.commit()
+        # For each table
+        for table in firstlevels.itertuples():
+            logger.info("-- Creating table " + table.Index[0])
+            # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
+            sentence = "CREATE TABLE " + table.Index[0] + " (\n"
+            # Get all the attributes in all the structs
+            attribute_dicc = {}
+            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
+                attribute_dicc.update(self.get_struct_attributes(struct_name))
+            # Add all the attributes to the create table sentence
+            for attr_alias, attr_name in attribute_dicc.items():
+                attribute = self.get_attribute_by_name(attr_name)
+                sentence += "  " + attr_alias
+                if attribute["misc_properties"].get("DataType") == "String":
+                    sentence += " VarChar(" + str(attribute["misc_properties"].get("Size")) + "),\n"
+                else:
+                    sentence += " " + attribute["misc_properties"].get("DataType") + ",\n"
+            # Create the PK
+            # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
+            key_list = []
+            for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                if self.is_class_phantom(key):
+                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                # If it is not a class, it is a loose end
+                else:
+                    key_list.append(key)
+            if not key_list:
+                raise ValueError(
+                    f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
+            clause_PK = "  PRIMARY KEY (" + ",".join(key_list) + ")\n"
+            sentence += clause_PK + "  );"
+            if verbose:
+                print(sentence)
+            statements.append(sentence)
+        return statements
+
+    def create_schema(self, verbose=False):
+        '''
+        Creates the tables in the design.
+        :param verbose: Indicates if the DDL should be printed
+        '''
+        logger.info("Creating tables")
+        statements = self.generate_create_table_statements()
+        if self.engine is not None:
+            with self.engine.connect() as conn:
+                for statement in statements:
+                    conn.execute(sqlalchemy.text(statement))
+                conn.commit()
 
     def create_bucket_combinations(self, pattern, required_attributes):
         '''

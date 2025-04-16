@@ -98,8 +98,8 @@ if __name__ == "__main__":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                 else:
-                    cat.save()
-                if args.translate:
+                    cat.save(verbose=args.verbose)
+                if args.translate and (args.user is None or args.password is None):
                     cat.create_schema(verbose=args.verbose)
             else:
                 raise Exception("Unknown catalog type to be saved")
