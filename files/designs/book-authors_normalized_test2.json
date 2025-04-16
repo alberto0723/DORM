@@ -1,5 +1,5 @@
 {
-    "domain": "book-authors_1-1",
+    "domain": "..\\domains\\book-authors_1-1.json",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",

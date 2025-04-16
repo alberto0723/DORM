@@ -230,11 +230,12 @@ class Catalog(HyperNetXWrapper):
         # Open and load the JSON file
         with open(file_path, 'r') as f:
             design = json.load(f)
+        domain_path = str(file_path.parent.joinpath(design.get("domain", None)).resolve())
         if "domain" not in self.origin:
-            self.load_domain(design.get("domain", "Missing"))
+            self.load_domain(domain_path)
         # Check if the domain in the catalog and that of the design coincide
-        if self.origin.get("domain", "Non-existent") != design.get("domain", "Missing"):
-            raise ValueError(f"The domain of the design '{design.get("domain", "Missing")}' does not coincide with that of the catalog '{self.origin.get("domain", "Non-existent")}'")
+        if self.origin.get("domain", "Non-existent") != domain_path:
+            raise ValueError(f"The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.origin.get("domain", "Non-existent")}'")
         self.origin["design"] = str(file_path)
 
         # Create and fill the catalog

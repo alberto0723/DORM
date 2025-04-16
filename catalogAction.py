@@ -65,7 +65,8 @@ if __name__ == "__main__":
                 cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
             elif args.state == "design":
                 cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema,
+                                            supersede=False)
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")

@@ -1,5 +1,5 @@
 {
-    "domain": "C:\\Users\\alberto.abello\\Documents\\PycharmProjects\\DORM\\files\\domains\\book-authors.json",
+    "domain": "..\\domains\\book-authors.json",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",

@@ -60,7 +60,6 @@ class Relational(Catalog):
                         row = result.fetchone()
                     if row:
                         self.origin = json.loads(row.comment)
-                        print(self.origin)
                     else:
                         ValueError("No comment found in the schema of the database (necessary to check domain and design origin)")
                 else:
