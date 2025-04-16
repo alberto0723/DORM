@@ -3,7 +3,6 @@ import json
 import networkx as nx
 from IPython.display import display
 import pandas as pd
-
 import sqlparse
 
 from .tools import drop_duplicates, df_difference

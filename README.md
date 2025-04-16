@@ -16,10 +16,10 @@ The contents of the domain files are as follows:
 1. A list of ``classes`` is required:
    - Every class has a ``name``, some properties including a counter of instances and a list of attributes.
       - Every attribute has a name and some properties: ``DataType``, ``Size``, ``DistincVals``, and ``Identifier``.
-1. An optional list of binary ``associations``:
+2. An optional list of binary ``associations``:
    - Every association has a ``name`` and two ends.
       - Every end has a ``class`` and some properties: ``End_name`` and ``Multiplicity``.
-1. An optional list of ``generalizations``:
+3An optional list of ``generalizations``:
    - Every generalization has a ``name``, some properties (i.e., ``Disjoint`` and ``Complete``), a ``superclass``, and a list of ``subclasses'':
       - Every subclass has a ``class`` and some properties: ``Constraint`` (which is a predicate over the attributes of the class).
 
@@ -51,9 +51,9 @@ You can find an [exemplary design](files/designs/book-authors_normalized.json) c
 
 The contents of the design files are as follows:
 1. The name of the corresponding domain.
-1. A list of hyperedges with a different name each, that can be of two kids
+2. A list of hyperedges with a different name each, that can be of two kids
    1. ``Set``: Contains a list of elements (either classes or associations) contained in the set.
-   1. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the ``anchor`` elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
+   2. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the ``anchor`` elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
 
 #### Semantics
 *Sets* are abstractions that represent tables, collections, arrays.
@@ -91,12 +91,12 @@ About structs:
   
 ### 3- Queries
 Select-Project-Join expressions in terms of the domain concepts.
-You can find some [query exemples](files/queries/book-authors.json) over the same domain.
+You can find some [query examples](files/queries/book-authors.json) over the same domain.
 
 The content of the query files is just a list of SPJ queries, whose structure is as follows:
 1. ``project`` contains a list of attributes in the domain, which cannot be empty.
-1. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
-1. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
+2. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
+3``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 
 #### Semantics
 - The pattern may not contain any association.

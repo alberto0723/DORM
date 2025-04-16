@@ -1,14 +1,18 @@
 import logging
 from IPython.display import display
 import pandas as pd
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 1000)
 import sqlalchemy  # https://www.sqlalchemy.org
+import hypernetx as hnx
 import json
 
 from .catalog import Catalog
 
+# Libraries initialization
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
 logger = logging.getLogger("Relational")
+
 
 class Relational(Catalog):
     """This is a subclass of Catalog that implements the constraints for relational databases
@@ -20,8 +24,9 @@ class Relational(Catalog):
     TABLE_INCIDENCES = 'dorm_catalog_incidences'
 
     def __init__(self, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None):
-        super().__init__(file_path)
-        if user is not None and password is not None:
+        if user is None or password is None:
+            super().__init__(file_path=file_path)
+        else:
             if dbms is None or ip is None or port is None or dbname is None or dbschema is None:
                 ValueError("Missing required parameters: dbms, ip, port, user, password, dbname, dbschema")
             # Example of URL: 'postgresql://user:password@localhost/mydatabase'
@@ -30,8 +35,20 @@ class Relational(Catalog):
             self.engine = sqlalchemy.create_engine(url)
             with self.engine.connect() as conn:
                 conn.execute(sqlalchemy.text(f"SET search_path TO {dbschema};"))
-            if all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]):
+            catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
+            if all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
                 logger.info(f"Loading the catalog from the database connection")
+                df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
+
+                df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
+                df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
+                # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
+                H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
+                                   node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
+                                   edge_properties=df_edges, edge_weight_prop_col="weight")
+                super().__init__(hypergraph=H)
+            else:
+                ValueError(f"Missing required tables '{catalog_tables}' in the database")
 
     def save(self, file_path=None):
         if file_path is not None:
