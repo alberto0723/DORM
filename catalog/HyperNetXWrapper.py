@@ -4,40 +4,45 @@ import hypernetx as hnx
 import pickle
 from IPython.display import display
 import pandas as pd
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 1000)
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
 
 from . import config
 from .tools import drop_duplicates, df_difference
 
+# Libraries initialization
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
+matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
+
 logger = logging.getLogger("HyperNetXWrapper")
+
 
 class HyperNetXWrapper:
     """This class manages the basics of the catalog of a database using hypergraphs
     It implements all the basic stuff and auxiliary, private functions of the catalog.
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
-    def __init__(self, file=None, hypergraph=None):
+    def __init__(self, file_path=None, hypergraph=None):
         self.config = config.Config()
         if hypergraph is not None:
             self.H = hypergraph
-        elif file is not None:
-            logger.info("Loading hypergraph from " + str(file))
-            with open(file, "rb") as f:
+        elif file_path is not None:
+            logger.info(f"Loading hypergraph from '{file_path}'")
+            with open(file_path, "rb") as f:
                 self.H = pickle.load(f)
         else:
             self.H = hnx.Hypergraph([])
 
-    def save(self, file):
-        logger.info("Saving hypergraph in " + str(file))
-        # Create the directory (if it doesn't exist)
-        os.makedirs(os.path.dirname(file), exist_ok=True)
-        # Save the hypergraph to a pickle file
-        with open(file, "wb") as f:
-            pickle.dump(self.H, f)
+    def save(self, file_path=None):
+        if file_path is not None:
+            logger.info(f"Saving hypergraph in '{file_path}'")
+            # Create the directory (if it doesn't exist)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            # Save the hypergraph to a pickle file
+            with open(file_path, "wb") as f:
+                pickle.dump(self.H, f)
 
     def get_nodes(self):
         nodes = self.H.nodes.dataframe.rename_axis("nodes")

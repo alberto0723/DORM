@@ -1,9 +1,10 @@
-from abc import ABC, abstractmethod
 import logging
 from IPython.display import display
 import pandas as pd
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
+import sqlalchemy  # https://www.sqlalchemy.org
+import json
 
 from .catalog import Catalog
 
@@ -12,11 +13,45 @@ logger = logging.getLogger("Relational")
 class Relational(Catalog):
     """This is a subclass of Catalog that implements the constraints for relational databases
     """
-    def __init__(self, file=None):
-        super().__init__(file)
+    # This contains the connection to the database to store the catalog
+    engine = None
+    TABLE_NODES = 'dorm_catalog_nodes'
+    TABLE_EDGES = 'dorm_catalog_edges'
+    TABLE_INCIDENCES = 'dorm_catalog_incidences'
 
-    def is_correct(self, design=False):
-        correct = super().is_correct(design)
+    def __init__(self, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None):
+        super().__init__(file_path)
+        if user is not None and password is not None:
+            if dbms is None or ip is None or port is None or dbname is None or dbschema is None:
+                ValueError("Missing required parameters: dbms, ip, port, user, password, dbname, dbschema")
+            # Example of URL: 'postgresql://user:password@localhost/mydatabase'
+            url = f"{dbms}://{user}:{password}@{ip}:{port}/{dbname}"
+            logger.info(f"Creating database connection to '{url}'")
+            self.engine = sqlalchemy.create_engine(url)
+            with self.engine.connect() as conn:
+                conn.execute(sqlalchemy.text(f"SET search_path TO {dbschema};"))
+            if all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]):
+                logger.info(f"Loading the catalog from the database connection")
+
+    def save(self, file_path=None):
+        if file_path is not None:
+            super().save(file_path)
+        elif self.engine is not None:
+            logger.info("Saving the catalog in the database")
+            df_nodes = self.H.nodes.dataframe.copy()
+            df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
+            df_nodes.to_sql(self.TABLE_NODES, self.engine, if_exists='replace', index=True)
+            df_edges = self.H.edges.dataframe.copy()
+            df_edges['misc_properties'] = df_edges['misc_properties'].apply(json.dumps)
+            df_edges.to_sql(self.TABLE_EDGES, self.engine, if_exists='replace', index=True)
+            df_incidences = self.H.incidences.dataframe.copy()
+            df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
+            df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
+        else:
+            ValueError("No connection to the database or file provided")
+
+    def is_correct(self, design=False, verbose=True):
+        correct = super().is_correct(design, verbose)
         structs = self.get_structs()
         sets = self.get_sets()
         if correct:

@@ -31,6 +31,12 @@
     {
       "project": ["P_ID", "Friends_People", "Friends_Workers"],
       "pattern": ["People","Friends"]
+    },
+    {
+      "__comment": "This query is ambiguous, because workers can be joined in both sides of the association.",
+      "__comment": "Thus, it just generates two links to the same pair of tables.",
+      "project": ["P_ID", "Friends_People", "Friends_Workers"],
+      "pattern": ["Workers","Friends"]
     }
   ]
 }

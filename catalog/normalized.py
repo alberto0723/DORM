@@ -8,15 +8,15 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
 from .relational import Relational
-from .tools import df_difference, combine_tables, drop_duplicates
+from .tools import combine_tables, drop_duplicates
 
 logger = logging.getLogger("Normalized")
 
 class Normalized(Relational):
     """This is a subclass of Relational that implements the code generation as normalized in 1NF
     """
-    def __init__(self, file=None):
-        super().__init__(file)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def check_toOne(self, path):
         correct = True
@@ -30,8 +30,8 @@ class Normalized(Relational):
                         raise ValueError(f"Checking multiplicity: Multiplicity not provided for association '{current}-{path[i+1]}'")
         return correct
 
-    def is_correct(self, design=False):
-        correct = super().is_correct(design)
+    def is_correct(self, design=False, verbose=True):
+        correct = super().is_correct(design, verbose)
         if correct:
             # ---------------------------------------------------------------- ICs about being a normalized catalog
             # IC-Normalized1: All associations from the anchor of a struct must be to one (or less)
@@ -56,7 +56,6 @@ class Normalized(Relational):
                                         print(f"IC-PureRelational1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
                                 elif len(paths) > 1:
                                     raise ValueError(f"IC-PureRelational1: Something went wrong in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'")
-
         return correct
 
     def get_struct_attributes(self, struct_name):
@@ -197,29 +196,28 @@ class Normalized(Relational):
         for index, table in enumerate(reversed(tables_combination)):
             # -- Determine the aliases of tables and required attributes
             alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
-            # TODO: There could be more than one struct
-            struct_name = self.get_struct_names_inside_set_name(table)[0]
-            for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
-                location_attr[intable_name] = alias_table[table]
-                alias_attr[intable_name] = intable_name
-            associations = self.get_inbound_associations()[
-                self.get_inbound_associations().index.get_level_values("nodes").isin(
-                    pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
-                             on="nodes", how="inner").index)]
-            classes = self.get_inbound_classes()[
-                self.get_inbound_classes().index.get_level_values("nodes").isin(
-                    pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
-                             on="nodes", how="inner").index)]
-            association_ends = self.get_outbound_associations()[
-                (self.get_outbound_associations().index.get_level_values("edges").isin(
-                    associations.index.get_level_values("edges"))) & (
-                    self.get_outbound_associations().index.get_level_values("nodes").isin(
-                        classes.index.get_level_values("nodes")))]
-            # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
-            for end in association_ends.itertuples():
-                location_attr[end.misc_properties["End_name"]] = alias_table[table]
-                alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
-                    self.get_edge_by_phantom_name(end.Index[1]))
+            for struct_name in self.get_struct_names_inside_set_name(table):
+                for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
+                    location_attr[intable_name] = alias_table[table]
+                    alias_attr[intable_name] = intable_name
+                associations = self.get_inbound_associations()[
+                    self.get_inbound_associations().index.get_level_values("nodes").isin(
+                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
+                                 on="nodes", how="inner").index)]
+                classes = self.get_inbound_classes()[
+                    self.get_inbound_classes().index.get_level_values("nodes").isin(
+                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
+                                 on="nodes", how="inner").index)]
+                association_ends = self.get_outbound_associations()[
+                    (self.get_outbound_associations().index.get_level_values("edges").isin(
+                        associations.index.get_level_values("edges"))) & (
+                        self.get_outbound_associations().index.get_level_values("nodes").isin(
+                            classes.index.get_level_values("nodes")))]
+                # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
+                for end in association_ends.itertuples():
+                    location_attr[end.misc_properties["End_name"]] = alias_table[table]
+                    alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
+                        self.get_edge_by_phantom_name(end.Index[1]))
         return alias_table, alias_attr, location_attr
 
     def get_discriminants(self, tables_combination, pattern_class_names):
@@ -230,20 +228,19 @@ class Normalized(Relational):
             if pattern_superclasses:
                 # For every table in the query
                 for table in tables_combination:
-                    # TODO: There could be more than one struct
-                    struct_name = self.get_struct_names_inside_set_name(table)[0]
-                    # For all classes in the current table
-                    table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
-                    # For all classes in the table
-                    for table_class_name in table_classes.index.get_level_values("edges"):
-                        table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name, [])
-                        # Check if they are siblings
-                        if pattern_class_name != table_class_name and [s for s in pattern_superclasses if s in table_hierarchy]:
-                            # TODO: We need to check if the discriminant is available in the table, which should happen if the generalization is overlapping
-                            # Add the corresponding discriminant (this works because we have single inheritance)
-                            discriminants.append(
-                                self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
-                                    self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties["Constraint"])
+                    for struct_name in self.get_struct_names_inside_set_name(table):
+                        # For all classes in the current struct of the current table
+                        table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
+                        # For all classes in the table
+                        for table_class_name in table_classes.index.get_level_values("edges"):
+                            table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name, [])
+                            # Check if they are siblings
+                            if pattern_class_name != table_class_name and [s for s in pattern_superclasses if s in table_hierarchy]:
+                                # TODO: We need to check if the discriminant is available in the table, which should happen if the generalization is overlapping
+                                # Add the corresponding discriminant (this works because we have single inheritance)
+                                discriminants.append(
+                                    self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
+                                        self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties["Constraint"])
         # It should not be necessary to remove duplicates if dessing and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
@@ -278,30 +275,30 @@ class Normalized(Relational):
         while tables:
             # Take any table and find all its potentially connection points
             current_table = tables.pop(0)
-            # TODO: There could be more than one struct inside the set
-            struct_name = self.get_struct_names_inside_set_name(current_table)[0]
             # Get potential attributes to plug the current table
-            plugs = [] # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
-            for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
-                if self.is_class_phantom(incidence.Index[1]):
-                    class_name = self.get_edge_by_phantom_name(incidence.Index[1])
-                    if class_name in query_superclasses:
-                        # Any class in the query is a potential connection point per se
-                        plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
-                        # Also, it can connect to a loose end if it participates in an association
-                        for ass in associations.itertuples():
-                            if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name, []):
-                                plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
-            for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
-                for ass in associations.itertuples():
-                    if end_name == ass.misc_properties["End_name"]:
-                        # Loose end can connect to a class id
-                        plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
-                        # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
-                        if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
-                            for ass2 in associations.itertuples():
-                                if ass.Index[1] == ass2.Index[1]:
-                                    plugs.append((end_name, ass2.misc_properties["End_name"]))
+            plugs = []  # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
+            # For every struct in the table
+            for struct_name in self.get_struct_names_inside_set_name(current_table):
+                for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
+                    if self.is_class_phantom(incidence.Index[1]):
+                        class_name = self.get_edge_by_phantom_name(incidence.Index[1])
+                        if class_name in query_superclasses:
+                            # Any class in the query is a potential connection point per se
+                            plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
+                            # Also, it can connect to a loose end if it participates in an association
+                            for ass in associations.itertuples():
+                                if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name, []):
+                                    plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
+                for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
+                    for ass in associations.itertuples():
+                        if end_name == ass.misc_properties["End_name"]:
+                            # Loose end can connect to a class id
+                            plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
+                            # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
+                            if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
+                                for ass2 in associations.itertuples():
+                                    if ass.Index[1] == ass2.Index[1]:
+                                        plugs.append((end_name, ass2.misc_properties["End_name"]))
             # Check if the other ends of any of the connection points has been visited before
             joins = []
             for plug in plugs:
@@ -313,8 +310,9 @@ class Normalized(Relational):
                 tables += unjoinable
                 unjoinable = []
                 break
+        # Duplication removal should not be necessary, but they appear because of multiple structs in a table
+        joins = drop_duplicates(joins)
         # Get all the connection point in the table and mark them as visited
-        # TODO: Consider multiple structs inside a set (corresponding to horizontal partitioning)
         for plug in plugs:
             visited[plug[0]] = current_table
         # Create the join clause

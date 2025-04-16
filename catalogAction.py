@@ -2,7 +2,6 @@ import logging
 import sys
 import argparse
 from pathlib import Path
-import json
 from catalog import catalog, relational, normalized
 
 # Path definitions
@@ -13,44 +12,6 @@ default_designs_path = base_path.joinpath("files/designs")
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
-
-
-def create(args):
-    logging.info("Creating domain: "+args.dom_spec)
-    # Open and load the JSON file
-    with open(args.dom_path.joinpath(args.dom_spec + ".json"), 'r') as file:
-        domain = json.load(file)
-    # Create and fill the catalog
-    cat = catalog.Catalog()
-    for cl in domain.get("classes"):
-        cat.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
-    for ass in domain.get("associations", []):
-        cat.add_association(ass.get("name"), ass.get("ends"))
-    for gen in domain.get("generalizations", []):
-        cat.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
-    return cat
-
-
-def design(args):
-    logging.info("Creating design: "+args.dsg_spec)
-    # Open and load the JSON file
-    with open(args.dsg_path.joinpath(args.dsg_spec + ".json"), 'r') as file:
-        design = json.load(file)
-    # Create and fill the catalog
-    cat = normalized.Normalized(args.hg_path.joinpath("domain").joinpath(design.get("domain") + ".HyperNetX"))
-    for h in design.get("hyperedges"):
-        if h.get("kind") == "Struct":
-            cat.add_struct(h.get("name"), h.get("anchor"), h.get("elements"))
-        elif h.get("kind") == "Set":
-            cat.add_set(h.get("name"), h.get("elements"))
-        else:
-            raise ValueError(f"Unknown kind of hyperedge '{h.get("kind")}'")
-    return cat
-
-def recover(args):
-    logging.info("Recovering catalog: "+args.hypergraph)
-    cat = normalized.Normalized(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
-    return cat
 
 # ---------------------------------------------------------------------------- #
 #                                configure argparse begin                      #
@@ -66,6 +27,14 @@ base_parser.add_argument("--text", help="Shows the catalog in text format", acti
 base_parser.add_argument("--graph", help="Shows the catalog in graphical format", action="store_true")
 base_parser.add_argument("--create", help="Creates the catalog", action="store_true")
 base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
+base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
+base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
+base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
+base_parser.add_argument("--user", type=str, help="Username for the database connection", metavar="<user>")
+base_parser.add_argument("--password", type=str, help="Password for the database connection", metavar="<password>")
+base_parser.add_argument("--dbname", type=str, default="postgres", help="Database name", metavar="<dbname>")
+base_parser.add_argument("--dbschema", type=str, default="public", help="Database schema", metavar="<dbschema>")
+
 # ------------------------------------------------------------------------------ #
 #                                   Subparsers                                   #
 # ------------------------------------------------------------------------------ #
@@ -90,18 +59,30 @@ if __name__ == "__main__":
         if args.create:
             consistent = False
             if args.state == "domain":
-                c = create(args)
+                cat = relational.Relational(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
             elif args.state == "design":
-                c = design(args)
+                if args.user is None or args.password is None:
+                    cat = normalized.Normalized(args.hg_path.joinpath("domain").joinpath(design.get("domain") + ".HyperNetX"))
+                else:
+                    cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")
         else:
             consistent = True
-            c = recover(args)
+            if args.user is None or args.password is None:
+                cat = normalized.Normalized(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
+            else:
+                cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                        password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+
         if args.text:
-            c.show_textual()
+            cat.show_textual()
         if args.check:
-            if c.is_correct(design=(args.state == "design")):
+            if cat.is_correct(design=(args.state == "design")):
                 consistent = True
                 print("The catalog is correct")
             else:
@@ -109,14 +90,20 @@ if __name__ == "__main__":
                 print("WARNING: The catalog is not consistent!!!")
         if consistent:
             if args.state == "domain":
-                c.save(file=args.hg_path.joinpath(args.state).joinpath(args.dom_spec + ".HyperNetX"))
+                if args.user is None or args.password is None:
+                    cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dom_spec + ".HyperNetX"))
+                else:
+                    cat.save()
             elif args.state == "design":
-                c.save(file=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
+                if args.user is None or args.password is None:
+                    cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
+                else:
+                    cat.save()
                 if args.translate:
-                    c.create_schema(verbose=args.verbose)
+                    cat.create_schema(verbose=args.verbose)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:
             print("The catalog is not consistent or its consistency was not checked (it was not saved)")
         if args.graph:
-            c.show_graphical()
+            cat.show_graphical()

@@ -111,7 +111,12 @@ In this case, the corresponding association end should be used.
 #### Constraints
 - All elements in the three parts of a query must be connected (potentially by generalization).
 - Generalizations cannot be explicit in the query.
-- The pattern can not contain two classes (directly or transitively) related by generalization. 
+- The pattern can not contain two classes (directly or transitively) related by generalization.
+
+#### Known issues
+Still, there are some queries that cannot be properly translated:
+- If the result of the query would have twice the same table in the FROM clause, it will only appear once.
+However, the links would still be generated twice.
 
 ## Setup
 It is also assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 

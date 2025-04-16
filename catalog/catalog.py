@@ -1,23 +1,27 @@
-from abc import ABC, abstractmethod
 import logging
+import json
 import networkx as nx
 from IPython.display import display
 import pandas as pd
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 1000)
+
 import sqlparse
 
 from .tools import drop_duplicates, df_difference
 from .HyperNetXWrapper import HyperNetXWrapper
 
+# Libraries initialization
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
 logger = logging.getLogger("Catalog")
 
-class Catalog(HyperNetXWrapper, ABC):
+
+class Catalog(HyperNetXWrapper):
     """This class manages the catalog of a database using hypergraphs
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
-    def __init__(self, file_name=None):
-        super().__init__(file=file_name)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def add_class(self, class_name, properties, att_list):
         """Besides the class name and the number of instances of the class, this method requires
@@ -204,6 +208,33 @@ class Catalog(HyperNetXWrapper, ABC):
             else:
                 raise ValueError(f"Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
+
+    def load_domain(self, file):
+        logging.info(f"Loading domain from '{file}'")
+        # Open and load the JSON file
+        with open(file, 'r') as f:
+            domain = json.load(f)
+        # Create and fill the catalog
+        for cl in domain.get("classes"):
+            self.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
+        for ass in domain.get("associations", []):
+            self.add_association(ass.get("name"), ass.get("ends"))
+        for gen in domain.get("generalizations", []):
+            self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
+
+    def load_design(self, file):
+        logging.info(f"Loading design from '{file}'")
+        # Open and load the JSON file
+        with open(file, 'r') as f:
+            design = json.load(f)
+        # Create and fill the catalog
+        for h in design.get("hyperedges"):
+            if h.get("kind") == "Struct":
+                self.add_struct(h.get("name"), h.get("anchor"), h.get("elements"))
+            elif h.get("kind") == "Set":
+                self.add_set(h.get("name"), h.get("elements"))
+            else:
+                raise ValueError(f"Unknown kind of hyperedge '{h.get("kind")}'")
 
     def is_correct(self, design=False, verbose=True):
         """This method checks all the integrity constrains of the catalog
