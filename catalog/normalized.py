@@ -97,8 +97,6 @@ class Normalized(Relational):
         One or more structs are expected inside the set, but all of them should generate the same attributes.
         Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
         of the associations.
-        The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
-        ends of the associations in the anchor.
         :param verbose: Indicates if the DDL should be printed
         :return: list of statements generated (one per table)
         """
@@ -114,15 +112,36 @@ class Normalized(Relational):
             for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
                 attribute_dicc.update(self.get_struct_attributes(struct_name))
             # Add all the attributes to the create table sentence
+            attribute_list = []
             for attr_alias, attr_name in attribute_dicc.items():
                 attribute = self.get_attribute_by_name(attr_name)
-                sentence += "  " + attr_alias
                 if attribute["misc_properties"].get("DataType") == "String":
-                    sentence += " VarChar(" + str(attribute["misc_properties"].get("Size")) + "),\n"
+                    attribute_list.append("  " + attr_alias + " VarChar(" + str(attribute["misc_properties"].get("Size")) + ")")
                 else:
-                    sentence += " " + attribute["misc_properties"].get("DataType") + ",\n"
+                    attribute_list.append("  " + attr_alias +" " + attribute["misc_properties"].get("DataType"))
+            sentence += ",\n".join(attribute_list) + "\n  );"
+            if verbose:
+                print(sentence)
+            statements.append(sentence)
+        return statements
+
+    def generate_add_pk_statements(self, verbose=False):
+        """
+        Generated the DDL to add PKs to the tables
+        The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
+        ends of the associations in the anchor.
+        :param verbose: Indicates if the DDL should be printed
+        :return: list of statements generated (one per table)
+        """
+        statements = []
+        firstlevels = self.get_inbound_firstLevel()
+        # For each table
+        for table in firstlevels.itertuples():
+            logger.info(f"-- Altering table {table.Index[0]} to add the PK")
+            sentence = "ALTER TABLE " + table.Index[0] + " ADD"
             # Create the PK
             # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
+            struct_name = self.get_struct_names_inside_set_name(table.Index[0])[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
                 if self.is_class_phantom(key):
@@ -133,8 +152,7 @@ class Normalized(Relational):
             if not key_list:
                 raise ValueError(
                     f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
-            clause_pk = "  PRIMARY KEY (" + ",".join(key_list) + ")\n"
-            sentence += clause_pk + "  );"
+            sentence += " PRIMARY KEY (" + ", ".join(key_list) + ");\n"
             if verbose:
                 print(sentence)
             statements.append(sentence)
@@ -146,7 +164,8 @@ class Normalized(Relational):
         :param verbose: Indicates if the DDL should be printed
         '''
         logger.info("Creating tables")
-        statements = self.generate_create_table_statements()
+        statements = self.generate_create_table_statements(verbose)
+        statements.extend(self.generate_add_pk_statements(verbose))
         if self.engine is not None:
             with self.engine.connect() as conn:
                 for statement in statements:
