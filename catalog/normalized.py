@@ -264,7 +264,7 @@ class Normalized(Relational):
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited):
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, explicit_schema=False):
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -284,6 +284,10 @@ class Normalized(Relational):
         """
         # TODO: Consider that there could be more than one connected component (provided by the query) in the table
         #   (associations should be used to choose the right one)
+        if explicit_schema:
+            schema = self.dbschema+"."
+        else:
+            schema = ""
         first_table = (visited == {})
         unjoinable = []
         associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
@@ -335,7 +339,7 @@ class Normalized(Relational):
         for plug in plugs:
             visited[plug[0]] = current_table
         # Create the join clause
-        join_clause = current_table + " " + alias_table[current_table]
+        join_clause = schema + current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
                 raise ValueError(f"Tables '{unjoinable}' are not joinable in the query")
@@ -343,9 +347,9 @@ class Normalized(Relational):
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited)
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, explicit_schema)
 
-    def generate_sql(self, spec, verbose=False):
+    def generate_sql(self, spec, explicit_schema=False, verbose=False):
         '''
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
@@ -381,7 +385,7 @@ class Normalized(Relational):
                     # Build the SELECT clause
                     sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
                     # Build the FROM clause
-                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{})
+                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{}, explicit_schema)
                     # Add alias to the WHERE clause if there is more than one table
                     for attr in location_attr.items():
                         modified_filter_clauses = [s.replace(attr[0], attr[1]+"."+alias_attr[attr[0]]) for s in modified_filter_clauses]
@@ -401,7 +405,7 @@ class Normalized(Relational):
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom.Index) if elem == superclass_name else elem for elem in new_query["pattern"]]
-                subqueries.append(self.generate_sql(new_query))
+                subqueries.append(self.generate_sql(new_query, explicit_schema, verbose))
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
                 sentences.append("\nUNION\n".join(combination))
