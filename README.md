@@ -133,9 +133,10 @@ These can be directly executed in the DBMS.
 ```
 usage: catalogAction.py [-h] [--hg_path <path>] [--hypergraph <hypergraph>]
                         [--check] [--text] [--graph] [--create] [--verbose]
-                        [--dbms <dbms>] [--ip <ip>] [--port <port>]
-                        [--user <user>] [--password <password>]
-                        [--dbname <dbname>] [--dbschema <dbschema>]
+                        [--supersede] [--dbms <dbms>] [--ip <ip>]
+                        [--port <port>] [--user <user>]
+                        [--password <password>] [--dbname <dbname>]
+                        [--dbschema <dbschema>]
                         {domain,design} ...
 
 positional arguments:
@@ -145,7 +146,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  --hg_path <path>      Path to hypergraphs folder (default: path of work directory)
+  --hg_path <path>      Path to hypergraphs folder (default: Current work directory)
   --hypergraph <hypergraph>
                         File generated for the hypergraph with pickle (default: input)
   --check               Checks correctness of the catalog (default: False)
@@ -153,6 +154,7 @@ options:
   --graph               Shows the catalog in graphical format (default: False)
   --create              Creates the catalog (default: False)
   --verbose             Prints the generated statements (default: False)
+  --supersede           Overwrites the existing catalog during creation (default: False)
   --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
   --ip <ip>             IP address for the database connection (default: localhost)
   --port <port>         Port for the database connection (default: 5432)

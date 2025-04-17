@@ -125,6 +125,21 @@ class Normalized(Relational):
             statements.append(sentence)
         return statements
 
+    def generate_migration_statements(self, migration_source, verbose=False):
+        statements = []
+        # TODO: Create source catalog
+        print("Generating migration statements from " + migration_source)
+        # TODO: Check if the origin coincides
+        firstlevels = self.get_inbound_firstLevel()
+        # For each table
+        for table in firstlevels.itertuples():
+            logger.info(f"-- Generating data migration for table {table.Index[0]}")
+            sentence = ""
+            if verbose:
+                print(sentence)
+            #statements.append(sentence)
+        return statements
+
     def generate_add_pk_statements(self, verbose=False):
         """
         Generated the DDL to add PKs to the tables
@@ -158,13 +173,16 @@ class Normalized(Relational):
             statements.append(sentence)
         return statements
 
-    def create_schema(self, verbose=False):
+    def create_schema(self, migration_source=None, verbose=False):
         '''
         Creates the tables in the design.
+        :param migration_source: Name of the database schema to migrate the data from
         :param verbose: Indicates if the DDL should be printed
         '''
         logger.info("Creating tables")
         statements = self.generate_create_table_statements(verbose)
+        if migration_source is not None:
+            statements.extend(self.generate_migration_statements(migration_source, verbose))
         statements.extend(self.generate_add_pk_statements(verbose))
         if self.engine is not None:
             with self.engine.connect() as conn:

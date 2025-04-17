@@ -82,7 +82,7 @@ class Relational(Catalog, ABC):
         logger.info(f"Creating database connection to '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
-    def save(self, file_path=None, verbose=True):
+    def save(self, file_path=None, migration_source=None, verbose=True):
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
@@ -98,8 +98,10 @@ class Relational(Catalog, ABC):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
-                self.create_schema(verbose=verbose)
+                self.create_schema(migration_source=migration_source, verbose=verbose)
                 self.origin["tables_created"] = True
+                if migration_source is not None:
+                    self.origin["data_migrated"] = True
                 with (self.engine.connect() as conn):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.origin)}';"
                     conn.execute(sqlalchemy.text(statement))
@@ -144,7 +146,7 @@ class Relational(Catalog, ABC):
         return correct
 
     @abstractmethod
-    def create_schema(self, verbose):
+    def create_schema(self, migration_source, verbose):
         pass
 
     @abstractmethod

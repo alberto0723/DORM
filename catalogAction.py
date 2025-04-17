@@ -50,6 +50,7 @@ design_parser.set_defaults(state="design")  # This is the subfolder where hyperg
 design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
 design_parser.add_argument("--dsg_spec", type=str, default="default_specification", help="Specification of the design in a JSON file", metavar="<design>")
 design_parser.add_argument("--translate", help="Translates the design into the database schema (e.g., create tables)", action="store_true")
+design_parser.add_argument("--datasource", type=str, help="Database schema to migrate the data from", metavar="<dbschema>")
 
 
 if __name__ == "__main__":
@@ -97,10 +98,10 @@ if __name__ == "__main__":
             elif args.state == "design":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
+                    if args.translate:
+                        cat.create_schema(verbose=args.verbose)
                 else:
-                    cat.save(verbose=args.verbose)
-                if args.translate and (args.user is None or args.password is None):
-                    cat.create_schema(verbose=args.verbose)
+                    cat.save(migration_source=args.datasource, verbose=args.verbose)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:
