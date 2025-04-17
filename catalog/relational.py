@@ -20,6 +20,12 @@ class Relational(Catalog, ABC):
     """
     # This contains the connection to the database to store the catalog
     engine = None
+    dbms = None
+    ip = None
+    port = None
+    user = None
+    password = None
+    dbname = None
     dbschema = None
     TABLE_NODES = '__dorm_catalog_nodes'
     TABLE_EDGES = '__dorm_catalog_edges'
@@ -29,11 +35,14 @@ class Relational(Catalog, ABC):
         if user is None or password is None:
             super().__init__(file_path=file_path)
         else:
-            if dbms is None or ip is None or port is None or dbname is None or dbschema is None:
-                ValueError("Missing required parameters: dbms, ip, port, user, password, dbname, dbschema")
-            url = f"{dbms}://{user}:{password}@{ip}:{port}/{dbname}"
-            logger.info(f"Creating database connection to '{url}'")
-            self.engine = sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
+            self.dbms = dbms
+            self.ip = ip
+            self.port = port
+            self.user = user
+            self.password = password
+            self.dbname = dbname
+            self.dbschema = dbschema
+            self.engine = self.get_engine(dbschema)
             with self.engine.connect() as conn:
                 if supersede:
                     logger.info(f"Creating schema '{dbschema}'")
@@ -41,31 +50,37 @@ class Relational(Catalog, ABC):
                     conn.execute(sqlalchemy.text(f"CREATE SCHEMA {dbschema};"))
                     conn.execute(sqlalchemy.text(f"COMMENT ON SCHEMA {dbschema} IS '"+"{}';"))
                     conn.commit()
-            if supersede:
-                super().__init__(file_path=file_path)
-            else:
-                catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                if all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
-                    logger.info(f"Loading the catalog from the database connection")
-                    df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
-                    df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
-                    df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
-                    # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
-                    H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
-                                       node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
-                                       edge_properties=df_edges, edge_weight_prop_col="weight")
-                    super().__init__(hypergraph=H)
-                    # Get domain and design
-                    with self.engine.connect() as conn:
+                    # This creates either an empty hypergraph or reads it from a file
+                    super().__init__(file_path=file_path)
+                else:
+                    catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
+                    if all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
+                        logger.info(f"Loading the catalog from the database connection")
+                        df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
+                        df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
+                        df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
+                        # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
+                        H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
+                                           node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
+                                           edge_properties=df_edges, edge_weight_prop_col="weight")
+                        super().__init__(hypergraph=H)
+                        # Get domain and design
                         result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
                         row = result.fetchone()
-                    if row:
-                        self.origin = json.loads(row.comment)
+                        if row:
+                            self.origin = json.loads(row.comment)
+                        else:
+                            ValueError("No comment found in the schema of the database (necessary to check domain and design origin)")
                     else:
-                        ValueError("No comment found in the schema of the database (necessary to check domain and design origin)")
-                else:
-                    ValueError(f"Missing required tables '{catalog_tables}' in the database")
-            self.dbschema = dbschema
+                        ValueError(f"Missing required tables '{catalog_tables}' in the database")
+
+    def get_engine(self, dbschema):
+        if self.dbms is None or self.ip is None or self.port is None or self.user is None or self.password is None or self.dbname is None or dbschema is None:
+            ValueError(
+                "Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
+        url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
+        logger.info(f"Creating database connection to '{url}'")
+        return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
     def save(self, file_path=None, verbose=True):
         if file_path is not None:
