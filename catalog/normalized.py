@@ -127,7 +127,6 @@ class Normalized(Relational):
 
     def generate_migration_statements(self, migration_source, verbose=False):
         statements = []
-        print("Generating migration statements from " + migration_source)
         source = Normalized(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
         # Basic consistency checks between both source and target catalogs
         if source.metadata.get("domain", "") != self.metadata["domain"]:
@@ -140,15 +139,21 @@ class Normalized(Relational):
         if not source.metadata.get("data_migrated", False):
             if verbose:
                 print(f"WARNING: The source {migration_source} does not have data to migrate (according to its metadata)")
-        # TODO: Check if the origin coincides
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
             logger.info(f"-- Generating data migration for table {table.Index[0]}")
-            sentence = ""
-            if verbose:
-                print(sentence)
-            #statements.append(sentence)
+            # For each struct in the table, we have to create a different extraction query
+            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
+                project = list(self.get_struct_attributes(struct_name).keys())
+                pattern = []
+                for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
+                    if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
+                        pattern.append(self.get_edge_by_phantom_name(incidence.Index[1]))
+                sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_sql({"project": project, "pattern": pattern}, explicit_schema=True, verbose=verbose)[0] + ";"
+                if verbose:
+                    print(sentence)
+                statements.append(sentence)
         return statements
 
     def generate_add_pk_statements(self, verbose=False):
@@ -312,7 +317,7 @@ class Normalized(Relational):
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, explicit_schema=False):
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name=""):
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -328,14 +333,11 @@ class Normalized(Relational):
         :param alias_table: Dictionary with the alias of every table in the query
         :param alias_attr: Dictionary indicating from which table each attribute must be taken
         :param visited: Dictionary with all visited classes and from which table they are taken
+        :param schema_name: Schema name to be concatenated in front of every table in the FROM clause
         :return: String containing the join clause of the tables received as parameter
         """
         # TODO: Consider that there could be more than one connected component (provided by the query) in the table
         #   (associations should be used to choose the right one)
-        if explicit_schema:
-            schema = self.dbschema+"."
-        else:
-            schema = ""
         first_table = (visited == {})
         unjoinable = []
         associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
@@ -387,7 +389,7 @@ class Normalized(Relational):
         for plug in plugs:
             visited[plug[0]] = current_table
         # Create the join clause
-        join_clause = schema + current_table + " " + alias_table[current_table]
+        join_clause = schema_name + current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
                 raise ValueError(f"Tables '{unjoinable}' are not joinable in the query")
@@ -403,10 +405,16 @@ class Normalized(Relational):
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
         retrieve the required classes and associations
         :param spec: A JSON containing the select-project-join information
+        :param explicit_schema: Adds the dbschema to every table in the FROM clause
+        :param verbose:
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables
         '''
         logger.info("Resolving query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
+        if explicit_schema:
+            schema_name = self.dbschema + "."
+        else:
+            schema_name = ""
         # For each combination of tables, generate an SQL query
         sentences = []
         # Check if all classes in the pattern are in some struct
@@ -427,13 +435,13 @@ class Normalized(Relational):
                     # Build the SELECT clause
                     sentence = "SELECT " + ", ".join([alias_attr[a] for a in project_attributes])
                     # Build the FROM clause
-                    sentence += "\nFROM " + tables_combination[0]
+                    sentence += "\nFROM " + schema_name + tables_combination[0]
                 # Case with several tables that require joins
                 else:
                     # Build the SELECT clause
                     sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
                     # Build the FROM clause
-                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{}, explicit_schema)
+                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{}, schema_name)
                     # Add alias to the WHERE clause if there is more than one table
                     for attr in location_attr.items():
                         modified_filter_clauses = [s.replace(attr[0], attr[1]+"."+alias_attr[attr[0]]) for s in modified_filter_clauses]

@@ -79,7 +79,7 @@ class Relational(Catalog, ABC):
             raise ValueError(
                 "Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
         url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
-        logger.info(f"Creating database connection to '{url}'")
+        logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
     def save(self, file_path=None, migration_source=None, verbose=True):
