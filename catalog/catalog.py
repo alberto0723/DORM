@@ -16,8 +16,9 @@ logger = logging.getLogger("Catalog")
 
 
 class Catalog(HyperNetXWrapper):
-    """This class manages the catalog of a database using hypergraphs
-    It uses HyperNetX (https://github.com/pnnl/HyperNetX)
+    """This class contains the main generic operations to build the catalog of a database using hypergraphs.
+    It uses HyperNetX (https://github.com/pnnl/HyperNetX).
+    Morevover, it implements the most general consistency checks.
     """
     # This attributes keep track of the metadata of the catalog, including domain and design files
     metadata = {}
@@ -88,9 +89,8 @@ class Catalog(HyperNetXWrapper):
             end_name = end['prop'].get('End_name', None)
             if end_name is None:
                 raise ValueError(f"'{association_name}' does not have a name for its end towards '{end['class']}'")
-            else:
-                if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_hyperedge(end_name):
-                    raise ValueError(f"There is already an element called '{end_name}'")
+            if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_hyperedge(end_name):
+                raise ValueError(f"There is already an element called '{end_name}'")
             if end['prop'].get('Multiplicity', None) is None:
                 raise ValueError(f"'{association_name}' does not have multiplicity for its end '{end_name}'")
             end['prop']['Kind'] = 'AssociationIncidence'
@@ -248,8 +248,9 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"Unknown kind of hyperedge '{h.get("kind")}'")
 
     def is_correct(self, design=False, verbose=True):
-        """This method checks all the integrity constrains of the catalog
-        It can be expensive, so just do it at the end, not for each operation
+        """
+        This method checks all the integrity constrains of the catalog.
+        It can be expensive, so just do it at the end, not for each operation.
         """
         correct = True
         edges = self.get_edges()

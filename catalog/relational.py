@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import logging
 from IPython.display import display
 import pandas as pd
-import sqlalchemy  # https://www.sqlalchemy.org
+import sqlalchemy  #
 import hypernetx as hnx
 import json
 
@@ -16,7 +16,10 @@ logger = logging.getLogger("Relational")
 
 
 class Relational(Catalog, ABC):
-    """This is a subclass of Catalog that implements the constraints for relational databases
+    """
+    This is a subclass of Catalog that implements the constraints specific for relational databases,
+    as well as the management of the connection to the DBMS and corresponding interaction.
+    It uses SQLAlchemy (https://www.sqlalchemy.org)
     """
     # This contains the connection to the database to store the catalog
     engine = None
@@ -54,30 +57,27 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                    if all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
-                        logger.info(f"Loading the catalog from the database connection")
-                        df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
-                        df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
-                        df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
-                        # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
-                        H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
-                                           node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
-                                           edge_properties=df_edges, edge_weight_prop_col="weight")
-                        super().__init__(hypergraph=H)
-                        # Get domain and design
-                        result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
-                        row = result.fetchone()
-                        if row:
-                            self.metadata = json.loads(row.comment)
-                        else:
-                            raise ValueError("No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)")
-                    else:
+                    if any(table not in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
                         raise ValueError(f"Missing required tables '{catalog_tables}' in the database")
+                    logger.info(f"Loading the catalog from the database connection")
+                    df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
+                    df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
+                    df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
+                    # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
+                    H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
+                                       node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
+                                       edge_properties=df_edges, edge_weight_prop_col="weight")
+                    super().__init__(hypergraph=H)
+                    # Get domain and design
+                    result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
+                    row = result.fetchone()
+                    if not row:
+                        raise ValueError("No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)")
+                    self.metadata = json.loads(row.comment)
 
     def get_engine(self, dbschema):
         if self.dbms is None or self.ip is None or self.port is None or self.user is None or self.password is None or self.dbname is None or dbschema is None:
-            raise ValueError(
-                "Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
+            raise ValueError("Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
         url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
@@ -111,9 +111,10 @@ class Relational(Catalog, ABC):
 
     def is_correct(self, design=False, verbose=True):
         correct = super().is_correct(design, verbose)
-        structs = self.get_structs()
-        sets = self.get_sets()
+        # Only needs to run further checks if the basic one succeeded
         if correct:
+            structs = self.get_structs()
+            sets = self.get_sets()
             # --------------------------------------------------------------------- ICs about being a relational catalog
             # IC-Relational1: All sets are first level
             logger.info("Checking IC-Relational1")
@@ -142,18 +143,34 @@ class Relational(Catalog, ABC):
                 correct = False
                 print("IC-Relational3 violation: Some structs are not at the second level")
                 display(violations6_1)
-
         return correct
 
     @abstractmethod
     def create_schema(self, migration_source, verbose):
+        """
+        Table creation depends on the concrete implementation strategy.
+        :param migration_source: The source schema to populate the tables being created.
+        :param verbose: Whether to print warnings and SQL statements or not.
+        :return:
+        """
         pass
 
     @abstractmethod
     def generate_sql(self, spec, verbose):
+        """
+        SQL generation depends on the concrete implementation strategy.
+        :param spec: Specification of a query.
+        :param verbose: Whether to print warnings and SQL statements or not.
+        :return: List of SQL statements corresponding to the specification in the current design.
+        """
         pass
 
     def execute(self, query):
+        """
+        Executes a query in the engine associated to the catalog.
+        :param query: SQL query to be executed.
+        :return: Set of rows resulting from the query execution.
+        """
         if self.engine is None:
             raise ValueError("Queries cannot be executed without a connection to the DBMS")
         with self.engine.connect() as conn:

@@ -17,12 +17,17 @@ logger = logging.getLogger("Normalized")
 
 class Normalized(Relational):
     """
-    This is a subclass of Relational that implements the code generation as normalized in 1NF
+    This is a subclass of Relational that implements the code generation as normalized in 1NF.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def check_to_one(self, path):
+        """
+        This method checks if multiplicities in the path are all at most to-one.
+        :param path: List of associations.
+        :return: Boolean indicating if the path is at most to-one.
+        """
         correct = True
         for i, current in enumerate(path):
             if self.is_association(current):
@@ -36,6 +41,7 @@ class Normalized(Relational):
 
     def is_correct(self, design=False, verbose=True):
         correct = super().is_correct(design, verbose)
+        # Not worth to check anything if the more basic stuff is already not correct
         if correct:
             # ---------------------------------------------------------------- ICs about being a normalized catalog
             # IC-Normalized1: All associations from the anchor of a struct must be to one (or less)
@@ -99,7 +105,7 @@ class Normalized(Relational):
         Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
         of the associations.
         :param verbose: Indicates if the DDL should be printed
-        :return: list of statements generated (one per table)
+        :return: List of statements generated (one per table)
         """
         statements = []
         firstlevels = self.get_inbound_firstLevel()
@@ -127,6 +133,13 @@ class Normalized(Relational):
         return statements
 
     def generate_migration_statements(self, migration_source, verbose=False):
+        """
+        Generates insertions to migrate data from one schema to another one.
+        Both must be in the same database for it to work.
+        :param migration_source: Database schema to migrate the data from.
+        :param verbose: Whether to print warnings and SQL statements or not.
+        :return: List of statements generated to migrate the data (one per struct)
+        """
         statements = []
         source = Normalized(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
         # Basic consistency checks between both source and target catalogs
@@ -162,8 +175,8 @@ class Normalized(Relational):
         Generated the DDL to add PKs to the tables
         The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
         ends of the associations in the anchor.
-        :param verbose: Indicates if the DDL should be printed
-        :return: list of statements generated (one per table)
+        :param verbose: Whether to print warnings and SQL statements or not.
+        :return: List of statements generated (one per table)
         """
         statements = []
         firstlevels = self.get_inbound_firstLevel()
@@ -193,14 +206,15 @@ class Normalized(Relational):
     def create_schema(self, migration_source=None, verbose=False):
         """
         Creates the tables in the design.
-        :param migration_source: Name of the database schema to migrate the data from
-        :param verbose: Indicates if the DDL should be printed
+        :param migration_source: Name of the database schema to migrate the data from.
+        :param verbose: Whether to print warnings and SQL statements or not.
         """
         logger.info("Creating tables")
         statements = self.generate_create_table_statements(verbose)
         if migration_source is not None:
             statements.extend(self.generate_migration_statements(migration_source, verbose))
         statements.extend(self.generate_add_pk_statements(verbose))
+        # TODO: Generate FKs, as well
         if self.engine is not None:
             with self.engine.connect() as conn:
                 for statement in statements:
@@ -209,13 +223,13 @@ class Normalized(Relational):
 
     def create_bucket_combinations(self, pattern, required_attributes):
         """
-        For each required domain elements, create a bucket with all the tables where it can come from.
-        Then, combine all these buckets to cover all elements
-        :param pattern: List of classes and associations in the query
-        :param required_attributes: List of attributes used in the query
-        :return: List of combinations of tables covering all the required elements
-        :return: List of classes required
-        :return: List of associations required
+        For each required domain element in the pattern, create a bucket with all the tables where it can come from.
+        Then, combine all these buckets to cover all elements.
+        :param pattern: List of classes and associations in the query.
+        :param required_attributes: List of attributes used in the query.
+        :return: List of combinations of tables covering all the required elements.
+        :return: List of classes required.
+        :return: List of associations required.
         """
         tables = []
         classes = []
@@ -262,12 +276,19 @@ class Normalized(Relational):
         return combine_tables(drop_duplicates(tables)), classes, associations
 
     def get_aliases(self, tables_combination):
+        """
+        This method generates correspondences of aliases of tables and renamings of attributes in a query.
+        :param tables_combination: The set of tables in the FROM clause of a query.
+        :return: Dictionary of aliases of tables.
+        :return: Dictionary of renamings of attributes.
+        :return: Dictionary of table locations of attributes.
+        """
         alias_table = {}
         alias_attr = {}
         location_attr = {}
         # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
         for index, table in enumerate(reversed(tables_combination)):
-            # -- Determine the aliases of tables and required attributes
+            # Determine the aliases of tables and required attributes
             alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(table):
                 for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
@@ -294,6 +315,12 @@ class Normalized(Relational):
         return alias_table, alias_attr, location_attr
 
     def get_discriminants(self, tables_combination, pattern_class_names):
+        """
+        Based on the existence of superclasses, this method finds the corresponding discriminants.
+        :param tables_combination: The set of tables in the FROM clause of a query.
+        :param pattern_class_names: The sef of classes in the pattern of the query.
+        :return: List of discriminants necessary in the query.
+        """
         discriminants = []
         # For every class in the pattern
         for pattern_class_name in pattern_class_names:

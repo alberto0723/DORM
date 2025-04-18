@@ -20,9 +20,9 @@ logger = logging.getLogger("HyperNetXWrapper")
 
 
 class HyperNetXWrapper:
-    """This class manages the basics of the catalog of a database using hypergraphs
-    It implements all the basic stuff and auxiliary, private functions of the catalog.
+    """This class manages the basics of the catalog of a database using hypergraphs.
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
+    It implements all the basic stuff and auxiliary, private functions of the catalog to simplify the use of the library.
     """
     def __init__(self, file_path=None, hypergraph=None):
         self.config = config.Config()
@@ -183,42 +183,42 @@ class HyperNetXWrapper:
     def get_outbounds(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
-        return outbounds
+            return outbounds
 
     def get_outbound_associations(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
-        return outbounds
+            return outbounds
 
     def get_outbound_generalization_superclasses(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Superclass')]
-        return outbounds
+            return outbounds
 
     def get_outbound_generalization_subclasses(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Subclass')]
-        return outbounds
+            return outbounds
 
     def get_outbound_structs(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
-        return outbounds
+            return outbounds
 
     def get_outbound_association_by_name(self, ass_name):
         elements = self.get_outbound_associations().query('edges == "' + ass_name + '"')
@@ -239,26 +239,26 @@ class HyperNetXWrapper:
     def get_outbound_sets(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
-        return outbounds
+            return outbounds
 
     def get_outbound_classes(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            outbounds = incidences
+            return incidences
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'ClassIncidence')]
-        return outbounds
+            return outbounds
 
     def get_transitives(self):
         incidences = self.get_incidences()
         if incidences.empty:
-            transitives = incidences
+            return incidences
         else:
             transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
-        return transitives
+            return transitives
 
     def get_transitives_by_edge_name(self, edge):
         transitives = self.get_transitives()[self.get_transitives().index.get_level_values('edges') == edge]
