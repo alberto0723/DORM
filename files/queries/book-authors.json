@@ -31,7 +31,7 @@
       "filter": "A_name = 'hello'"
     },
     {
-      "project": ["B_ID", "B_title", "B_editorial"],
+      "project": ["B_ID", "B_title", "B_publisher"],
       "pattern": ["Book"]
     },
     {

@@ -127,8 +127,19 @@ class Normalized(Relational):
 
     def generate_migration_statements(self, migration_source, verbose=False):
         statements = []
-        # TODO: Create source catalog
         print("Generating migration statements from " + migration_source)
+        source = Normalized(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
+        # Basic consistency checks between both source and target catalogs
+        if source.metadata.get("domain", "") != self.metadata["domain"]:
+            raise ValueError(f"Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
+        if source.metadata.get("design", "") == self.metadata["design"]:
+            if verbose:
+                print("WARNING: Design of source and target coincides in the migration")
+        if not source.metadata.get("tables_created", False):
+            raise ValueError(f"The source {migration_source} does not have tables to migrate (according to its metadata)")
+        if not source.metadata.get("data_migrated", False):
+            if verbose:
+                print(f"WARNING: The source {migration_source} does not have data to migrate (according to its metadata)")
         # TODO: Check if the origin coincides
         firstlevels = self.get_inbound_firstLevel()
         # For each table

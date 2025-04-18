@@ -10,9 +10,6 @@ default_hypergraphs_path = base_path.joinpath("files/hypergraphs")
 default_domains_path = base_path.joinpath("files/domains")
 default_designs_path = base_path.joinpath("files/designs")
 
-# Enable logging
-logging.basicConfig(level=logging.INFO)
-
 # ---------------------------------------------------------------------------- #
 #                                configure argparse begin                      #
 # ---------------------------------------------------------------------------- #
@@ -20,6 +17,7 @@ base_parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=True
 )
 subparsers = base_parser.add_subparsers(help="Kind of catalog")
+base_parser.add_argument("--logging", help="Enables logging", action="store_true")
 base_parser.add_argument("--hg_path", type=Path, default=default_hypergraphs_path, help="Path to hypergraphs folder", metavar="<path>")
 base_parser.add_argument("--hypergraph", type=str, default="input", help="File generated for the hypergraph with pickle", metavar="<hypergraph>")
 base_parser.add_argument("--check", help="Checks correctness of the catalog", action="store_true")
@@ -58,6 +56,11 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         base_parser.print_help()
     else:
+        if args.logging:
+            # Enable logging
+            logging.basicConfig(level=logging.INFO)
+        else:
+            logging.disable()
         if args.create:
             consistent = False
             if args.state == "domain":

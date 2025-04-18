@@ -8,15 +8,13 @@ from catalog import normalized
 # Path definitions
 base_path = Path(__file__).parent
 
-# Enable logging
-logging.basicConfig(level=logging.INFO)
-
 # ---------------------------------------------------------------------------- #
 #                                configure argparse begin                      #
 # ---------------------------------------------------------------------------- #
 base_parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=True
 )
+base_parser.add_argument("--logging", help="Enables logging", action="store_true")
 base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
 base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
 base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
@@ -35,6 +33,11 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         base_parser.print_help()
     else:
+        if args.logging:
+            # Enable logging
+            logging.basicConfig(level=logging.INFO)
+        else:
+            logging.disable()
         logging.info("BEGIN")
         cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                     password=args.password, dbname=args.dbname, dbschema=args.dbschema)

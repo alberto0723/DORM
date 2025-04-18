@@ -19,8 +19,8 @@ class Catalog(HyperNetXWrapper):
     """This class manages the catalog of a database using hypergraphs
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     """
-    # This attributes keep track of the origin of the hypergraph
-    origin = {}
+    # This attributes keep track of the metadata of the catalog, including domain and design files
+    metadata = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -213,7 +213,7 @@ class Catalog(HyperNetXWrapper):
 
     def load_domain(self, file_path):
         logger.info(f"Loading domain from '{file_path}'")
-        self.origin["domain"] = str(file_path)
+        self.metadata["domain"] = str(file_path)
         # Open and load the JSON file
         with open(file_path, 'r') as f:
             domain = json.load(f)
@@ -231,12 +231,12 @@ class Catalog(HyperNetXWrapper):
         with open(file_path, 'r') as f:
             design = json.load(f)
         domain_path = str(file_path.parent.joinpath(design.get("domain", None)).resolve())
-        if "domain" not in self.origin:
+        if "domain" not in self.metadata:
             self.load_domain(domain_path)
         # Check if the domain in the catalog and that of the design coincide
-        if self.origin.get("domain", "Non-existent") != domain_path:
-            raise ValueError(f"The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.origin.get("domain", "Non-existent")}'")
-        self.origin["design"] = str(file_path)
+        if self.metadata.get("domain", "Non-existent") != domain_path:
+            raise ValueError(f"The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.metadata.get("domain", "Non-existent")}'")
+        self.metadata["design"] = str(file_path)
 
         # Create and fill the catalog
         for h in design.get("hyperedges"):

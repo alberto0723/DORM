@@ -68,15 +68,15 @@ class Relational(Catalog, ABC):
                         result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
                         row = result.fetchone()
                         if row:
-                            self.origin = json.loads(row.comment)
+                            self.metadata = json.loads(row.comment)
                         else:
-                            ValueError("No comment found in the schema of the database (necessary to check domain and design origin)")
+                            raise ValueError("No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)")
                     else:
-                        ValueError(f"Missing required tables '{catalog_tables}' in the database")
+                        raise ValueError(f"Missing required tables '{catalog_tables}' in the database")
 
     def get_engine(self, dbschema):
         if self.dbms is None or self.ip is None or self.port is None or self.user is None or self.password is None or self.dbname is None or dbschema is None:
-            ValueError(
+            raise ValueError(
                 "Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
         url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
         logger.info(f"Creating database connection to '{url}'")
@@ -87,7 +87,7 @@ class Relational(Catalog, ABC):
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
-            if self.is_correct("design" in self.origin):
+            if self.is_correct("design" in self.metadata):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
                 df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
@@ -99,15 +99,15 @@ class Relational(Catalog, ABC):
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
                 self.create_schema(migration_source=migration_source, verbose=verbose)
-                self.origin["tables_created"] = True
+                self.metadata["tables_created"] = True
                 if migration_source is not None:
-                    self.origin["data_migrated"] = True
+                    self.metadata["data_migrated"] = True
                 with (self.engine.connect() as conn):
-                    statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.origin)}';"
+                    statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
                     conn.execute(sqlalchemy.text(statement))
                     conn.commit()
         else:
-            ValueError("No connection to the database or file provided")
+            raise ValueError("No connection to the database or file provided")
 
     def is_correct(self, design=False, verbose=True):
         correct = super().is_correct(design, verbose)
@@ -155,7 +155,7 @@ class Relational(Catalog, ABC):
 
     def execute(self, query):
         if self.engine is None:
-            ValueError("Queries cannot be executed without a connection to the DBMS")
+            raise ValueError("Queries cannot be executed without a connection to the DBMS")
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(query))
         return result.fetchall()
