@@ -81,7 +81,7 @@ if __name__ == "__main__":
                 cat = normalized.Normalized(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
             else:
                 cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                        password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema)
 
         if args.text:
             cat.show_textual()

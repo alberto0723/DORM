@@ -29,7 +29,7 @@ class Catalog(HyperNetXWrapper):
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
         The latter is another dictionary that can contain any key, but at least it should contain
-        DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
+        'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding class "+class_name)
         if self.is_attribute(class_name) or self.is_association_end(class_name) or self.is_hyperedge(class_name):
@@ -99,7 +99,7 @@ class Catalog(HyperNetXWrapper):
         self.H.add_incidences_from(incidences)
 
     def add_generalization(self, generalization_name, properties, superclass, subclasses_list):
-        """ Besides the generalization name, this method requires some properties (expected to be two booleans for
+        """ Besides the generalization name, this method requires some properties (expected to be two booleans) for
         disjointness and completeness, the name of the superclass and a list of subclasses,
         where each subclass is a dictionary with the keys 'name' and 'prop'.
         The latter is another dictionary that contains at least one constraint predicate that discriminates the subclass.
@@ -372,7 +372,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms5: The number of different values of an attribute must be less or equal than the cardinality of its class
         logger.info("Checking IC-Atoms5")
         matches2_5 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
-        violations2_5 = matches2_5[matches2_5.apply(lambda row: row["misc_properties"]["DistinctVals"] > row["misc_properties_class"]["Count"], axis=1)]
+        violations2_5 = matches2_5[matches2_5.apply(lambda r: r["misc_properties"]["DistinctVals"] > r["misc_properties_class"]["Count"], axis=1)]
         if violations2_5.shape[0] > 0:
             correct = False
             print("IC-Atoms5 violation: The number of different values of an attribute is greater than the cardinality of its class")
@@ -399,7 +399,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms8: The number of different values of an identifier must coincide with the cardinality of its class
         logger.info("Checking IC-Atoms8")
         matches2_8 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
-        violations2_8 = matches2_8[matches2_8.apply(lambda row: row["misc_properties"]["Identifier"] and row["misc_properties"]["DistinctVals"] != row["misc_properties_class"]["Count"], axis=1)]
+        violations2_8 = matches2_8[matches2_8.apply(lambda r: r["misc_properties"]["Identifier"] and r["misc_properties"]["DistinctVals"] != row["misc_properties_class"]["Count"], axis=1)]
         if violations2_8.shape[0] > 0:
             correct = False
             print("IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
@@ -416,7 +416,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms10: Every generalization outgoing of a subclass must have a discriminant
         logger.info("Checking IC-Atoms10")
-        violations2_10 = self.get_outbound_generalization_subclasses()[~self.get_outbound_generalization_subclasses().apply(lambda row: "Constraint" in row["misc_properties"], axis=1)]
+        violations2_10 = self.get_outbound_generalization_subclasses()[~self.get_outbound_generalization_subclasses().apply(lambda r: "Constraint" in r["misc_properties"], axis=1)]
         if violations2_10.shape[0] > 0:
             correct = False
             print("IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
@@ -424,7 +424,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms11: Every generalization has disjointness and completeness constraints
         logger.info("Checking IC-Atoms11")
-        matches2_11 = generalizations[generalizations.apply(lambda row: "Disjoint" in row["misc_properties"] and "Complete" in row["misc_properties"], axis=1)]
+        matches2_11 = generalizations[generalizations.apply(lambda r: "Disjoint" in r["misc_properties"] and "Complete" in r["misc_properties"], axis=1)]
         violations2_11 = df_difference(generalizations["name"], matches2_11["name"])
         if violations2_11.shape[0] > 0:
             correct = False
@@ -433,7 +433,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms12: Generalizations cannot have cycles
         logger.info("Checking IC-Atoms12")
-        violations2_12 = classes[classes.apply(lambda row: row["name"] in self.get_superclasses_by_class_name(row["name"], []), axis=1)]
+        violations2_12 = classes[classes.apply(lambda r: r["name"] in self.get_superclasses_by_class_name(r["name"], []), axis=1)]
         if violations2_12.shape[0] > 0:
             correct = False
             print("IC-Atoms12 violation: There are some cyclic generalizations")
@@ -484,13 +484,13 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs2: Structs are transitive on themselves
             logger.info("Checking IC-Structs2")
             matches3_2_partial = structOutbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr") \
-                            .join(
-                                structInbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr"),
-                                on='joinattr', rsuffix='_firsthop', how='inner')
+                .join(
+                    structInbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr"),
+                    on='joinattr', rsuffix='_firsthop', how='inner')
             matches3_2 = matches3_2_partial.set_index('edges_firsthop', drop=False, verify_integrity=False).rename_axis("joinattr") \
-                            .join(
-                                structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
-                                on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
+                .join(
+                    structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
+                    on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
             violations3_2 = df_difference(matches3_2, self.get_transitives().reset_index(drop=False)[["edges", "nodes"]])
             if violations3_2.shape[0] > 0:
                 correct = False
@@ -673,8 +673,8 @@ class Catalog(HyperNetXWrapper):
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
-                #correct = False
-                if (verbose):
+                # correct = False
+                if verbose:
                     print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
 

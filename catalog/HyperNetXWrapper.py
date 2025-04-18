@@ -70,7 +70,6 @@ class HyperNetXWrapper:
         attribute = self.get_attributes().query('nodes == "' + attr_name + '"')
         return attribute.iloc[0]
 
-
     def get_association_ends(self):
         ends = self.get_outbound_associations()
         if not ends.empty:
@@ -267,7 +266,7 @@ class HyperNetXWrapper:
 
     def get_inbound_firstLevel(self):
         firstLevelPhantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
-                                    self.get_outbounds().reset_index()[["nodes"]])
+                                           self.get_outbounds().reset_index()[["nodes"]])
         firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevelIncidences
 
@@ -451,7 +450,6 @@ class HyperNetXWrapper:
                 raise ValueError(f"Wrong kind of edge {i[1].get('Kind')} for {i[0]}")
 
         # Graphical display
-        fig = plt.figure(figsize=(4, 4))
         hnx.drawing.draw(self.H,
                          edge_labels_on_edge=True,
                          layout_kwargs={'seed': 666},

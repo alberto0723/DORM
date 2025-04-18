@@ -14,6 +14,7 @@ pd.set_option('display.width', 1000)
 
 logger = logging.getLogger("Normalized")
 
+
 class Normalized(Relational):
     """
     This is a subclass of Relational that implements the code generation as normalized in 1NF
@@ -111,14 +112,14 @@ class Normalized(Relational):
             attribute_dicc = {}
             for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
                 attribute_dicc.update(self.get_struct_attributes(struct_name))
-            # Add all the attributes to the create table sentence
+            # Add all the attributes to the CREATE TABLE sentence
             attribute_list = []
             for attr_alias, attr_name in attribute_dicc.items():
                 attribute = self.get_attribute_by_name(attr_name)
                 if attribute["misc_properties"].get("DataType") == "String":
                     attribute_list.append("  " + attr_alias + " VarChar(" + str(attribute["misc_properties"].get("Size")) + ")")
                 else:
-                    attribute_list.append("  " + attr_alias +" " + attribute["misc_properties"].get("DataType"))
+                    attribute_list.append("  " + attr_alias + " " + attribute["misc_properties"].get("DataType"))
             sentence += ",\n".join(attribute_list) + "\n  );"
             if verbose:
                 print(sentence)
@@ -190,11 +191,11 @@ class Normalized(Relational):
         return statements
 
     def create_schema(self, migration_source=None, verbose=False):
-        '''
+        """
         Creates the tables in the design.
         :param migration_source: Name of the database schema to migrate the data from
         :param verbose: Indicates if the DDL should be printed
-        '''
+        """
         logger.info("Creating tables")
         statements = self.generate_create_table_statements(verbose)
         if migration_source is not None:
@@ -313,7 +314,7 @@ class Normalized(Relational):
                                 discriminants.append(
                                     self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
                                         self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties["Constraint"])
-        # It should not be necessary to remove duplicates if dessing and query are sound (some extra check may be needed)
+        # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
 
@@ -397,10 +398,10 @@ class Normalized(Relational):
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, explicit_schema)
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name)
 
     def generate_sql(self, spec, explicit_schema=False, verbose=False):
-        '''
+        """
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
         retrieve the required classes and associations
@@ -408,7 +409,7 @@ class Normalized(Relational):
         :param explicit_schema: Adds the dbschema to every table in the FROM clause
         :param verbose:
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables
-        '''
+        """
         logger.info("Resolving query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
