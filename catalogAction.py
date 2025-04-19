@@ -2,7 +2,7 @@ import logging
 import sys
 import argparse
 from pathlib import Path
-from catalog import relational, normalized
+from catalog import relational, first_normal_form
 
 # Path definitions
 base_path = Path(__file__).parent
@@ -69,19 +69,19 @@ if __name__ == "__main__":
                                             supersede=True)
                 cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
             elif args.state == "design":
-                cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema,
-                                            supersede=args.supersede)
+                cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema,
+                                                 supersede=args.supersede)
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")
         else:
             consistent = True
             if args.user is None or args.password is None:
-                cat = normalized.Normalized(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
+                cat = first_normal_form.FirstNormalForm(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
             else:
-                cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema)
 
         if args.text:
             cat.show_textual()

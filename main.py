@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from catalog import normalized
+from catalog import first_normal_form
 import json
 
 # Path definitions
@@ -9,10 +9,10 @@ base_path = Path(__file__).parent
 if __name__ == '__main__':
     logging.disable()
     logging.info("BEGIN")
-    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_normalized_test3.HyperNetX"))
-    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/book-authors_partitioned.HyperNetX"))
-    #c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/artist-record-track_normalized_test1.HyperNetX"))
-    c = normalized.Normalized(base_path.joinpath("files/hypergraphs/design/students-workers_normalized_AllInSuperclassTable.HyperNetX"))
+    #c = normalized.FirstNormalForm(base_path.joinpath("files/hypergraphs/design/book-authors_normalized_test3.HyperNetX"))
+    #c = normalized.FirstNormalForm(base_path.joinpath("files/hypergraphs/design/book-authors_partitioned.HyperNetX"))
+    #c = normalized.FirstNormalForm(base_path.joinpath("files/hypergraphs/design/artist-record-track_normalized_test1.HyperNetX"))
+    c = first_normal_form.FirstNormalForm(base_path.joinpath("files/hypergraphs/design/students-workers_normalized_AllInSuperclassTable.HyperNetX"))
     c.show_textual()
     # #c.save(file=base_path.joinpath("files/hypergraphs/test.HyperNetX"))
     # if not c.is_correct(design=True):

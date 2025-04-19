@@ -12,10 +12,10 @@ from .tools import combine_tables, drop_duplicates
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
-logger = logging.getLogger("Normalized")
+logger = logging.getLogger("FirstNormalForm")
 
 
-class Normalized(Relational):
+class FirstNormalForm(Relational):
     """
     This is a subclass of Relational that implements the code generation as normalized in 1NF.
     """
@@ -141,7 +141,7 @@ class Normalized(Relational):
         :return: List of statements generated to migrate the data (one per struct)
         """
         statements = []
-        source = Normalized(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
+        source = FirstNormalForm(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
         # Basic consistency checks between both source and target catalogs
         if source.metadata.get("domain", "") != self.metadata["domain"]:
             raise ValueError(f"Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")

@@ -400,7 +400,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms8: The number of different values of an identifier must coincide with the cardinality of its class
         logger.info("Checking IC-Atoms8")
         matches2_8 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
-        violations2_8 = matches2_8[matches2_8.apply(lambda r: r["misc_properties"]["Identifier"] and r["misc_properties"]["DistinctVals"] != row["misc_properties_class"]["Count"], axis=1)]
+        violations2_8 = matches2_8[matches2_8.apply(lambda r: r["misc_properties"]["Identifier"] and r["misc_properties"]["DistinctVals"] != r["misc_properties_class"]["Count"], axis=1)]
         if violations2_8.shape[0] > 0:
             correct = False
             print("IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")

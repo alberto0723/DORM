@@ -3,7 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 import json
-from catalog import normalized
+from catalog import first_normal_form
 
 # Path definitions
 base_path = Path(__file__).parent
@@ -39,8 +39,8 @@ if __name__ == "__main__":
         else:
             logging.disable()
         logging.info("BEGIN")
-        cat = normalized.Normalized(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                    password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+        cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                         password=args.password, dbname=args.dbname, dbschema=args.dbschema)
         logging.info("Executing batch queries")
         # Open and load the JSON file
         with open(args.query_file, 'r') as file:

@@ -11,7 +11,7 @@
         {"kind": "Struct",
          "name": "Books_p2_type",
          "anchor": ["Book"],
-         "elements": ["B_ID","B_editorial"]},
+         "elements": ["B_ID","B_publisher"]},
         {"kind": "Set",
          "name": "Books_p2_table",
          "elements": ["Books_p2_type"]},
