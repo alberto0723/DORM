@@ -26,7 +26,7 @@ class Catalog(HyperNetXWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def add_class(self, class_name, properties, att_list):
+    def add_class(self, class_name, properties, att_list) -> None:
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
         The latter is another dictionary that can contain any key, but at least it should contain
@@ -67,7 +67,7 @@ class Catalog(HyperNetXWrapper):
         self.H.add_edges_from(edges)
         self.H.add_incidences_from(incidences)
 
-    def add_association(self, association_name, ends_list):
+    def add_association(self, association_name, ends_list) -> None:
         """Besides the association name, this method requires
         a list of ends (usually should be only two), where each end is a dictionary with the keys 'name' and 'multiplicity'.
         The latter is another dictionary that contains
@@ -98,7 +98,7 @@ class Catalog(HyperNetXWrapper):
             incidences.append((association_name, self.get_phantom_of_edge_by_name(end['class']), end['prop']))
         self.H.add_incidences_from(incidences)
 
-    def add_generalization(self, generalization_name, properties, superclass, subclasses_list):
+    def add_generalization(self, generalization_name, properties, superclass, subclasses_list) -> None:
         """ Besides the generalization name, this method requires some properties (expected to be two booleans) for
         disjointness and completeness, the name of the superclass and a list of subclasses,
         where each subclass is a dictionary with the keys 'name' and 'prop'.
@@ -130,7 +130,7 @@ class Catalog(HyperNetXWrapper):
             incidences.append((generalization_name, self.get_phantom_of_edge_by_name(sub['class']), sub['prop']))
         self.H.add_incidences_from(incidences)
 
-    def add_struct(self, struct_name, anchor, elements):
+    def add_struct(self, struct_name, anchor, elements) -> None:
         logger.info("Adding struct "+struct_name)
         if self.is_hyperedge(struct_name):
             raise ValueError(f"The hyperedge '{struct_name}' already exists")
@@ -178,7 +178,7 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"Creating struct '{struct_name}' could not find '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
-    def add_set(self, set_name, elements):
+    def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
         if set_name in self.get_edges()["name"]:
             raise ValueError(f"The hyperedge '{set_name}' already exists")
@@ -211,7 +211,7 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
-    def load_domain(self, file_path):
+    def load_domain(self, file_path) -> None:
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = str(file_path)
         # Open and load the JSON file
@@ -225,7 +225,7 @@ class Catalog(HyperNetXWrapper):
         for gen in domain.get("generalizations", []):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
 
-    def load_design(self, file_path):
+    def load_design(self, file_path) -> None:
         logger.info(f"Loading design from '{file_path}'")
         # Open and load the JSON file
         with open(file_path, 'r') as f:
@@ -247,7 +247,7 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"Unknown kind of hyperedge '{h.get("kind")}'")
 
-    def is_correct(self, design=False, verbose=True):
+    def is_correct(self, design=False, verbose=True) -> bool:
         """
         This method checks all the integrity constrains of the catalog.
         It can be expensive, so just do it at the end, not for each operation.
@@ -711,7 +711,7 @@ class Catalog(HyperNetXWrapper):
                     print(f"Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
         return correct
 
-    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes):
+    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if non_existing_attributes.shape[0] > 0:
@@ -752,7 +752,7 @@ class Catalog(HyperNetXWrapper):
         if missing_attributes.shape[0] > 0:
             raise ValueError(f"Some attribute in the query is not covered by the elements in the pattern: {missing_attributes.values.tolist()[0]}")
 
-    def parse_predicate(self, predicate):
+    def parse_predicate(self, predicate) -> list[str]:
         attributes = []
         where_clause = "WHERE "+predicate
         where_parsed = sqlparse.parse(where_clause)[0].tokens[0]
@@ -768,7 +768,7 @@ class Catalog(HyperNetXWrapper):
                         attributes.append(token.value)
         return attributes
 
-    def parse_query(self, query):
+    def parse_query(self, query) -> tuple[list[str], list[str], list[str], list[str], str]:
         # Get the query and parse it
         project_attributes = query.get("project", [])
         if not project_attributes:

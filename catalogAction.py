@@ -23,7 +23,7 @@ base_parser.add_argument("--hypergraph", type=str, default="input", help="File g
 base_parser.add_argument("--check", help="Checks correctness of the catalog", action="store_true")
 base_parser.add_argument("--text", help="Shows the catalog in text format", action="store_true")
 base_parser.add_argument("--graph", help="Shows the catalog in graphical format", action="store_true")
-base_parser.add_argument("--create", help="Creates the catalog", action="store_true")
+base_parser.add_argument("--create", help="Creates the catalog (otherwise it would be loaded from either a file or DBMS)", action="store_true")
 base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
 base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
 base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")

@@ -1,0 +1,7 @@
+HyperNetX 2.4.0 generates a warning:
+
+venv\Lib\site-packages\hypernetx\classes\property_store.py:159: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '{}' has dtype incompatible with float64, please explicitly cast to a compatible dtype first.
+  self._data.loc[uid, :] = self.default_properties
+
+It can be fixed by adding the following line to funtion "set_properties(self, uid, props)" in the same file:
+Line 158 ->  Add "self._data = self._data.astype(object)"

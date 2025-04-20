@@ -22,7 +22,7 @@ class FirstNormalForm(Relational):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def check_to_one(self, path):
+    def check_to_one(self, path) -> bool:
         """
         This method checks if multiplicities in the path are all at most to-one.
         :param path: List of associations.
@@ -39,7 +39,7 @@ class FirstNormalForm(Relational):
                         raise ValueError(f"Checking multiplicity: Multiplicity not provided for association '{current}-{path[i+1]}'")
         return correct
 
-    def is_correct(self, design=False, verbose=True):
+    def is_correct(self, design=False, verbose=True) -> bool:
         correct = super().is_correct(design, verbose)
         # Not worth to check anything if the more basic stuff is already not correct
         if correct:
@@ -68,7 +68,7 @@ class FirstNormalForm(Relational):
                                     raise ValueError(f"IC-PureRelational1: Something went wrong in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'")
         return correct
 
-    def get_struct_attributes(self, struct_name):
+    def get_struct_attributes(self, struct_name) -> dict[str, str]:
         """
         This generates the correspondence between attribute names in a table and their corresponding attribute.
         It is necessary to do it to consider foreign keys.
@@ -98,7 +98,7 @@ class FirstNormalForm(Relational):
                 raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
         return attribute_dicc
 
-    def generate_create_table_statements(self, verbose=False):
+    def generate_create_table_statements(self, verbose=False) -> list[str]:
         """
         Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
         One or more structs are expected inside the set, but all of them should generate the same attributes.
@@ -132,7 +132,7 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def generate_migration_statements(self, migration_source, verbose=False):
+    def generate_migration_statements(self, migration_source, verbose=False) -> list[str]:
         """
         Generates insertions to migrate data from one schema to another one.
         Both must be in the same database for it to work.
@@ -170,7 +170,7 @@ class FirstNormalForm(Relational):
                 statements.append(sentence)
         return statements
 
-    def generate_add_pk_statements(self, verbose=False):
+    def generate_add_pk_statements(self, verbose=False) -> list[str]:
         """
         Generated the DDL to add PKs to the tables
         The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
@@ -203,7 +203,7 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def create_schema(self, migration_source=None, verbose=False):
+    def create_schema(self, migration_source=None, verbose=False) -> None:
         """
         Creates the tables in the design.
         :param migration_source: Name of the database schema to migrate the data from.
@@ -221,7 +221,7 @@ class FirstNormalForm(Relational):
                     conn.execute(sqlalchemy.text(statement))
                 conn.commit()
 
-    def create_bucket_combinations(self, pattern, required_attributes):
+    def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
         """
         For each required domain element in the pattern, create a bucket with all the tables where it can come from.
         Then, combine all these buckets to cover all elements.
@@ -275,7 +275,7 @@ class FirstNormalForm(Relational):
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_tables(drop_duplicates(tables)), classes, associations
 
-    def get_aliases(self, tables_combination):
+    def get_aliases(self, tables_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param tables_combination: The set of tables in the FROM clause of a query.
@@ -314,7 +314,7 @@ class FirstNormalForm(Relational):
                         self.get_edge_by_phantom_name(end.Index[1]))
         return alias_table, alias_attr, location_attr
 
-    def get_discriminants(self, tables_combination, pattern_class_names):
+    def get_discriminants(self, tables_combination, pattern_class_names) -> list[str]:
         """
         Based on the existence of superclasses, this method finds the corresponding discriminants.
         :param tables_combination: The set of tables in the FROM clause of a query.
@@ -345,7 +345,7 @@ class FirstNormalForm(Relational):
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name=""):
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name="") -> str:
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -427,7 +427,7 @@ class FirstNormalForm(Relational):
         else:
             return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name)
 
-    def generate_sql(self, spec, explicit_schema=False, verbose=False):
+    def generate_sql(self, spec, explicit_schema=False, verbose=False) -> list[str]:
         """
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to

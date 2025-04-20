@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import logging
 from IPython.display import display
 import pandas as pd
-import sqlalchemy  #
+import sqlalchemy
 import hypernetx as hnx
 import json
 
@@ -75,14 +75,14 @@ class Relational(Catalog, ABC):
                         raise ValueError("No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)")
                     self.metadata = json.loads(row.comment)
 
-    def get_engine(self, dbschema):
+    def get_engine(self, dbschema) -> sqlalchemy.engine.Engine:
         if self.dbms is None or self.ip is None or self.port is None or self.user is None or self.password is None or self.dbname is None or dbschema is None:
             raise ValueError("Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
         url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
-    def save(self, file_path=None, migration_source=None, verbose=True):
+    def save(self, file_path=None, migration_source=None, verbose=True) -> None:
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
@@ -109,7 +109,7 @@ class Relational(Catalog, ABC):
         else:
             raise ValueError("No connection to the database or file provided")
 
-    def is_correct(self, design=False, verbose=True):
+    def is_correct(self, design=False, verbose=True) -> bool:
         correct = super().is_correct(design, verbose)
         # Only needs to run further checks if the basic one succeeded
         if correct:
@@ -128,8 +128,8 @@ class Relational(Catalog, ABC):
             # IC-Relational2: All second level are structs
             logger.info("Checking IC-Relational2")
             matches6_2 = self.get_inbound_firstLevel().merge(
-                            self.get_outbounds().reset_index(drop=False), on="edges", how="inner", suffixes=[None, "_firsthop"]).merge(
-                            self.get_inbounds().reset_index(drop=False), on="nodes", how="inner", suffixes=[None, "_secondhop"])
+                            self.get_outbounds().reset_index(drop=False), on="edges", how="inner", suffixes=(None, "_firsthop")).merge(
+                            self.get_inbounds().reset_index(drop=False), on="nodes", how="inner", suffixes=(None, "_secondhop"))
             violations6_2 = matches6_2[~matches6_2["misc_properties_secondhop"].apply(lambda x: x['Kind'] == 'StructIncidence')]
             if violations6_2.shape[0] > 0:
                 correct = False
@@ -146,7 +146,7 @@ class Relational(Catalog, ABC):
         return correct
 
     @abstractmethod
-    def create_schema(self, migration_source, verbose):
+    def create_schema(self, migration_source, verbose) -> None:
         """
         Table creation depends on the concrete implementation strategy.
         :param migration_source: The source schema to populate the tables being created.
@@ -156,7 +156,7 @@ class Relational(Catalog, ABC):
         pass
 
     @abstractmethod
-    def generate_sql(self, spec, verbose):
+    def generate_sql(self, spec, verbose) -> list[str]:
         """
         SQL generation depends on the concrete implementation strategy.
         :param spec: Specification of a query.
@@ -165,7 +165,7 @@ class Relational(Catalog, ABC):
         """
         pass
 
-    def execute(self, query):
+    def execute(self, query) -> sqlalchemy.Sequence[sqlalchemy.Row]:
         """
         Executes a query in the engine associated to the catalog.
         :param query: SQL query to be executed.

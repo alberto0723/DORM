@@ -1,11 +1,9 @@
 # Dynamic Object-Relational Mapping (DORM)
-
 This tool (based on [Moditha Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis) allows to generate database schemas and queries in a flexible way. 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
 Hence, mappings dynamically change as database schema design evolves.
 
 ## Inputs
-
 There are three different inputs:
 
 ### 1- Domain
@@ -96,7 +94,7 @@ You can find some [query examples](files/queries/book-authors.json) over the sam
 The content of the query files is just a list of SPJ queries, whose structure is as follows:
 1. ``project`` contains a list of attributes in the domain, which cannot be empty.
 2. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
-3``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
+3. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 
 #### Semantics
 - The pattern may not contain any association.
@@ -123,7 +121,6 @@ It is also assumed that Python 3 and library [HyperNetX](https://github.com/pnnl
 Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt) (generated with ```pip freeze```).
 
 ## Running
-
 There are some tools available to facilitate usage and testing.
 
 ### catalogAction
@@ -131,12 +128,12 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [-h] [--hg_path <path>] [--hypergraph <hypergraph>]
-                        [--check] [--text] [--graph] [--create] [--verbose]
-                        [--supersede] [--dbms <dbms>] [--ip <ip>]
-                        [--port <port>] [--user <user>]
-                        [--password <password>] [--dbname <dbname>]
-                        [--dbschema <dbschema>]
+usage: catalogAction.py [-h] [--logging] [--hg_path <path>]
+                        [--hypergraph <hypergraph>] [--check] [--text]
+                        [--graph] [--create] [--verbose] [--supersede]
+                        [--dbms <dbms>] [--ip <ip>] [--port <port>]
+                        [--user <user>] [--password <password>]
+                        [--dbname <dbname>] [--dbschema <dbschema>]
                         {domain,design} ...
 
 positional arguments:
@@ -146,13 +143,14 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  --hg_path <path>      Path to hypergraphs folder (default: Current work directory)
+  --logging             Enables logging (default: False)
+  --hg_path <path>      Path to hypergraphs folder (default: Path Work Directory)
   --hypergraph <hypergraph>
                         File generated for the hypergraph with pickle (default: input)
   --check               Checks correctness of the catalog (default: False)
   --text                Shows the catalog in text format (default: False)
   --graph               Shows the catalog in graphical format (default: False)
-  --create              Creates the catalog (default: False)
+  --create              Creates the catalog (otherwise it would be loaded from either a file or DBMS) (default: False)
   --verbose             Prints the generated statements (default: False)
   --supersede           Overwrites the existing catalog during creation (default: False)
   --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
@@ -164,19 +162,21 @@ options:
   --dbname <dbname>     Database name (default: postgres)
   --dbschema <dbschema>
                         Database schema (default: dorm_default)
-  ```
+```
+
 ### queryExecutor
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```
-usage: queryExecutor.py [-h] [--dbms <dbms>] [--ip <ip>] [--port <port>]
-                        [--user <user>] [--password <password>]
-                        [--dbname <dbname>] [--dbschema <dbschema>]
-                        [--verbose] [--print_rows] [--print_counter]
-                        [--query_file <path>]
+usage: queryExecutor.py [-h] [--logging] [--dbms <dbms>] [--ip <ip>]
+                        [--port <port>] [--user <user>]
+                        [--password <password>] [--dbname <dbname>]
+                        [--dbschema <dbschema>] [--verbose] [--print_rows]
+                        [--print_counter] [--query_file <path>]
 
 options:
   -h, --help            show this help message and exit
+  --logging             Enables logging (default: False)
   --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
   --ip <ip>             IP address for the database connection (default: localhost)
   --port <port>         Port for the database connection (default: 5432)
