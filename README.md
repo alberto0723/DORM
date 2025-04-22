@@ -128,66 +128,61 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [-h] [--logging] [--hg_path <path>]
-                        [--hypergraph <hypergraph>] [--check] [--text]
-                        [--graph] [--create] [--verbose] [--supersede]
-                        [--dbms <dbms>] [--ip <ip>] [--port <port>]
-                        [--user <user>] [--password <password>]
-                        [--dbname <dbname>] [--dbschema <dbschema>]
+usage: catalogAction.py [-h] [--logging] [--verbose] [--create] [--supersede] [--hg_path <path>]
+                        [--hypergraph <hg>] [--dbms <dbms>] [--ip <ip>] [--port <port>]
+                        [--user <user>] [--password <psw>] [--dbname <dbname>] [--dbschema <sch>]
+                        [--check] [--text] [--graph]
                         {domain,design} ...
 
+Perform basic actions to create and visualize a catalog
+
 positional arguments:
-  {domain,design}       Kind of catalog
-    domain              Uses a hypergraph with only atoms
-    design              Uses a hypergraph with a full design
+  {domain,design}    Kind of catalog
+    domain           Uses a hypergraph with only atoms
+    design           Uses a hypergraph with a full design
 
 options:
-  -h, --help            show this help message and exit
-  --logging             Enables logging (default: False)
-  --hg_path <path>      Path to hypergraphs folder (default: Path Work Directory)
-  --hypergraph <hypergraph>
-                        File generated for the hypergraph with pickle (default: input)
-  --check               Checks correctness of the catalog (default: False)
-  --text                Shows the catalog in text format (default: False)
-  --graph               Shows the catalog in graphical format (default: False)
-  --create              Creates the catalog (otherwise it would be loaded from either a file or DBMS) (default: False)
-  --verbose             Prints the generated statements (default: False)
-  --supersede           Overwrites the existing catalog during creation (default: False)
-  --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
-  --ip <ip>             IP address for the database connection (default: localhost)
-  --port <port>         Port for the database connection (default: 5432)
-  --user <user>         Username for the database connection (default: None)
-  --password <password>
-                        Password for the database connection (default: None)
-  --dbname <dbname>     Database name (default: postgres)
-  --dbschema <dbschema>
-                        Database schema (default: dorm_default)
+  -h, --help         show this help message and exit
+  --logging          Enables logging
+  --verbose          Prints the generated statements
+  --create           Creates the catalog (otherwise it would be loaded from either a file or DBMS)
+  --supersede        Overwrites the existing catalog during creation
+  --hg_path <path>   Path to hypergraphs folder
+  --hypergraph <hg>  File generated for the hypergraph with pickle
+  --dbms <dbms>      Kind of DBMS to connect to
+  --ip <ip>          IP address for the database connection
+  --port <port>      Port for the database connection
+  --user <user>      Username for the database connection
+  --password <psw>   Password for the database connection
+  --dbname <dbname>  Database name
+  --dbschema <sch>   Database schema
+  --check            Checks correctness of the catalog
+  --text             Shows the catalog in text format
+  --graph            Shows the catalog in graphical format
 ```
 
 ### queryExecutor
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```
-usage: queryExecutor.py [-h] [--logging] [--dbms <dbms>] [--ip <ip>]
-                        [--port <port>] [--user <user>]
-                        [--password <password>] [--dbname <dbname>]
-                        [--dbschema <dbschema>] [--verbose] [--print_rows]
-                        [--print_counter] [--query_file <path>]
+usage: queryExecutor.py [-h] [--logging] [--verbose] [--dbms <dbms>] [--ip <ip>] [--port <port>]
+                        [--user <user>] [--password <psw>] [--dbname <dbname>] [--dbschema <sch>]
+                        [--query_file <path>] [--print_rows] [--print_counter]
+
+Execute queries over a pre-existing catalog
 
 options:
-  -h, --help            show this help message and exit
-  --logging             Enables logging (default: False)
-  --dbms <dbms>         Kind of DBMS to connect to (default: postgresql)
-  --ip <ip>             IP address for the database connection (default: localhost)
-  --port <port>         Port for the database connection (default: 5432)
-  --user <user>         Username for the database connection (default: None)
-  --password <password>
-                        Password for the database connection (default: None)
-  --dbname <dbname>     Database name (default: postgres)
-  --dbschema <dbschema>
-                        Database schema (default: dorm_default)
-  --verbose             Prints the generated statements (default: False)
-  --print_rows          Prints the resulting rows (default: False)
-  --print_counter       Prints the number of rows (default: False)
-  --query_file <path>   Filename of the json file containing the queries (default: None)
+  -h, --help           show this help message and exit
+  --logging            Enables logging
+  --verbose            Prints the generated statements
+  --dbms <dbms>        Kind of DBMS to connect to
+  --ip <ip>            IP address for the database connection
+  --port <port>        Port for the database connection
+  --user <user>        Username for the database connection
+  --password <psw>     Password for the database connection
+  --dbname <dbname>    Database name
+  --dbschema <sch>     Database schema
+  --query_file <path>  Filename of the json file containing the queries
+  --print_rows         Prints the resulting rows
+  --print_counter      Prints the number of rows
 ```

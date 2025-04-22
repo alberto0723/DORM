@@ -604,9 +604,11 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-c)
             logger.info("Checking IC-Structs-c -> To be implemented (for nested structs)")
+            # TODO: Check Structs definition-c
 
             # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
             logger.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
+            # TODO: Check Structs definition-c
 
             # IC-Structs-e: All associations inside a struct connect either a class or another struct (Definition 7-e)
             #               This needs to be relaxed to simply structs being connected
@@ -631,6 +633,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets2: Sets are transitive on structs
             logger.info("Checking IC-Sets2 -> To be implemented")
+            #TODO: Check transitivity of sets
 
             # IC-Sets3: Sets cannot directly contain classes
             logger.info("Checking IC-Sets3")
