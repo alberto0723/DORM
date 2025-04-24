@@ -87,7 +87,7 @@ class Relational(Catalog, ABC):
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
-            if self.is_correct("design" in self.metadata):
+            if self.is_correct(design="design" in self.metadata, verbose=verbose):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
                 df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
@@ -99,7 +99,7 @@ class Relational(Catalog, ABC):
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
                 self.create_schema(migration_source=migration_source, verbose=verbose)
-                self.metadata["tables_created"] = True
+                self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source is not None:
                     self.metadata["data_migrated"] = True
                 with (self.engine.connect() as conn):

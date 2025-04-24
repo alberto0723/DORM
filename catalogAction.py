@@ -64,7 +64,7 @@ if __name__ == "__main__":
         if args.create:
             consistent = False
             if args.state == "domain":
-                cat = relational.Relational(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                             password=args.password, dbname=args.dbname, dbschema=args.dbschema,
                                             supersede=True)
                 cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
