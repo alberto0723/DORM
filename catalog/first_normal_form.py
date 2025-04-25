@@ -3,7 +3,6 @@ import itertools
 import pandas as pd
 from IPython.display import display
 import networkx as nx
-import sqlalchemy
 
 from .relational import Relational
 from .tools import combine_tables, drop_duplicates
@@ -22,29 +21,12 @@ class FirstNormalForm(Relational):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def check_to_one(self, path) -> bool:
-        """
-        This method checks if multiplicities in the path are all at most to-one.
-        :param path: List of associations.
-        :return: Boolean indicating if the path is at most to-one.
-        """
-        correct = True
-        for i, current in enumerate(path):
-            if self.is_association(current):
-                if len(path) > i+1:
-                    properties = self.H.get_cell_properties(current, path[i+1])
-                    if "Multiplicity" in properties:
-                        correct = correct and (properties.get("Multiplicity") <= 1)
-                    else:
-                        raise ValueError(f"Checking multiplicity: Multiplicity not provided for association '{current}-{path[i+1]}'")
-        return correct
-
     def is_correct(self, design=False, show_warnings=True) -> bool:
         correct = super().is_correct(design, show_warnings=show_warnings)
         # Not worth to check anything if the more basic stuff is already not correct
         if correct:
             # ---------------------------------------------------------------- ICs about being a normalized catalog
-            # IC-Normalized1: All associations from the anchor of a struct must be to one (or less)
+            # IC-Normalized1: All associations from the anchor of a class must be to one (at most)
             logger.info("Checking IC-Normalized1")
             firstlevels = self.get_inbound_firstLevel()
             # For each table
@@ -58,14 +40,13 @@ class FirstNormalForm(Relational):
                     bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
                     for anchor in anchor_points:
                         for member in set(members)-set(anchor_points):
-                            if self.is_class_phantom(member):
+                            if self.is_class_phantom(member) or self.is_association_phantom(member):
                                 paths = list(nx.all_simple_paths(bipartite, source=anchor, target=member))
+                                assert len(paths) <= 1, f"Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'"
                                 if len(paths) == 1:
-                                    if not self.check_to_one(paths[0]):
+                                    if not self.check_max_to_one(paths[0]):
                                         correct = False
-                                        print(f"IC-PureRelational1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
-                                elif len(paths) > 1:
-                                    raise ValueError(f"IC-PureRelational1: Something went wrong in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'")
+                                        print(f"IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return correct
 
     def get_struct_attributes(self, struct_name) -> dict[str, str]:
@@ -203,24 +184,6 @@ class FirstNormalForm(Relational):
                 print(sentence)
             statements.append(sentence)
         return statements
-
-    def create_schema(self, migration_source=None, show_sql=False, show_warnings=True) -> None:
-        """
-        Creates the tables in the design.
-        :param migration_source: Name of the database schema to migrate the data from.
-        :param show_sql: Whether to print SQL statements or not.
-        """
-        logger.info("Creating tables")
-        statements = self.generate_create_table_statements(show_sql=show_sql)
-        if migration_source is not None:
-            statements.extend(self.generate_migration_statements(migration_source, show_sql=show_sql, show_warnings=show_warnings))
-        statements.extend(self.generate_add_pk_statements(show_sql=show_sql))
-        # TODO: Generate FKs, as well
-        if self.engine is not None:
-            with self.engine.connect() as conn:
-                for statement in statements:
-                    conn.execute(sqlalchemy.text(statement))
-                conn.commit()
 
     def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
         """

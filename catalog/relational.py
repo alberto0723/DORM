@@ -82,7 +82,7 @@ class Relational(Catalog, ABC):
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
-    def save(self, file_path=None, migration_source=None, show_warnings=True) -> None:
+    def save(self, file_path=None, migration_source=None, show_sql=False, show_warnings=True) -> None:
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
@@ -98,7 +98,7 @@ class Relational(Catalog, ABC):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
-                self.create_schema(migration_source=migration_source, show_warnings=show_warnings)
+                self.create_schema(migration_source=migration_source, show_sql=show_sql)
                 self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source is not None:
                     self.metadata["data_migrated"] = True
@@ -145,13 +145,51 @@ class Relational(Catalog, ABC):
                 display(violations6_1)
         return correct
 
+    def create_schema(self, migration_source=None, show_sql=False, show_warnings=True) -> None:
+        """
+        Creates the tables in the design.
+        :param migration_source: Name of the database schema to migrate the data from.
+        :param show_sql: Whether to print SQL statements or not.
+        :param show_warnings: Whether to print warnings or not.
+        """
+        logger.info("Creating schema")
+        statements = self.generate_create_table_statements(show_sql=show_sql)
+        if migration_source is not None:
+            statements.extend(self.generate_migration_statements(migration_source, show_sql=show_sql, show_warnings=show_warnings))
+        statements.extend(self.generate_add_pk_statements(show_sql=show_sql))
+        # TODO: Generate FKs, as well
+        if self.engine is not None:
+            with self.engine.connect() as conn:
+                for statement in statements:
+                    conn.execute(sqlalchemy.text(statement))
+                conn.commit()
+
     @abstractmethod
-    def create_schema(self, migration_source, show_sql=False) -> None:
+    def generate_create_table_statements(self, show_sql=False) -> list[str]:
         """
         Table creation depends on the concrete implementation strategy.
-        :param migration_source: The source schema to populate the tables being created.
+        :param show_sql: Indicates if the DDL should be printed
+        :return: List of statements generated (one per table)
+        """
+        pass
+
+    @abstractmethod
+    def generate_migration_statements(self, migration_source, show_sql=False, show_warnings=True) -> list[str]:
+        """
+        Migration generation depends on the concrete implementation strategy.
+        :param migration_source: Database schema to migrate the data from.
         :param show_sql: Whether to print SQL statements or not.
-        :return:
+        :param show_warnings: Whether to print warnings statements or not.
+        :return: List of statements generated to migrate the data (one per struct)
+        """
+        pass
+
+    @abstractmethod
+    def generate_add_pk_statements(self, show_sql=False) -> list[str]:
+        """
+        PK generation depends on the concrete implementation strategy.
+        :param show_sql: Whether to print SQL statements or not.
+        :return: List of statements generated (one per table)
         """
         pass
 

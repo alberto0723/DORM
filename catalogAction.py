@@ -98,14 +98,14 @@ if __name__ == "__main__":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dom_spec + ".HyperNetX"))
                 else:
-                    cat.save()
+                    cat.save(show_sql=args.show_sql)
             elif args.state == "design":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                     if args.translate:
-                        cat.create_schema(show_warnings=not args.hide_warnings)
+                        cat.create_schema(show_sql=args.show_sql, show_warnings=not args.hide_warnings)
                 else:
-                    cat.save(migration_source=args.datasource, show_warnings=not args.hide_warnings)
+                    cat.save(migration_source=args.datasource, show_sql=args.show_sql, show_warnings=not args.hide_warnings)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:

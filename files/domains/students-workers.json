@@ -31,11 +31,11 @@
       "ends": [
         {
           "class": "People",
-          "prop": {"End_name": "Friends_People", "Multiplicity": 3.5 }
+          "prop": {"End_name": "Friends_People", "MultiplicityMin": 0, "MultiplicityMax": 50 }
           },
         {
           "class": "Workers",
-          "prop": {"End_name": "Friends_Workers", "Multiplicity": 5.5 }
+          "prop": {"End_name": "Friends_Workers", "MultiplicityMin": 0, "MultiplicityMax": 50 }
           }
         ]
       }

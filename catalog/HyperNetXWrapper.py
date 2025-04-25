@@ -75,10 +75,13 @@ class HyperNetXWrapper:
         ends = self.get_outbound_associations()
         if not ends.empty:
             ends.reset_index(drop=False, inplace=True)
-            ends["multiplicity"] = ends.apply(lambda x: x["misc_properties"].get("Multiplicity", None), axis=1)
             ends["name"] = ends.apply(lambda x: x["misc_properties"]["End_name"], axis=1)
             ends.set_index('name', drop=False, inplace=True)
-            ends.drop(columns=['weight', 'misc_properties'], inplace=True)
+            ends.drop(columns=['weight'], inplace=True)
+        return ends
+
+    def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
+        ends = self.get_association_ends().query('edges == "' + association_name + '"')
         return ends
 
     def get_ids(self) -> pd.DataFrame:
@@ -409,6 +412,38 @@ class HyperNetXWrapper:
 
     def is_set(self, name) -> bool:
         return name in self.get_sets().index
+
+    def check_min_to_one(self, path) -> bool:
+        """
+        This method checks if minimum multiplicities in the path are all at least to-one.
+        :param path: List of associations.
+        :return: Boolean indicating if the path is at least to-one.
+        """
+        correct = True
+        for i, current in enumerate(path):
+            if self.is_association(current):
+                ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
+                assert ends_ahead.shape[0] == 1, f"Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
+                properties = ends_ahead.iloc[0].misc_properties
+                assert "MultiplicityMin" in properties, f"MultiplicityMin not provided for association end '{ends_ahead.iloc[0].name}'"
+                correct = correct and (properties.get("MultiplicityMin") >= 1)
+        return correct
+
+    def check_max_to_one(self, path) -> bool:
+        """
+        This method checks if maximum multiplicities in the path are all at most to-one.
+        :param path: List of associations.
+        :return: Boolean indicating if the path is at most to-one.
+        """
+        correct = True
+        for i, current in enumerate(path):
+            if self.is_association(current):
+                ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
+                assert ends_ahead.shape[0] == 1, f"Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
+                properties = ends_ahead.iloc[0].misc_properties
+                assert "MultiplicityMax" in properties, f"MultiplicityMax not provided for association end '{ends_ahead.iloc[0].name}'"
+                correct = correct and (properties.get("MultiplicityMax") <= 1)
+        return correct
 
     def show_textual(self) -> None:
         # Textual display

@@ -91,8 +91,8 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"'{association_name}' does not have a name for its end towards '{end['class']}'")
             if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_hyperedge(end_name):
                 raise ValueError(f"There is already an element called '{end_name}'")
-            if end['prop'].get('Multiplicity', None) is None:
-                raise ValueError(f"'{association_name}' does not have multiplicity for its end '{end_name}'")
+            if end['prop'].get('MultiplicityMax', None) is None or end['prop'].get('MultiplicityMin', None) is None:
+                raise ValueError(f"'{association_name}' does not have both min and max multiplicity for its end '{end_name}'")
             end['prop']['Kind'] = 'AssociationIncidence'
             end['prop']['Direction'] = 'Outbound'
             incidences.append((association_name, self.get_phantom_of_edge_by_name(end['class']), end['prop']))
@@ -472,6 +472,24 @@ class Catalog(HyperNetXWrapper):
             if self.get_class_id_by_name(top_class) is None:
                 correct = False
                 print(f"IC-Atoms15 violation: The class '{top_class}' in the top of a hierarchy should have an identifier")
+
+        # IC-Atoms15: Every association end has name anx multiplicities
+        logger.info("Checking IC-Atoms16")
+        matches2_16 = self.get_outbound_associations()["misc_properties"]
+        for end_properties in matches2_16:
+            if end_properties.get("End_name", None) is None:
+                correct = False
+                print(f"IC-Atoms16 violation: Some association end does not have 'End_name' defined")
+            else:
+                if end_properties.get("MultiplicityMax", None) is None:
+                    correct = False
+                    print(f"IC-Atoms16 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMax' defined")
+                if end_properties.get("MultiplicityMin", None) is None:
+                    correct = False
+                    print(f"IC-Atoms16 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMin' defined")
+                # if end_properties.get("MultiplicityAvg", None) is None:
+                #     correct = False
+                #     print(f"IC-Atoms16 violation: The association end '{end_properties.get("End_name")}' does not have MultiplicityAvg defined")
 
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:

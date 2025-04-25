@@ -31,11 +31,11 @@
       "name": "Made",
       "ends": [
         { "class": "Artist",
-          "prop": {"End_name": "Made_Artist", "Multiplicity": 2.5 }
+          "prop": {"End_name": "Made_Artist", "MultiplicityMin": 1, "MultiplicityMax": 3 }
           },
         {
           "class": "Record",
-          "prop": {"End_name": "Made_Record", "Multiplicity": 5 }
+          "prop": {"End_name": "Made_Record", "MultiplicityMin": 1, "MultiplicityMax": 50 }
           }
         ]
       },
@@ -43,11 +43,11 @@
       "name": "Has",
       "ends": [
         { "class": "Record",
-          "prop": {"End_name": "Has_Record", "Multiplicity": 1 }
+          "prop": {"End_name": "Has_Record", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           },
         {
           "class": "Track",
-          "prop": {"End_name": "Has_Track", "Multiplicity": 15 }
+          "prop": {"End_name": "Has_Track", "MultiplicityMin": 1, "MultiplicityMax": 15 }
           }
         ]
       }

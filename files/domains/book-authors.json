@@ -27,11 +27,11 @@
       "name": "Writes",
       "ends": [
         { "class": "Author",
-          "prop": {"End_name": "Writes_Author", "Multiplicity": 3.5 }
+          "prop": {"End_name": "Writes_Author", "MultiplicityMin": 1, "MultiplicityMax": 4 }
           },
         {
           "class": "Book",
-          "prop": {"End_name": "Writes_Book", "Multiplicity": 5.5 }
+          "prop": {"End_name": "Writes_Book", "MultiplicityMin": 1, "MultiplicityMax": 20 }
           }
         ]
       }

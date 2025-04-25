@@ -1,5 +1,6 @@
 {
-    "domain": "..\\domains\\book-authors.json",
+    "domain": "..\\domains\\book-authors_1-1.json",
+    "__disabled_domain": "..\\domains\\book-authors.json",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",
