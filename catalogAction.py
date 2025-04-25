@@ -20,7 +20,8 @@ if __name__ == "__main__":
     )
     subparsers = base_parser.add_subparsers(help="Kind of catalog")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
-    base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
+    base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
+    base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--create", help="Creates the catalog (otherwise it would be loaded from either a file or DBMS)", action="store_true")
     base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
     base_parser.add_argument("--hg_path", type=Path, default=default_hypergraphs_path, help="Path to hypergraphs folder", metavar="<path>")
@@ -86,7 +87,7 @@ if __name__ == "__main__":
         if args.text:
             cat.show_textual()
         if args.check and (args.user is None or args.password is None):
-            if cat.is_correct(design=(args.state == "design")):
+            if cat.is_correct(design=(args.state == "design"), show_warnings=not args.hide_warnings):
                 consistent = True
                 print("The catalog is correct")
             else:
@@ -102,9 +103,9 @@ if __name__ == "__main__":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                     if args.translate:
-                        cat.create_schema(verbose=args.verbose)
+                        cat.create_schema(show_warnings=not args.hide_warnings)
                 else:
-                    cat.save(migration_source=args.datasource, verbose=args.verbose)
+                    cat.save(migration_source=args.datasource, show_warnings=not args.hide_warnings)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:

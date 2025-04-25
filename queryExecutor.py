@@ -18,7 +18,8 @@ if __name__ == "__main__":
         description="Execute queries over a pre-existing catalog"
     )
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
-    base_parser.add_argument("--verbose", help="Prints the generated statements", action="store_true")
+    base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
+    base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
     base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
     base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
@@ -49,8 +50,8 @@ if __name__ == "__main__":
         for i, spec in enumerate(query_specs):
             print(f"-- Running query specification {i}")
             if True:
-                queries = cat.generate_sql(spec, explicit_schema=False, verbose=args.verbose)
-                if args.verbose:
+                queries = cat.generate_sql(spec, explicit_schema=False, show_warnings=not args.hide_warnings)
+                if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
                     if len(queries) > 1:
                         print(f"Number of queries generated: {len(queries)}")

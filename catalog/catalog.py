@@ -247,10 +247,13 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"Unknown kind of hyperedge '{h.get("kind")}'")
 
-    def is_correct(self, design=False, verbose=True) -> bool:
+    def is_correct(self, design=False, show_warnings=True) -> bool:
         """
         This method checks all the integrity constrains of the catalog.
         It can be expensive, so just do it at the end, not for each operation.
+        :param design: Whether the catalog contains a desing, or just a domain (more or less ICs will be checked)
+        :param show_warnings: Whether to print warnings or not
+        :return: If the catalog is honors all integrity constraints
         """
         correct = True
         edges = self.get_edges()
@@ -678,7 +681,7 @@ class Catalog(HyperNetXWrapper):
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
                 # correct = False
-                if verbose:
+                if show_warnings:
                     print("WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
 

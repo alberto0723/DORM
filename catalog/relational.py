@@ -82,12 +82,12 @@ class Relational(Catalog, ABC):
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
-    def save(self, file_path=None, migration_source=None, verbose=True) -> None:
+    def save(self, file_path=None, migration_source=None, show_warnings=True) -> None:
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
-            if self.is_correct(design="design" in self.metadata, verbose=verbose):
+            if self.is_correct(design="design" in self.metadata, show_warnings=show_warnings):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
                 df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
@@ -98,7 +98,7 @@ class Relational(Catalog, ABC):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
-                self.create_schema(migration_source=migration_source, verbose=verbose)
+                self.create_schema(migration_source=migration_source, show_warnings=show_warnings)
                 self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source is not None:
                     self.metadata["data_migrated"] = True
@@ -109,8 +109,8 @@ class Relational(Catalog, ABC):
         else:
             raise ValueError("No connection to the database or file provided")
 
-    def is_correct(self, design=False, verbose=True) -> bool:
-        correct = super().is_correct(design, verbose)
+    def is_correct(self, design=False, show_warnings=True) -> bool:
+        correct = super().is_correct(design, show_warnings=show_warnings)
         # Only needs to run further checks if the basic one succeeded
         if correct:
             structs = self.get_structs()
@@ -146,21 +146,21 @@ class Relational(Catalog, ABC):
         return correct
 
     @abstractmethod
-    def create_schema(self, migration_source, verbose) -> None:
+    def create_schema(self, migration_source, show_sql=False) -> None:
         """
         Table creation depends on the concrete implementation strategy.
         :param migration_source: The source schema to populate the tables being created.
-        :param verbose: Whether to print warnings and SQL statements or not.
+        :param show_sql: Whether to print SQL statements or not.
         :return:
         """
         pass
 
     @abstractmethod
-    def generate_sql(self, spec, verbose) -> list[str]:
+    def generate_sql(self, spec, show_warnings=True) -> list[str]:
         """
         SQL generation depends on the concrete implementation strategy.
         :param spec: Specification of a query.
-        :param verbose: Whether to print warnings and SQL statements or not.
+        :param show_warnings: Whether to print warnings or not.
         :return: List of SQL statements corresponding to the specification in the current design.
         """
         pass

@@ -39,8 +39,8 @@ class FirstNormalForm(Relational):
                         raise ValueError(f"Checking multiplicity: Multiplicity not provided for association '{current}-{path[i+1]}'")
         return correct
 
-    def is_correct(self, design=False, verbose=True) -> bool:
-        correct = super().is_correct(design, verbose)
+    def is_correct(self, design=False, show_warnings=True) -> bool:
+        correct = super().is_correct(design, show_warnings=show_warnings)
         # Not worth to check anything if the more basic stuff is already not correct
         if correct:
             # ---------------------------------------------------------------- ICs about being a normalized catalog
@@ -98,13 +98,13 @@ class FirstNormalForm(Relational):
                 raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
         return attribute_dicc
 
-    def generate_create_table_statements(self, verbose=False) -> list[str]:
+    def generate_create_table_statements(self, show_sql=False) -> list[str]:
         """
         Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
         One or more structs are expected inside the set, but all of them should generate the same attributes.
         Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
         of the associations.
-        :param verbose: Indicates if the DDL should be printed
+        :param show_sql: Indicates if the DDL should be printed
         :return: List of statements generated (one per table)
         """
         statements = []
@@ -127,17 +127,18 @@ class FirstNormalForm(Relational):
                 else:
                     attribute_list.append("  " + attr_alias + " " + attribute["misc_properties"].get("DataType"))
             sentence += ",\n".join(attribute_list) + "\n  );"
-            if verbose:
+            if show_sql:
                 print(sentence)
             statements.append(sentence)
         return statements
 
-    def generate_migration_statements(self, migration_source, verbose=False) -> list[str]:
+    def generate_migration_statements(self, migration_source, show_sql=False, show_warnings=True) -> list[str]:
         """
         Generates insertions to migrate data from one schema to another one.
         Both must be in the same database for it to work.
         :param migration_source: Database schema to migrate the data from.
-        :param verbose: Whether to print warnings and SQL statements or not.
+        :param show_sql: Whether to print SQL statements or not.
+        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated to migrate the data (one per struct)
         """
         statements = []
@@ -146,12 +147,12 @@ class FirstNormalForm(Relational):
         if source.metadata.get("domain", "") != self.metadata["domain"]:
             raise ValueError(f"Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
         if source.metadata.get("design", "") == self.metadata["design"]:
-            if verbose:
+            if show_warnings:
                 print("WARNING: Design of source and target coincides in the migration")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"The source {migration_source} does not have tables to migrate (according to its metadata)")
         if not source.metadata.get("data_migrated", False):
-            if verbose:
+            if show_warnings:
                 print(f"WARNING: The source {migration_source} does not have data to migrate (according to its metadata)")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
@@ -164,18 +165,18 @@ class FirstNormalForm(Relational):
                 for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
                     if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
                         pattern.append(self.get_edge_by_phantom_name(incidence.Index[1]))
-                sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_sql({"project": project, "pattern": pattern}, explicit_schema=True, verbose=verbose)[0] + ";"
-                if verbose:
+                sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_sql({"project": project, "pattern": pattern}, explicit_schema=True, show_warnings=show_warnings)[0] + ";"
+                if show_sql:
                     print(sentence)
                 statements.append(sentence)
         return statements
 
-    def generate_add_pk_statements(self, verbose=False) -> list[str]:
+    def generate_add_pk_statements(self, show_sql=False) -> list[str]:
         """
         Generated the DDL to add PKs to the tables
         The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
         ends of the associations in the anchor.
-        :param verbose: Whether to print warnings and SQL statements or not.
+        :param show_sql: Whether to print SQL statements or not.
         :return: List of statements generated (one per table)
         """
         statements = []
@@ -198,22 +199,22 @@ class FirstNormalForm(Relational):
                 raise ValueError(
                     f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
             sentence += " PRIMARY KEY (" + ", ".join(key_list) + ");\n"
-            if verbose:
+            if show_sql:
                 print(sentence)
             statements.append(sentence)
         return statements
 
-    def create_schema(self, migration_source=None, verbose=False) -> None:
+    def create_schema(self, migration_source=None, show_sql=False, show_warnings=True) -> None:
         """
         Creates the tables in the design.
         :param migration_source: Name of the database schema to migrate the data from.
-        :param verbose: Whether to print warnings and SQL statements or not.
+        :param show_sql: Whether to print SQL statements or not.
         """
         logger.info("Creating tables")
-        statements = self.generate_create_table_statements(verbose)
+        statements = self.generate_create_table_statements(show_sql=show_sql)
         if migration_source is not None:
-            statements.extend(self.generate_migration_statements(migration_source, verbose))
-        statements.extend(self.generate_add_pk_statements(verbose))
+            statements.extend(self.generate_migration_statements(migration_source, show_sql=show_sql, show_warnings=show_warnings))
+        statements.extend(self.generate_add_pk_statements(show_sql=show_sql))
         # TODO: Generate FKs, as well
         if self.engine is not None:
             with self.engine.connect() as conn:
@@ -427,14 +428,14 @@ class FirstNormalForm(Relational):
         else:
             return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name)
 
-    def generate_sql(self, spec, explicit_schema=False, verbose=False) -> list[str]:
+    def generate_sql(self, spec, explicit_schema=False, show_warnings=True) -> list[str]:
         """
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
         retrieve the required classes and associations
         :param spec: A JSON containing the select-project-join information
         :param explicit_schema: Adds the dbschema to every table in the FROM clause
-        :param verbose:
+        :param show_warnings: Whether to print warnings or not
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables
         """
         logger.info("Resolving query")
@@ -455,7 +456,7 @@ class FirstNormalForm(Relational):
         if implicit_classes.empty:
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
-                if verbose: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
+                if show_warnings: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 alias_table, alias_attr, location_attr = self.get_aliases(tables_combination)
@@ -491,7 +492,7 @@ class FirstNormalForm(Relational):
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom.Index) if elem == superclass_name else elem for elem in new_query["pattern"]]
-                subqueries.append(self.generate_sql(new_query, explicit_schema, verbose))
+                subqueries.append(self.generate_sql(new_query, explicit_schema, show_warnings=show_warnings))
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
                 sentences.append("\nUNION\n".join(combination))
