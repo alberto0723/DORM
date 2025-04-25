@@ -61,6 +61,7 @@ class FirstNormalForm(Relational):
         # For each element in the table
         attribute_dicc = {}
         for elem in elements.itertuples():
+            assert self.is_attribute(elem.Index[1]) or self.is_class_phantom(elem.Index[1]) or self.is_association_phantom(elem.Index[1]) or self.is_generalization_phantom(elem.Index[1]), f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'"
             if self.is_attribute(elem.Index[1]):
                 attribute_dicc[elem.Index[1]] = elem.Index[1]
             elif self.is_class_phantom(elem.Index[1]):
@@ -73,10 +74,6 @@ class FirstNormalForm(Relational):
                     if end.misc_properties["End_name"] in loose_ends:
                         attribute_dicc[end.misc_properties['End_name']] = (
                             self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
-            elif self.is_generalization_phantom(elem.Index[1]):
-                pass
-            else:
-                raise ValueError(f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'")
         return attribute_dicc
 
     def generate_create_table_statements(self, show_sql=False) -> list[str]:
@@ -176,9 +173,7 @@ class FirstNormalForm(Relational):
                 # If it is not a class, it is a loose end
                 else:
                     key_list.append(key)
-            if not key_list:
-                raise ValueError(
-                    f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined")
+            assert key_list, f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
             sentence += " PRIMARY KEY (" + ", ".join(key_list) + ");\n"
             if show_sql:
                 print(sentence)

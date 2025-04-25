@@ -473,7 +473,7 @@ class Catalog(HyperNetXWrapper):
                 correct = False
                 print(f"IC-Atoms15 violation: The class '{top_class}' in the top of a hierarchy should have an identifier")
 
-        # IC-Atoms15: Every association end has name anx multiplicities
+        # IC-Atoms15: Every association end has name and multiplicities
         logger.info("Checking IC-Atoms16")
         matches2_16 = self.get_outbound_associations()["misc_properties"]
         for end_properties in matches2_16:

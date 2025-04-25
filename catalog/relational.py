@@ -57,8 +57,7 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                    if any(table not in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
-                        raise ValueError(f"Missing required tables '{catalog_tables}' in the database")
+                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"Missing required tables '{catalog_tables}' in the database"
                     logger.info(f"Loading the catalog from the database connection")
                     df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
@@ -71,13 +70,11 @@ class Relational(Catalog, ABC):
                     # Get domain and design
                     result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
                     row = result.fetchone()
-                    if not row:
-                        raise ValueError("No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)")
+                    assert row, "No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)"
                     self.metadata = json.loads(row.comment)
 
     def get_engine(self, dbschema) -> sqlalchemy.engine.Engine:
-        if self.dbms is None or self.ip is None or self.port is None or self.user is None or self.password is None or self.dbname is None or dbschema is None:
-            raise ValueError("Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema")
+        assert self.dbms is not None and self.ip is not None and self.port is not None and self.user is not None and self.password is not None and self.dbname is not None and dbschema is not None, "Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema"
         url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
@@ -107,7 +104,7 @@ class Relational(Catalog, ABC):
                     conn.execute(sqlalchemy.text(statement))
                     conn.commit()
         else:
-            raise ValueError("No connection to the database or file provided")
+           raise ValueError("No connection to the database or file provided")
 
     def is_correct(self, design=False, show_warnings=True) -> bool:
         correct = super().is_correct(design, show_warnings=show_warnings)

@@ -460,6 +460,7 @@ class HyperNetXWrapper:
         node_labels = {}
         for i in self.H.nodes.dataframe['misc_properties'].items():
             node_labels[i[0]] = i[0]
+            assert i[1].get('Kind') in ['Identifier', 'Attribute', 'Phantom'], f"Undefined representation for node '{i[0]}' of kind '{i[1].get('Kind')}'"
             if i[1].get('Kind') == 'Identifier':
                 node_colors.append('blue')
             elif i[1].get('Kind') == 'Attribute':
@@ -470,11 +471,10 @@ class HyperNetXWrapper:
                 else:
                     node_colors.append('white')
                     node_labels[i[0]] = ''
-            else:
-                raise ValueError(f"Undefined representation for node '{i[0]}' of kind '{i[1].get('Kind')}'")
         # Customize edge graphical display
         edge_lines = []
         for i in self.H.edges.dataframe['misc_properties'].items():
+            assert i[1].get('Kind') in ['Class', 'Relationship', 'Struct', 'Set'], f"Wrong kind of edge {i[1].get('Kind')} for {i[0]}"
             if i[1].get('Kind') == 'Class':
                 edge_lines.append('dotted')
             elif i[1].get('Kind') == 'Relationship':
@@ -483,8 +483,6 @@ class HyperNetXWrapper:
                 edge_lines.append('dashdot')
             elif i[1].get('Kind') == 'Set':
                 edge_lines.append('solid')
-            else:
-                raise ValueError(f"Wrong kind of edge {i[1].get('Kind')} for {i[0]}")
 
         # Graphical display
         hnx.drawing.draw(self.H,
