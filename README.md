@@ -193,7 +193,7 @@ This is a flexible scripting tool that allows to generate queries and execute th
 usage: queryExecutor.py [-h] [--logging] [--show_sql] [--hide_warnings] [--dbms <dbms>] [--ip <ip>]
                         [--port <port>] [--user <user>] [--password <psw>] [--dbname <dbname>]
                         [--dbschema <sch>] [--query_file <path>] [--print_rows] [--print_counter]
-                        [--print_estimation]
+                        [--print_cost] [--print_time]
 
 Execute queries over a pre-existing catalog
 
@@ -212,5 +212,6 @@ options:
   --query_file <path>  Filename of the json file containing the queries
   --print_rows         Prints the resulting rows
   --print_counter      Prints the number of rows
-  --print_estimation   Prints the cost estimation of each query
+  --print_cost         Prints the unitless cost estimation of each query
+  --print_time         Prints the estimated time of each query (in milliseconds)
 ```

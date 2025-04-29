@@ -213,24 +213,43 @@ class Relational(Catalog, ABC):
             result = conn.execute(sqlalchemy.text(query)).fetchall()
         return result
 
-
-    def estimate_cost(self, query) -> float:
+    def get_cost(self, query) -> float:
         """
         Estimates the cost of a query in the engine associated to the catalog.
+        :param query: SQL query to be executed.
+        :return: Unitless estimated cost.
+        """
+        if self.engine is None:
+            raise ValueError("Query cost cannot be estimated without a connection to the DBMS")
+        with self.engine.connect() as conn:
+            first_row = conn.execute(sqlalchemy.text("EXPLAIN " + query)).fetchone()
+        assert first_row is not None, "Empty access plan"
+        # Extract the float (e.g., from "Execution Time: 0.456 ms")
+        match = re.search(r'cost=\d+\.\d+\.\.(\d+\.\d+)', str(first_row[0]))
+        assert match is not None, f"Cost not found in the access plan of the query '{first_row}'"
+        try:
+            # match.group(1) gives you just the number (whatever in the parenthesis in the pattern)
+            return float(match.group(1))
+        except ValueError:
+            raise ValueError(f"Cost parsing failed in the access plan of the query '{first_row}'")
+
+    def get_time(self, query) -> float:
+        """
+        Estimates the execution time of a query in the engine associated to the catalog (requires true execution!!!).
         :param query: SQL query to be executed.
         :return: Estimated time in milliseconds.
         """
         if self.engine is None:
             raise ValueError("Query cost cannot be estimated without a connection to the DBMS")
         with self.engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text("EXPLAIN (SUMMARY TRUE) "+query)).fetchall()
+            result = conn.execute(sqlalchemy.text(f"EXPLAIN (ANALYZE TRUE, SUMMARY TRUE) " + query)).fetchall()
         assert len(result) > 0, "Empty access plan"
         last_row = result[-1]
         # Extract the float (e.g., from "Execution Time: 0.456 ms")
-        match = re.search(r'([\d.]+)\s*ms', str(last_row))
-        assert match is not None, f"Cost not found in the access plan of the query '{last_row}'"
+        match = re.search(r'([\d.]+)\s*ms', str(last_row[0]))
+        assert match is not None, f"Time not found in the access plan of the query '{last_row}'"
         try:
-            # match.group(1) gives you just the number, without the " ms" suffix.
+            # match.group(1) gives you just the number, without the " ms" suffix  (whatever in the parenthesis in the pattern)
             return float(match.group(1))
         except ValueError:
             raise ValueError(f"Cost parsing failed in the access plan of the query '{last_row}'")

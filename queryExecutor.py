@@ -30,7 +30,8 @@ if __name__ == "__main__":
     base_parser.add_argument("--query_file", type=Path, help="Filename of the json file containing the queries", metavar="<path>")
     base_parser.add_argument("--print_rows", help="Prints the resulting rows", action="store_true")
     base_parser.add_argument("--print_counter", help="Prints the number of rows", action="store_true")
-    base_parser.add_argument("--print_estimation", help="Prints the cost estimation of each query", action="store_true")
+    base_parser.add_argument("--print_cost", help="Prints the unitless cost estimation of each query", action="store_true")
+    base_parser.add_argument("--print_time", help="Prints the estimated time of each query (in milliseconds)", action="store_true")
 
     args = base_parser.parse_args()
     if len(sys.argv) == 1:
@@ -59,8 +60,10 @@ if __name__ == "__main__":
                         print("First one is:")
                     print(queries[0]+";")
                     print("--//////////////////////////////////////////")
-                if args.print_estimation:
-                    print("Estimated cost: ", cat.estimate_cost(queries[0]))
+                if args.print_cost:
+                    print("Estimated cost: ", cat.get_cost(queries[0]))
+                if args.print_time:
+                    print("Estimated time: ", cat.get_time(queries[0]))
                 rows = cat.execute(queries[0])
                 if args.print_rows:
                     for row in rows:
