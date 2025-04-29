@@ -339,7 +339,14 @@ class HyperNetXWrapper:
                 if self.is_class_phantom(elem) and elem in outbounds:
                     edge_names.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(elem), []))
                     edge_names.extend(self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(elem), []))
-        return HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
+        # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
+        result = HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
+        to_be_removed = []
+        for attr_name in result.get_attributes().index:
+            if attr_name not in outbounds:
+                to_be_removed.append(attr_name)
+        result.H.remove_nodes(to_be_removed, inplace=True)
+        return result
 
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
         return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.tolist()

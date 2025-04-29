@@ -4,7 +4,7 @@
         {"kind": "Struct",
          "name": "Artists_type",
          "anchor": ["Artist"],
-         "elements": [ "A_name"]},
+         "elements": ["A_ID", "A_name"]},
         {"kind": "Set",
          "name": "Artists_table",
          "elements": ["Artists_type"]},

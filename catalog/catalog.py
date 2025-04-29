@@ -137,8 +137,6 @@ class Catalog(HyperNetXWrapper):
         for element in anchor:
             if not self.is_class(element) and not self.is_association(element):
                 raise ValueError(f"The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a association")
-        # TODO: Check if the associations in the anchor are connected (considering inheritance of associations)
-        # TODO: Check if the struct is connected
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
@@ -177,6 +175,18 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"Creating struct '{struct_name}' could not find '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
+        # Check if the classes and associations in the struct are connected
+        restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+        if not restricted_struct.H.is_connected():
+            raise ValueError(f"Struct '{struct_name}' is not connected")
+        # Check if attributes in the struct are connected
+        connected_attributes = restricted_struct.get_attributes().index
+        for elem in elements:
+            if self.is_attribute(elem) and elem not in connected_attributes:
+                raise ValueError(f"Attribute '{elem}' in struct '{struct_name}' is not connected")
+        # Check if the associations in the anchor are connected (this should consider inheritance of associations)
+        if not restricted_struct.H.restrict_to_edges(anchor).is_connected():
+            raise ValueError(f"The anchor of struct '{struct_name}' is not connected")
 
     def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
