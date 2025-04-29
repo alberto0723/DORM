@@ -5,6 +5,7 @@ import pandas as pd
 import sqlalchemy
 import hypernetx as hnx
 import json
+import re
 
 from .catalog import Catalog
 
@@ -209,5 +210,27 @@ class Relational(Catalog, ABC):
         if self.engine is None:
             raise ValueError("Queries cannot be executed without a connection to the DBMS")
         with self.engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text(query))
-        return result.fetchall()
+            result = conn.execute(sqlalchemy.text(query)).fetchall()
+        return result
+
+
+    def estimate_cost(self, query) -> float:
+        """
+        Estimates the cost of a query in the engine associated to the catalog.
+        :param query: SQL query to be executed.
+        :return: Estimated time in milliseconds.
+        """
+        if self.engine is None:
+            raise ValueError("Query cost cannot be estimated without a connection to the DBMS")
+        with self.engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text("EXPLAIN (SUMMARY TRUE) "+query)).fetchall()
+        assert len(result) > 0, "Empty access plan"
+        last_row = result[-1]
+        # Extract the float (e.g., from "Execution Time: 0.456 ms")
+        match = re.search(r'([\d.]+)\s*ms', str(last_row))
+        assert match is not None, f"Cost not found in the access plan of the query '{last_row}'"
+        try:
+            # match.group(1) gives you just the number, without the " ms" suffix.
+            return float(match.group(1))
+        except ValueError:
+            raise ValueError(f"Cost parsing failed in the access plan of the query '{last_row}'")

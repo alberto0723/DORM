@@ -1,9 +1,16 @@
-# Dynamic Object-Relational Mapping (DORM)
-This tool (based on [Moditha Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis) allows to generate database schemas and queries in a flexible way. 
+# 🛏️ Dynamic Object-Relational Mapping (DORM) 
+This tool allows to generate database schemas and queries in a flexible and dynamic way. 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
 Hence, mappings dynamically change as database schema design evolves.
+Once the data are in the database powered by DORM, a new design also triggers the migration to the new schema.
 
-## Inputs
+## 🔍 Project Information
+The motivation and need of evolving the database schema can be found in the paper:
+[Enrico Gallinucci, Matteo Golfarelli, Wafaa Radwan, Gabriel Zarate, Alberto Abelló:
+Impact Study of NoSQL Refactoring in SkyServer Database. DOLAP 2025: 1-11](https://ceur-ws.org/Vol-3931/paper1.pdf)
+On the other hand, the overall idea of having a generic representation of the schema independent of the storage engine is based on [Moditha Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis.
+
+## 🚀 Getting Started
 There are three different inputs:
 
 ### 1- Domain
@@ -17,7 +24,7 @@ The contents of the domain files are as follows:
 2. An optional list of binary ``associations``:
    - Every association has a ``name`` and two ends.
       - Every end has a ``class`` and some properties: ``End_name`` and ``Multiplicity``.
-3An optional list of ``generalizations``:
+3. An optional list of ``generalizations``:
    - Every generalization has a ``name``, some properties (i.e., ``Disjoint`` and ``Complete``), a ``superclass``, and a list of ``subclasses'':
       - Every subclass has a ``class`` and some properties: ``Constraint`` (which is a predicate over the attributes of the class).
 
@@ -116,11 +123,28 @@ Still, there are some queries that cannot be properly translated:
 - If the result of the query would have twice the same table in the FROM clause, it will only appear once.
 However, the links would still be generated twice.
 
-## Setup
-It is also assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 
-Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt) (generated with ```pip freeze```).
+## 🐍 Setup
+It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 
+Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt).
 
-## Running
+Some features can be tested with pure files, but full functionalities require a [PostgreSQL](https://www.postgresql.org) database connection.
+We tested with version 14.
+
+### 📦 Install Dependencies
+
+With the virtual environment activated, install all required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+To update the list of dependencies later, run:
+
+```bash
+pip freeze > requirements.txt
+```
+
+## ▶️ Running
 There are some tools available to facilitate usage and testing.
 
 ### catalogAction
@@ -169,6 +193,7 @@ This is a flexible scripting tool that allows to generate queries and execute th
 usage: queryExecutor.py [-h] [--logging] [--show_sql] [--hide_warnings] [--dbms <dbms>] [--ip <ip>]
                         [--port <port>] [--user <user>] [--password <psw>] [--dbname <dbname>]
                         [--dbschema <sch>] [--query_file <path>] [--print_rows] [--print_counter]
+                        [--print_estimation]
 
 Execute queries over a pre-existing catalog
 
@@ -187,4 +212,5 @@ options:
   --query_file <path>  Filename of the json file containing the queries
   --print_rows         Prints the resulting rows
   --print_counter      Prints the number of rows
+  --print_estimation   Prints the cost estimation of each query
 ```
