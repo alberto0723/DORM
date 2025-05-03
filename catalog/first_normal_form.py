@@ -188,7 +188,32 @@ class FirstNormalForm(Relational):
         :return: List of statements generated (one per table)
         """
         statements = []
-        # TODO: Generate FKs, as well
+        firstlevels = self.get_inbound_firstLevel()
+        # For each table
+        for table_referee in firstlevels.itertuples():
+            # Get all the attributes in all the structs
+            attribute_dicc = {}
+            for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
+                attribute_dicc.update(self.get_struct_attributes(struct_name))
+            # Check all the attributes to see if they require an FK
+            for attr_alias, attr_name in attribute_dicc.items():
+                # An attribute can only be a FK if it is a class ID
+                if self.is_id(attr_name):
+                    for table_referred in firstlevels.itertuples():
+                        # We can take any struct in the set, because all must share the anchor
+                        struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
+                        anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+                        assert len(anchor_points) > 0, "Any struct should have at least one anchor point"
+                        assert self.is_class_phantom(anchor_points[0]), "Anchor points must be class phantoms"
+                        if (len(anchor_points) == 1 and attr_name == self.get_class_id_by_name(self.get_edge_by_phantom_name(anchor_points[0]))
+                                and (table_referee.Index[0] != table_referred.Index[0] or attr_alias != attr_name)):
+                            logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
+                            # Create the FK
+                            sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_alias}) REFERENCES {table_referred.Index[0]}({attr_name});"
+
+                            if show_sql:
+                                print(sentence)
+                            statements.append(sentence)
         return statements
 
     def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:

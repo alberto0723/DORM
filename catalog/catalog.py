@@ -498,7 +498,6 @@ class Catalog(HyperNetXWrapper):
                     correct = False
                     print(f"IC-Atoms16 violation: The attribute '{attribute_name}' used in the generalization constraint of '{subclass.Index[1]}', not found in any of its superclasses '{superclass_names}'")
 
-
         # IC-Atoms17: Every association end has name and multiplicities
         logger.info("Checking IC-Atoms17")
         matches2_17 = self.get_outbound_associations()["misc_properties"]
