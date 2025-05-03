@@ -111,17 +111,20 @@ class HyperNetXWrapper:
 
     def get_phantom_classes(self) -> pd.DataFrame:
         nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Class')]
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
+                                                                  x['Subkind'] == 'Class')]
         return phantoms
 
     def get_phantom_associations(self) -> pd.DataFrame:
         nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Association')]
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
+                                                                  x['Subkind'] == 'Association')]
         return phantoms
 
     def get_phantom_generalizations(self) -> pd.DataFrame:
         nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and x['Subkind'] == 'Generalization')]
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
+                                                                  x['Subkind'] == 'Generalization')]
         return phantoms
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
@@ -162,27 +165,32 @@ class HyperNetXWrapper:
 
     def get_inbound_classes(self) -> pd.DataFrame:
         incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'ClassIncidence')]
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
+                                                                            x['Kind'] == 'ClassIncidence')]
         return inbounds
 
     def get_inbound_associations(self) -> pd.DataFrame:
         incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'AssociationIncidence')]
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
+                                                                            x['Kind'] == 'AssociationIncidence')]
         return inbounds
 
     def get_inbound_generalizations(self) -> pd.DataFrame:
         incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'GeneralizationIncidence')]
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
+                                                                            x['Kind'] == 'GeneralizationIncidence')]
         return inbounds
 
     def get_inbound_structs(self) -> pd.DataFrame:
         incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'StructIncidence')]
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
+                                                                            x['Kind'] == 'StructIncidence')]
         return inbounds
 
     def get_inbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and x.get('Kind') == 'SetIncidence')]
+        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
+                                                                            x['Kind'] == 'SetIncidence')]
         return inbounds
 
     def get_outbounds(self) -> pd.DataFrame:
@@ -198,7 +206,8 @@ class HyperNetXWrapper:
         if incidences.empty:
             return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'AssociationIncidence')]
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                 x['Kind'] == 'AssociationIncidence')]
             return outbounds
 
     def get_outbound_generalization_superclasses(self) -> pd.DataFrame:
@@ -206,7 +215,9 @@ class HyperNetXWrapper:
         if incidences.empty:
             return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Superclass')]
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                 x['Kind'] == 'GeneralizationIncidence' and
+                                                                                 x['Subkind'] == 'Superclass')]
             return outbounds
 
     def get_outbound_generalization_subclasses(self) -> pd.DataFrame:
@@ -214,7 +225,9 @@ class HyperNetXWrapper:
         if incidences.empty:
             return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'GeneralizationIncidence' and x.get('Subkind') == 'Subclass')]
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                 x['Kind'] == 'GeneralizationIncidence' and
+                                                                                 x['Subkind'] == 'Subclass')]
             return outbounds
 
     def get_outbound_structs(self) -> pd.DataFrame:
@@ -222,7 +235,8 @@ class HyperNetXWrapper:
         if incidences.empty:
             return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'StructIncidence')]
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                 x['Kind'] == 'StructIncidence')]
             return outbounds
 
     def get_outbound_association_by_name(self, ass_name) -> pd.DataFrame:
@@ -246,7 +260,8 @@ class HyperNetXWrapper:
         if incidences.empty:
             return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'SetIncidence')]
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                 x['Kind'] == 'SetIncidence')]
             return outbounds
 
     def get_outbound_classes(self) -> pd.DataFrame:
@@ -254,7 +269,8 @@ class HyperNetXWrapper:
         if incidences.empty:
             return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and x.get('Kind') == 'ClassIncidence')]
+            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                 x['Kind'] == 'ClassIncidence')]
             return outbounds
 
     def get_transitives(self) -> pd.DataFrame:
@@ -270,10 +286,10 @@ class HyperNetXWrapper:
         return transitives
 
     def get_inbound_firstLevel(self) -> pd.DataFrame:
-        firstLevelPhantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
+        firstLevel_phantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
                                            self.get_outbounds().reset_index()[["nodes"]])
-        firstLevelIncidences = self.get_inbounds().join(firstLevelPhantoms.set_index("nodes"), on="nodes", how='inner')
-        return firstLevelIncidences
+        firstLevel_incidences = self.get_inbounds().join(firstLevel_phantoms.set_index("nodes"), on="nodes", how='inner')
+        return firstLevel_incidences
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         elements = self.get_outbound_struct_by_name(struct_name)

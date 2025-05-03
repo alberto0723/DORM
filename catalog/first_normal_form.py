@@ -180,6 +180,17 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
+    def generate_add_fk_statements(self, show_sql=False) -> list[str]:
+        """
+        Generated the DDL to add FKs to the tables
+        The foreign keys of a table come from the ends of its associations, which are attributes and there is another table that has the class as an anchor.
+        :param show_sql: Whether to print SQL statements or not.
+        :return: List of statements generated (one per table)
+        """
+        statements = []
+        # TODO: Generate FKs, as well
+        return statements
+
     def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
         """
         For each required domain element in the pattern, create a bucket with all the tables where it can come from.

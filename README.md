@@ -144,6 +144,8 @@ To update the list of dependencies later, run:
 pip freeze > requirements.txt
 ```
 
+There is an annoying bug in HyperNetX that constantly generates a warning. It can be avoided as explained in [BugFixForHyperNetX.txt](BugFixForHyperNetX.txt).
+
 ## ▶️ Running
 There are some tools available to facilitate usage and testing.
 

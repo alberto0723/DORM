@@ -123,7 +123,6 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"The same class '{superclass}' cannot play super and sub roles in generalization '{generalization_name}'")
             if not self.is_class(sub['class']):
                 raise ValueError(f"The subclass '{superclass}' in '{generalization_name}' does not exists")
-            # TODO: Discriminant should be validated here
             sub['prop']['Kind'] = 'GeneralizationIncidence'
             sub['prop']['Subkind'] = 'Subclass'
             sub['prop']['Direction'] = 'Outbound'
@@ -483,20 +482,37 @@ class Catalog(HyperNetXWrapper):
                 correct = False
                 print(f"IC-Atoms15 violation: The class '{top_class}' in the top of a hierarchy should have an identifier")
 
-        # IC-Atoms15: Every association end has name and multiplicities
+        # IC-Atoms16: Every discriminant must be an attribute in one of the corresponding superclasses
         logger.info("Checking IC-Atoms16")
-        matches2_16 = self.get_outbound_associations()["misc_properties"]
-        for end_properties in matches2_16:
+        matches2_16 = self.get_outbound_generalization_subclasses()[self.get_outbound_generalization_subclasses().apply(lambda r: "Constraint" in r["misc_properties"], axis=1)]
+        for subclass in matches2_16.itertuples():
+            superclass_names = self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(subclass.Index[1]), [])
+            constraint = subclass.misc_properties.get('Constraint', None)
+            assert constraint is not None, f"No constraint found for '{subclass}'"
+            attribute_names = self.parse_predicate(constraint)
+            for attribute_name in attribute_names:
+                found = False
+                for superclass_name in superclass_names:
+                    found = found or self.H.get_cell_properties(superclass_name, attribute_name, "Kind") is not None
+                if not found:
+                    correct = False
+                    print(f"IC-Atoms16 violation: The attribute '{attribute_name}' used in the generalization constraint of '{subclass.Index[1]}', not found in any of its superclasses '{superclass_names}'")
+
+
+        # IC-Atoms17: Every association end has name and multiplicities
+        logger.info("Checking IC-Atoms17")
+        matches2_17 = self.get_outbound_associations()["misc_properties"]
+        for end_properties in matches2_17:
             if end_properties.get("End_name", None) is None:
                 correct = False
-                print(f"IC-Atoms16 violation: Some association end does not have 'End_name' defined")
+                print(f"IC-Atoms17 violation: Some association end does not have 'End_name' defined")
             else:
                 if end_properties.get("MultiplicityMax", None) is None:
                     correct = False
-                    print(f"IC-Atoms16 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMax' defined")
+                    print(f"IC-Atoms17 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMax' defined")
                 if end_properties.get("MultiplicityMin", None) is None:
                     correct = False
-                    print(f"IC-Atoms16 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMin' defined")
+                    print(f"IC-Atoms17 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMin' defined")
                 # if end_properties.get("MultiplicityAvg", None) is None:
                 #     correct = False
                 #     print(f"IC-Atoms16 violation: The association end '{end_properties.get("End_name")}' does not have MultiplicityAvg defined")
@@ -743,6 +759,11 @@ class Catalog(HyperNetXWrapper):
                 elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
                     correct = False
                     print(f"Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
+
+            # IC-Design6: All classes must appear linked to at least on anchor with min multiplitity one
+            #             This is relaxed to be just a warning, as above, just because of generalizations
+            logger.info("Checking IC-Design6->TO BE IMPLEMENTED")
+            # TODO: Every class must be connected to all classes in an anchor with a path of minimum one multiplicity
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:

@@ -145,7 +145,7 @@ class Relational(Catalog, ABC):
 
     def create_schema(self, migration_source=None, show_sql=False, show_warnings=True) -> None:
         """
-        Creates the tables in the design.
+        Creates the tables according to the design.
         :param migration_source: Name of the database schema to migrate the data from.
         :param show_sql: Whether to print SQL statements or not.
         :param show_warnings: Whether to print warnings or not.
@@ -155,7 +155,7 @@ class Relational(Catalog, ABC):
         if migration_source is not None:
             statements.extend(self.generate_migration_statements(migration_source, show_sql=show_sql, show_warnings=show_warnings))
         statements.extend(self.generate_add_pk_statements(show_sql=show_sql))
-        # TODO: Generate FKs, as well
+        statements.extend(self.generate_add_fk_statements(show_sql=show_sql))
         if self.engine is not None:
             with self.engine.connect() as conn:
                 for statement in statements:
@@ -188,6 +188,15 @@ class Relational(Catalog, ABC):
         PK generation depends on the concrete implementation strategy.
         :param show_sql: Whether to print SQL statements or not.
         :return: List of statements generated (one per table)
+        """
+        pass
+
+    @abstractmethod
+    def generate_add_fk_statements(self, show_sql=False) -> list[str]:
+        """
+        FK generation depends on the concrete implementation strategy.
+        :param show_sql: Whether to print SQL statements or not.
+        :return: List of statements generated (one per FK)
         """
         pass
 
