@@ -763,6 +763,11 @@ class Catalog(HyperNetXWrapper):
             #             This is relaxed to be just a warning, as above, just because of generalizations
             logger.info("Checking IC-Design6->TO BE IMPLEMENTED")
             # TODO: Every class must be connected to all classes in an anchor with a path of minimum one multiplicity
+
+            # IC-Design7: If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided
+            logger.info("Checking IC-Design7->TO BE IMPLEMENTED")
+            # TODO: take the implementation from get_discriminants (requires some modification)
+
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:

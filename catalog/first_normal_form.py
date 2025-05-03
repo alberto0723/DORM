@@ -313,7 +313,7 @@ class FirstNormalForm(Relational):
         """
         Based on the existence of superclasses, this method finds the corresponding discriminants.
         :param tables_combination: The set of tables in the FROM clause of a query.
-        :param pattern_class_names: The sef of classes in the pattern of the query.
+        :param pattern_class_names: The set of classes in the pattern of the query.
         :return: List of discriminants necessary in the query.
         """
         discriminants = []
@@ -331,11 +331,18 @@ class FirstNormalForm(Relational):
                             table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name, [])
                             # Check if they are siblings
                             if pattern_class_name != table_class_name and [s for s in pattern_superclasses if s in table_hierarchy]:
-                                # TODO: We need to check if the discriminant is available in the table, which should happen if the generalization is overlapping
-                                # Add the corresponding discriminant (this works because we have single inheritance)
-                                discriminants.append(
-                                    self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
-                                        self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties["Constraint"])
+                                discriminant = self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
+                                        self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties.get("Constraint", None)
+                                assert discriminant is not None, f"No discriminant for '{pattern_class_name}'"
+                                attribute_names = self.parse_predicate(discriminant)
+                                found = False
+                                for attribute_name in attribute_names:
+                                    found = found or attribute_name in self.get_attribute_names_by_struct_name(struct_name)
+                                if found:
+                                    # Add the corresponding discriminant (this works because we have single inheritance)
+                                    discriminants.append(discriminant)
+                                else:
+                                    raise ValueError(f"No discriminant attribute '{attribute_name}' found in struct '{struct_name}' in table '{table}' for '{pattern_class_name}' in the query")
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
