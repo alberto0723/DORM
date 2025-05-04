@@ -730,17 +730,22 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
             # IC-Design5: For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization
-            #             Both are checked at the same time to be more precise in the message
+            # IC-Design6: If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided
+            #             All three are checked at the same time to be more precise in the message and efficient
             logger.info("Checking IC-Design4")
             logger.info("Checking IC-Design5")
+            logger.info("Checking IC-Design6->TO BE IMPLEMENTED")
             for set_name in sets.index:
                 anchor_concepts = []
                 anchor_attributes = []
+                set_attributes = []
                 struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs(), on="nodes", how="inner").index
                 for struct_phantom in struct_phantom_list:
+                    struct_name = self.get_edge_by_phantom_name(struct_phantom)
+                    set_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
                     attribute_list = []
                     concept_list = []
-                    for key in self.get_anchor_end_names_by_struct_name(self.get_edge_by_phantom_name(struct_phantom)):
+                    for key in self.get_anchor_end_names_by_struct_name(struct_name):
                         concept_list.append(key)
                         if self.is_class_phantom(key):
                             attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
@@ -751,22 +756,49 @@ class Catalog(HyperNetXWrapper):
                     attribute_list.sort()
                     anchor_concepts.append(concept_list)
                     anchor_attributes.append(attribute_list)
+                set_attributes = drop_duplicates(set_attributes)
+                # Check IC-Design4
                 if len(drop_duplicates(anchor_attributes)) > 1:
                     correct = False
                     print(f"Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
+                # Check IC-Design5
                 # Not really necessary to check if they are generalization, because attributes already coincide
                 elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
                     correct = False
                     print(f"Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
+                # Check IC-Design6
+                else:
+                    # For every pair of structs in the set
+                    for i in range(len(anchor_concepts)):
+                        for j in range(i+1, len(anchor_concepts)):
+                            if anchor_concepts[i] != anchor_concepts[j]:
+                                a, b = i, j
+                                for _ in range(2):
+                                    print(anchor_concepts[a], anchor_concepts[b])
+                                    # Find the different concept in the anchor (they must be in the same generalization hierarchy by ID-Design4)
+                                    for phantom_name in anchor_concepts[a]:
+                                        if phantom_name not in anchor_concepts[b]:
+                                            class_name = self.get_edge_by_phantom_name(phantom_name)
+                                            # Check if the class to be discriminated is not the top of the hierarchy
+                                            if self.get_superclasses_by_class_name(class_name, []):
+                                                # Now we need to check if the corresponding discriminant is in the table (actually, we should check in the same struct)
+                                                discriminant = self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[phantom_name].misc_properties.get("Constraint", None)
+                                                assert discriminant is not None, f"No discriminant for '{class_name}'"
+                                                attribute_names = self.parse_predicate(discriminant)
+                                                found = True
+                                                for attribute_name in attribute_names:
+                                                    # This is just checking if the attribute is in the table, but actually it should check if it is in the current struct
+                                                    found = found and attribute_name in set_attributes
+                                                if not found:
+                                                    correct = False
+                                                    raise ValueError(f"Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
+                                    # Now we need to do the comparison the other way round
+                                    a, b = j, i
 
-            # IC-Design6: All classes must appear linked to at least on anchor with min multiplitity one
+            # IC-Design7: All classes must appear linked to at least on anchor with min multiplitity one
             #             This is relaxed to be just a warning, as above, just because of generalizations
-            logger.info("Checking IC-Design6->TO BE IMPLEMENTED")
-            # TODO: Every class must be connected to all classes in an anchor with a path of minimum one multiplicity
-
-            # IC-Design7: If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided
             logger.info("Checking IC-Design7->TO BE IMPLEMENTED")
-            # TODO: take the implementation from get_discriminants (requires some modification)
+            # TODO: Every class must be connected to all classes in an anchor with a path of minimum one multiplicity
 
         return correct
 

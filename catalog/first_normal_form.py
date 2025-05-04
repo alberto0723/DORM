@@ -205,6 +205,8 @@ class FirstNormalForm(Relational):
                         anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                         assert len(anchor_points) > 0, "Any struct should have at least one anchor point"
                         assert self.is_class_phantom(anchor_points[0]), "Anchor points must be class phantoms"
+                        # TODO: This check is not enough, because we could be pointing to a different class in the hierarchy.
+                        #       The class of the endpoint must be checked
                         if (len(anchor_points) == 1 and attr_name == self.get_class_id_by_name(self.get_edge_by_phantom_name(anchor_points[0]))
                                 and (table_referee.Index[0] != table_referred.Index[0] or attr_alias != attr_name)):
                             logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
@@ -335,14 +337,14 @@ class FirstNormalForm(Relational):
                                         self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties.get("Constraint", None)
                                 assert discriminant is not None, f"No discriminant for '{pattern_class_name}'"
                                 attribute_names = self.parse_predicate(discriminant)
-                                found = False
+                                found = True
                                 for attribute_name in attribute_names:
-                                    found = found or attribute_name in self.get_attribute_names_by_struct_name(struct_name)
+                                    found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
                                 if found:
                                     # Add the corresponding discriminant (this works because we have single inheritance)
                                     discriminants.append(discriminant)
                                 else:
-                                    raise ValueError(f"No discriminant attribute '{attribute_name}' found in struct '{struct_name}' in table '{table}' for '{pattern_class_name}' in the query")
+                                    raise ValueError(f"Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query")
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
