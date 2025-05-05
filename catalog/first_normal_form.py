@@ -203,7 +203,7 @@ class FirstNormalForm(Relational):
                     # If it comes from an association
                     if attr_alias != attr_name:
                         class_referee = self.get_class_name_by_end_name(attr_alias)
-                        hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee, [])
+                        hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee)
                     # If the attribute comes from a class
                     else:
                         # Get the classes in the struct that provide the ID
@@ -213,7 +213,7 @@ class FirstNormalForm(Relational):
                                 if self.is_class_phantom(elem):
                                     class_name = self.get_edge_by_phantom_name(elem)
                                     if attr_name == self.get_class_id_by_name(class_name):
-                                        hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name, []))
+                                        hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name))
                         assert len(hierarchies) > 0, f"The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
                         # Take the shorter hierarchy
                         hierarchy = sorted(hierarchies, key=len)[0]
@@ -249,7 +249,7 @@ class FirstNormalForm(Relational):
         associations = []
         for elem in pattern:
             # Find the tables (aka fist level elements) where the element belongs
-            hierarchy = [elem]+self.get_superclasses_by_class_name(elem, [])
+            hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
             hierarchy_phantoms = [self.get_phantom_of_edge_by_name(c) for c in hierarchy]
             second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes').isin(hierarchy_phantoms)]
             inbounds = self.get_inbound_structs()
@@ -337,7 +337,7 @@ class FirstNormalForm(Relational):
         discriminants = []
         # For every class in the pattern
         for pattern_class_name in pattern_class_names:
-            pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name, [])
+            pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name)
             if pattern_superclasses:
                 # For every table in the query
                 for table in tables_combination:
@@ -346,7 +346,7 @@ class FirstNormalForm(Relational):
                         table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
                         # For all classes in the table
                         for table_class_name in table_classes.index.get_level_values("edges"):
-                            table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name, [])
+                            table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name)
                             # Check if they are siblings
                             if pattern_class_name != table_class_name and [s for s in pattern_superclasses if s in table_hierarchy]:
                                 discriminant = self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
@@ -391,7 +391,7 @@ class FirstNormalForm(Relational):
         associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
         query_superclasses = query_classes.copy()
         for class_name in query_classes:
-            query_superclasses.extend(self.get_superclasses_by_class_name(class_name, []))
+            query_superclasses.extend(self.get_superclasses_by_class_name(class_name))
         query_superclasses = drop_duplicates(query_superclasses)
         while tables:
             # Take any table and find all its potentially connection points
@@ -408,7 +408,7 @@ class FirstNormalForm(Relational):
                             plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
                             # Also, it can connect to a loose end if it participates in an association
                             for ass in associations.itertuples():
-                                if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name, []):
+                                if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name):
                                     plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
                 for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
                     for ass in associations.itertuples():
