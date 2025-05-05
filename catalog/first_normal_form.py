@@ -217,21 +217,27 @@ class FirstNormalForm(Relational):
                         assert len(hierarchies) > 0, f"The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
                         # Take the shorter hierarchy
                         hierarchy = sorted(hierarchies, key=len)[0]
-                    for table_referred in firstlevels.itertuples():
-                        # We can take any struct in the set, because all must share the anchor
-                        struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
-                        anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                        assert len(anchor_points) > 0, f"Struct '{struct_name}' should have at least one anchor point"
-                        assert self.is_class_phantom(anchor_points[0]), f"Anchor point '{anchor_points[0]}' must be class phantoms"
-                        if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) in hierarchy
-                                and (table_referee != table_referred or attr_alias != attr_name)):
-                            logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
-                            # Create the FK
-                            sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_alias}) REFERENCES {table_referred.Index[0]}({attr_name});"
+                    # Follow the hierarchy bottom to top in order until a superclass is found to point to
+                    found = False
+                    for class_name in hierarchy:
+                        for table_referred in firstlevels.itertuples():
+                            # We can take any struct in the set, because all must share the anchor
+                            struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
+                            anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+                            assert len(anchor_points) > 0, f"Struct '{struct_name}' should have at least one anchor point"
+                            assert self.is_class_phantom(anchor_points[0]), f"Anchor point '{anchor_points[0]}' must be class phantoms"
+                            if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
+                                    and (table_referee != table_referred or attr_alias != attr_name)):
+                                found = True
+                                logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
+                                # Create the FK
+                                sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_alias}) REFERENCES {table_referred.Index[0]}({attr_name});"
 
-                            if show_sql:
-                                print(sentence)
-                            statements.append(sentence)
+                                if show_sql:
+                                    print(sentence)
+                                statements.append(sentence)
+                        if found:
+                            break
         return statements
 
     def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
