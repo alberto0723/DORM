@@ -371,6 +371,27 @@ class HyperNetXWrapper:
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
         return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.tolist()
 
+    def get_subclasses_by_class_name(self, class_name, visited: list[str]=[]) -> list[str]:
+        """
+        Gives the names of the subclasses of a given class (the class itself is not included in the list)
+        :param class_name:
+        :param visited: This is necessary for recursion purposes. Initially, it should be just an empty list
+        :return: List of subclasses (no sorting can be assumed)
+        """
+        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
+            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
+            suffixes=("_superclass", "_subclass"), how="inner")
+        direct_subclasses = all_links[all_links["nodes_superclass"] == self.get_phantom_of_edge_by_name(class_name)]
+        if direct_subclasses.empty:
+            return []
+        else:
+            subclasses = []
+            for subclass_phantom in direct_subclasses["nodes_subclass"]:
+                subclass = self.get_edge_by_phantom_name(subclass_phantom)
+                assert subclass not in visited, f"Generalization cycle found for '{subclass}' in '{visited}'"
+                subclasses.extend([subclass]+self.get_subclasses_by_class_name(subclass, visited + [class_name]))
+            return subclasses
+
     def get_superclasses_by_class_name(self, class_name, visited: list[str]=[]) -> list[str]:
         """
         Gives the names of the superclasses of a given class (the class itself is not included in the list)
@@ -403,6 +424,10 @@ class HyperNetXWrapper:
             generalization = direct_superclass.index[0]
             assert superclass not in visited, f"Generalization cycle found for '{superclass}' in '{visited}'"
             return [generalization]+self.get_generalizations_by_class_name(superclass, visited + [class_name])
+
+    def get_discriminant_by_class_name(self, class_name) -> str:
+        return self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
+            self.get_phantom_of_edge_by_name(class_name)].misc_properties.get("Constraint", None)
 
     def is_attribute(self, name) -> bool:
         return name in self.get_attributes().index

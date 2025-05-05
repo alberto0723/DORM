@@ -51,7 +51,7 @@ class FirstNormalForm(Relational):
 
     def get_struct_attributes(self, struct_name) -> dict[str, str]:
         """
-        This generates the correspondence between attribute names in a table and their corresponding attribute.
+        This generates the correspondence between attribute names in a struct and their corresponding attribute.
         It is necessary to do it to consider foreign keys.
         :param struct_name:
         :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
@@ -354,13 +354,13 @@ class FirstNormalForm(Relational):
                         for table_class_name in table_classes.index.get_level_values("edges"):
                             # Check if they are siblings
                             if table_class_name in pattern_superclasses:
-                                discriminant = self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
-                                        self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties.get("Constraint", None)
+                                discriminant = self.get_discriminant_by_class_name(pattern_class_name)
                                 assert discriminant is not None, f"No discriminant for '{pattern_class_name}'"
                                 found = True
                                 for attribute_name in self.parse_predicate(discriminant):
                                     found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
-                                assert found, f"Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query (IC-Design7 should prevent this from happening)"
+                                if not found:
+                                    raise ValueError(f"Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
                                 # Add the corresponding discriminant (this works because we have single inheritance)
                                 discriminants.append(discriminant)
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)

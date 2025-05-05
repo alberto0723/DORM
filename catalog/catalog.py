@@ -719,7 +719,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Design3: All domain elements must appear in some struct
             #             This is relaxed into just a warning, because of generalizations
-            logger.info("Checking IC-Design3")
+            logger.info("Checking IC-Design3 (produces just warnings)")
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
@@ -761,12 +761,12 @@ class Catalog(HyperNetXWrapper):
                 # Check IC-Design4
                 if len(drop_duplicates(anchor_attributes)) > 1:
                     correct = False
-                    print(f"Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
+                    print("IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
                 # Check IC-Design5
                 # Not really necessary to check if they are generalization, because attributes already coincide
                 elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
                     correct = False
-                    print(f"Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
+                    print("IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
                 # Check IC-Design6
                 else:
                     # For every pair of structs in the set
@@ -791,13 +791,26 @@ class Catalog(HyperNetXWrapper):
                                                     found = found and attribute_name in set_attributes
                                                 if not found:
                                                     correct = False
-                                                    raise ValueError(f"Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
+                                                    print("IC-Design6 violation: Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
                                     # Now we need to do the comparison the other way round
                                     a, b = j, i
 
-            # IC-Design7: Any table with a class with subclasses must contain the corresponding discriminants
-            logger.info("Checking IC-Design7->TO BE IMPLEMENTED")
-            # TODO: Any table with a class with subclasses must contain the corresponding discriminants
+            # IC-Design7: Any struct with a class with subclasses must contain the corresponding discriminants
+            #             It is implementing as a warning, because it could be acceptable as soon as the class is not used in the queries
+            logger.info("Checking IC-Design7 (produces just warnings)")
+            for struct in self.get_structs().itertuples():
+                struct_name = struct.Index
+                # Get all class names in the current struct
+                class_names = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)].index.get_level_values("edges")
+                attribute_names = self.get_attribute_names_by_struct_name(struct_name)
+                for class_name in class_names:
+                    for subclass_name in self.get_subclasses_by_class_name(class_name):
+                        discriminant = self.get_discriminant_by_class_name(subclass_name)
+                        assert discriminant is not None, f"No discriminant for '{class_name}'"
+                        if any(attr not in attribute_names for attr in self.parse_predicate(discriminant)):
+                            # correct = False
+                            if show_warnings:
+                                print(f"WARNING: IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
 
             # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one
             #             This is relaxed to be just a warning, as above, just because of generalizations
