@@ -348,25 +348,21 @@ class FirstNormalForm(Relational):
                 # For every table in the query
                 for table in tables_combination:
                     for struct_name in self.get_struct_names_inside_set_name(table):
-                        # For all classes in the current struct of the current table
+                        # Get all classes in the current struct of the current table
                         table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
                         # For all classes in the table
                         for table_class_name in table_classes.index.get_level_values("edges"):
-                            table_hierarchy = [table_class_name]+self.get_superclasses_by_class_name(table_class_name)
                             # Check if they are siblings
-                            if pattern_class_name != table_class_name and [s for s in pattern_superclasses if s in table_hierarchy]:
+                            if table_class_name in pattern_superclasses:
                                 discriminant = self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
                                         self.get_phantom_of_edge_by_name(pattern_class_name)].misc_properties.get("Constraint", None)
                                 assert discriminant is not None, f"No discriminant for '{pattern_class_name}'"
-                                attribute_names = self.parse_predicate(discriminant)
                                 found = True
-                                for attribute_name in attribute_names:
+                                for attribute_name in self.parse_predicate(discriminant):
                                     found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
-                                if found:
-                                    # Add the corresponding discriminant (this works because we have single inheritance)
-                                    discriminants.append(discriminant)
-                                else:
-                                    raise ValueError(f"Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query")
+                                assert found, f"Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query (IC-Design7 should prevent this from happening)"
+                                # Add the corresponding discriminant (this works because we have single inheritance)
+                                discriminants.append(discriminant)
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)

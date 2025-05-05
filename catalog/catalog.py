@@ -795,9 +795,13 @@ class Catalog(HyperNetXWrapper):
                                     # Now we need to do the comparison the other way round
                                     a, b = j, i
 
-            # IC-Design7: All classes must appear linked to at least one anchor with min multiplicitity one
-            #             This is relaxed to be just a warning, as above, just because of generalizations
+            # IC-Design7: Any table with a class with subclasses must contain the corresponding discriminants
             logger.info("Checking IC-Design7->TO BE IMPLEMENTED")
+            # TODO: Any table with a class with subclasses must contain the corresponding discriminants
+
+            # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one
+            #             This is relaxed to be just a warning, as above, just because of generalizations
+            logger.info("Checking IC-Design8->TO BE IMPLEMENTED")
             # TODO: Every class must be connected to all classes in an anchor with a path of minimum one multiplicity
 
         return correct
