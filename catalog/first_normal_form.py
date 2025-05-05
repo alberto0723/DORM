@@ -182,8 +182,9 @@ class FirstNormalForm(Relational):
 
     def generate_add_fk_statements(self, show_sql=False) -> list[str]:
         """
-        Generated the DDL to add FKs to the tables
-        The foreign keys of a table come from the ends of its associations, which are attributes and there is another table that has the class as an anchor.
+        Generated the DDL to add FKs to the tables.
+        The foreign keys of a table come from the ends of its associations or class IDs,
+        which are attributes and there is another table that has their class (or corresponding superclass) as an anchor.
         :param show_sql: Whether to print SQL statements or not.
         :return: List of statements generated (one per table)
         """
@@ -199,16 +200,31 @@ class FirstNormalForm(Relational):
             for attr_alias, attr_name in attribute_dicc.items():
                 # An attribute can only be a FK if it is a class ID
                 if self.is_id(attr_name):
+                    # If it comes from an association
+                    if attr_alias != attr_name:
+                        class_referee = self.get_class_name_by_end_name(attr_alias)
+                        hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee, [])
+                    # If the attribute comes from a class
+                    else:
+                        # Get the classes in the struct that provide the ID
+                        hierarchies = []
+                        for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
+                            for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                                if self.is_class_phantom(elem):
+                                    class_name = self.get_edge_by_phantom_name(elem)
+                                    if attr_name == self.get_class_id_by_name(class_name):
+                                        hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name, []))
+                        assert len(hierarchies) > 0, f"The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
+                        # Take the shorter hierarchy
+                        hierarchy = sorted(hierarchies, key=len)[0]
                     for table_referred in firstlevels.itertuples():
                         # We can take any struct in the set, because all must share the anchor
                         struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
                         anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                        assert len(anchor_points) > 0, "Any struct should have at least one anchor point"
-                        assert self.is_class_phantom(anchor_points[0]), "Anchor points must be class phantoms"
-                        # TODO: This check is not enough, because we could be pointing to a different class in the hierarchy.
-                        #       The class of the endpoint must be checked
-                        if (len(anchor_points) == 1 and attr_name == self.get_class_id_by_name(self.get_edge_by_phantom_name(anchor_points[0]))
-                                and (table_referee.Index[0] != table_referred.Index[0] or attr_alias != attr_name)):
+                        assert len(anchor_points) > 0, f"Struct '{struct_name}' should have at least one anchor point"
+                        assert self.is_class_phantom(anchor_points[0]), f"Anchor point '{anchor_points[0]}' must be class phantoms"
+                        if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) in hierarchy
+                                and (table_referee != table_referred or attr_alias != attr_name)):
                             logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
                             # Create the FK
                             sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_alias}) REFERENCES {table_referred.Index[0]}({attr_name});"

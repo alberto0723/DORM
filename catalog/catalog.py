@@ -730,11 +730,12 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
             # IC-Design5: For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization
-            # IC-Design6: If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided
+            # IC-Design6: If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided in the struct
+            #             Actually, IC-Design6 checks if the discriminant attributes are in the set, but it should check only the corresponding struct
             #             All three are checked at the same time to be more precise in the message and efficient
             logger.info("Checking IC-Design4")
             logger.info("Checking IC-Design5")
-            logger.info("Checking IC-Design6->TO BE IMPLEMENTED")
+            logger.info("Checking IC-Design6")
             for set_name in sets.index:
                 anchor_concepts = []
                 anchor_attributes = []
@@ -774,7 +775,6 @@ class Catalog(HyperNetXWrapper):
                             if anchor_concepts[i] != anchor_concepts[j]:
                                 a, b = i, j
                                 for _ in range(2):
-                                    print(anchor_concepts[a], anchor_concepts[b])
                                     # Find the different concept in the anchor (they must be in the same generalization hierarchy by ID-Design4)
                                     for phantom_name in anchor_concepts[a]:
                                         if phantom_name not in anchor_concepts[b]:
@@ -795,7 +795,7 @@ class Catalog(HyperNetXWrapper):
                                     # Now we need to do the comparison the other way round
                                     a, b = j, i
 
-            # IC-Design7: All classes must appear linked to at least on anchor with min multiplitity one
+            # IC-Design7: All classes must appear linked to at least one anchor with min multiplicitity one
             #             This is relaxed to be just a warning, as above, just because of generalizations
             logger.info("Checking IC-Design7->TO BE IMPLEMENTED")
             # TODO: Every class must be connected to all classes in an anchor with a path of minimum one multiplicity

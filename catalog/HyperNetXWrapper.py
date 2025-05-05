@@ -84,6 +84,10 @@ class HyperNetXWrapper:
         ends = self.get_association_ends().query('edges == "' + association_name + '"')
         return ends
 
+    def get_class_name_by_end_name(self, end_name) -> str:
+        association_end = self.get_association_ends()[self.get_association_ends()["misc_properties"].apply(lambda x: x["End_name"] == end_name)]
+        return self.get_edge_by_phantom_name(association_end.iloc[0].nodes)
+
     def get_ids(self) -> pd.DataFrame:
         outbounds = self.get_outbound_classes()
         incidences = outbounds[outbounds["misc_properties"].apply(lambda x: x['Identifier'])].reset_index(level='edges', drop=True)
