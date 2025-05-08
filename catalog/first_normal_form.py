@@ -42,11 +42,11 @@ class FirstNormalForm(Relational):
                         for member in set(members)-set(anchor_points):
                             if self.is_class_phantom(member) or self.is_association_phantom(member):
                                 paths = list(nx.all_simple_paths(bipartite, source=anchor, target=member))
-                                assert len(paths) <= 1, f"Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'"
+                                assert len(paths) <= 1, f"☠️ Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'"
                                 if len(paths) == 1:
                                     if not self.check_max_to_one(paths[0]):
                                         correct = False
-                                        print(f"IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
+                                        print(f"🚨 IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return correct
 
     def get_struct_attributes(self, struct_name) -> dict[str, str]:
@@ -61,7 +61,7 @@ class FirstNormalForm(Relational):
         # For each element in the table
         attribute_dicc = {}
         for elem in elements.itertuples():
-            assert self.is_attribute(elem.Index[1]) or self.is_class_phantom(elem.Index[1]) or self.is_association_phantom(elem.Index[1]) or self.is_generalization_phantom(elem.Index[1]), f"Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'"
+            assert self.is_attribute(elem.Index[1]) or self.is_class_phantom(elem.Index[1]) or self.is_association_phantom(elem.Index[1]) or self.is_generalization_phantom(elem.Index[1]), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'"
             if self.is_attribute(elem.Index[1]):
                 attribute_dicc[elem.Index[1]] = elem.Index[1]
             elif self.is_class_phantom(elem.Index[1]):
@@ -123,15 +123,15 @@ class FirstNormalForm(Relational):
         source = FirstNormalForm(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
         # Basic consistency checks between both source and target catalogs
         if source.metadata.get("domain", "") != self.metadata["domain"]:
-            raise ValueError(f"Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
+            raise ValueError(f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
         if source.metadata.get("design", "") == self.metadata["design"]:
             if show_warnings:
-                print("WARNING: Design of source and target coincides in the migration")
+                print("⚠️ WARNING: Design of source and target coincides in the migration")
         if not source.metadata.get("tables_created", False):
-            raise ValueError(f"The source {migration_source} does not have tables to migrate (according to its metadata)")
+            raise ValueError(f"🚨 The source {migration_source} does not have tables to migrate (according to its metadata)")
         if not source.metadata.get("data_migrated", False):
             if show_warnings:
-                print(f"WARNING: The source {migration_source} does not have data to migrate (according to its metadata)")
+                print(f"⚠️ WARNING: The source {migration_source} does not have data to migrate (according to its metadata)")
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
@@ -173,7 +173,7 @@ class FirstNormalForm(Relational):
                 # If it is not a class, it is a loose end
                 else:
                     key_list.append(key)
-            assert key_list, f"Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
+            assert key_list, f"☠️ Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
             sentence += " PRIMARY KEY (" + ", ".join(key_list) + ");\n"
             if show_sql:
                 print(sentence)
@@ -214,7 +214,7 @@ class FirstNormalForm(Relational):
                                     class_name = self.get_edge_by_phantom_name(elem)
                                     if attr_name == self.get_class_id_by_name(class_name):
                                         hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name))
-                        assert len(hierarchies) > 0, f"The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
+                        assert len(hierarchies) > 0, f"☠️ The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
                         # Take the shorter hierarchy
                         hierarchy = sorted(hierarchies, key=len)[0]
                     # Follow the hierarchy bottom to top in order until a superclass is found to point to
@@ -224,8 +224,8 @@ class FirstNormalForm(Relational):
                             # We can take any struct in the set, because all must share the anchor
                             struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                            assert len(anchor_points) > 0, f"Struct '{struct_name}' should have at least one anchor point"
-                            assert self.is_class_phantom(anchor_points[0]), f"Anchor point '{anchor_points[0]}' must be class phantoms"
+                            assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
+                            assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
                             if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
                                     and (table_referee != table_referred or attr_alias != attr_name)):
                                 found = True
@@ -355,12 +355,12 @@ class FirstNormalForm(Relational):
                             # Check if they are siblings
                             if table_class_name in pattern_superclasses:
                                 discriminant = self.get_discriminant_by_class_name(pattern_class_name)
-                                assert discriminant is not None, f"No discriminant for '{pattern_class_name}'"
+                                assert discriminant is not None, f"☠️ No discriminant for '{pattern_class_name}'"
                                 found = True
                                 for attribute_name in self.parse_predicate(discriminant):
                                     found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
                                 if not found:
-                                    raise ValueError(f"Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
+                                    raise ValueError(f"🚨 Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
                                 # Add the corresponding discriminant (this works because we have single inheritance)
                                 discriminants.append(discriminant)
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
@@ -442,7 +442,7 @@ class FirstNormalForm(Relational):
         join_clause = schema_name + current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
-                raise ValueError(f"Tables '{unjoinable}' are not joinable in the query")
+                raise ValueError(f"🚨 Tables '{unjoinable}' are not joinable in the query")
             join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
@@ -461,7 +461,7 @@ class FirstNormalForm(Relational):
         """
         logger.info("Resolving query")
         if not self.metadata.get("tables_created", False):
-            raise ValueError(f"There are no tables to be queried in the schema '{self.dbschema}'")
+            raise ValueError(f"🚨 There are no tables to be queried in the schema '{self.dbschema}'")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
             schema_name = self.dbschema + "."
@@ -477,7 +477,9 @@ class FirstNormalForm(Relational):
         if implicit_classes.empty:
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
-                if show_warnings: print(f"WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
+                if show_warnings: print(f"⚠️ WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
+                # TODO: Can we check here if two combinations differ in only one table whose difference is by generaliazation? Then, we can prioritize taking first the query using the table with the subclass.
+                #       In general, this can be complex to check, because of the exponencial number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 alias_table, alias_attr, location_attr = self.get_aliases(tables_combination)

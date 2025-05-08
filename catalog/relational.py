@@ -58,7 +58,7 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"Missing required tables '{catalog_tables}' in the database"
+                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database"
                     logger.info(f"Loading the catalog from the database connection")
                     df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
@@ -71,11 +71,11 @@ class Relational(Catalog, ABC):
                     # Get domain and design
                     result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
                     row = result.fetchone()
-                    assert row, "No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)"
+                    assert row, "☠️ No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)"
                     self.metadata = json.loads(row.comment)
 
     def get_engine(self, dbschema) -> sqlalchemy.engine.Engine:
-        assert self.dbms is not None and self.ip is not None and self.port is not None and self.user is not None and self.password is not None and self.dbname is not None and dbschema is not None, "Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema"
+        assert self.dbms is not None and self.ip is not None and self.port is not None and self.user is not None and self.password is not None and self.dbname is not None and dbschema is not None, "☠️ Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema"
         url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
@@ -105,7 +105,7 @@ class Relational(Catalog, ABC):
                     conn.execute(sqlalchemy.text(statement))
                     conn.commit()
         else:
-           raise ValueError("No connection to the database or file provided")
+           raise ValueError("🚨 No connection to the database or file provided")
 
     def is_correct(self, design=False, show_warnings=True) -> bool:
         correct = super().is_correct(design, show_warnings=show_warnings)
@@ -120,7 +120,7 @@ class Relational(Catalog, ABC):
             violations6_1 = sets[~sets["name"].isin(matches6_1["edges"])]
             if violations6_1.shape[0] > 0:
                 correct = False
-                print("IC-Relational1 violation: Some sets are not at the first level")
+                print("🚨 IC-Relational1 violation: Some sets are not at the first level")
                 display(violations6_1)
 
             # IC-Relational2: All second level are structs
@@ -131,7 +131,7 @@ class Relational(Catalog, ABC):
             violations6_2 = matches6_2[~matches6_2["misc_properties_secondhop"].apply(lambda x: x['Kind'] == 'StructIncidence')]
             if violations6_2.shape[0] > 0:
                 correct = False
-                print("IC-Relational2 violation: Some second level are not structs")
+                print("🚨 IC-Relational2 violation: Some second level are not structs")
                 display(violations6_2)
 
             # IC-Relational3: All structs are at second level
@@ -139,7 +139,7 @@ class Relational(Catalog, ABC):
             violations6_3 = structs[~structs["name"].isin(matches6_2["edges_secondhop"])]
             if violations6_3.shape[0] > 0:
                 correct = False
-                print("IC-Relational3 violation: Some structs are not at the second level")
+                print("🚨 IC-Relational3 violation: Some structs are not at the second level")
                 display(violations6_1)
         return correct
 
@@ -217,7 +217,7 @@ class Relational(Catalog, ABC):
         :return: Set of rows resulting from the query execution.
         """
         if self.engine is None:
-            raise ValueError("Queries cannot be executed without a connection to the DBMS")
+            raise ValueError("🚨 Queries cannot be executed without a connection to the DBMS")
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(query)).fetchall()
         return result
@@ -229,18 +229,18 @@ class Relational(Catalog, ABC):
         :return: Unitless estimated cost.
         """
         if self.engine is None:
-            raise ValueError("Query cost cannot be estimated without a connection to the DBMS")
+            raise ValueError("🚨 Query cost cannot be estimated without a connection to the DBMS")
         with self.engine.connect() as conn:
             first_row = conn.execute(sqlalchemy.text("EXPLAIN " + query)).fetchone()
-        assert first_row is not None, "Empty access plan"
+        assert first_row is not None, "☠️ Empty access plan"
         # Extract the float (e.g., from "Execution Time: 0.456 ms")
         match = re.search(r'cost=\d+\.\d+\.\.(\d+\.\d+)', str(first_row[0]))
-        assert match is not None, f"Cost not found in the access plan of the query '{first_row}'"
+        assert match is not None, f"☠️ Cost not found in the access plan of the query '{first_row}'"
         try:
             # match.group(1) gives you just the number (whatever in the parenthesis in the pattern)
             return float(match.group(1))
         except ValueError:
-            raise ValueError(f"Cost parsing failed in the access plan of the query '{first_row}'")
+            raise ValueError(f"🚨 Cost parsing failed in the access plan of the query '{first_row}'")
 
     def get_time(self, query) -> float:
         """
@@ -249,16 +249,16 @@ class Relational(Catalog, ABC):
         :return: Estimated time in milliseconds.
         """
         if self.engine is None:
-            raise ValueError("Query cost cannot be estimated without a connection to the DBMS")
+            raise ValueError("🚨 Query cost cannot be estimated without a connection to the DBMS")
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(f"EXPLAIN (ANALYZE TRUE, SUMMARY TRUE) " + query)).fetchall()
-        assert len(result) > 0, "Empty access plan"
+        assert len(result) > 0, "☠️ Empty access plan"
         last_row = result[-1]
         # Extract the float (e.g., from "Execution Time: 0.456 ms")
         match = re.search(r'([\d.]+)\s*ms', str(last_row[0]))
-        assert match is not None, f"Time not found in the access plan of the query '{last_row}'"
+        assert match is not None, f"☠️ Time not found in the access plan of the query '{last_row}'"
         try:
             # match.group(1) gives you just the number, without the " ms" suffix  (whatever in the parenthesis in the pattern)
             return float(match.group(1))
         except ValueError:
-            raise ValueError(f"Cost parsing failed in the access plan of the query '{last_row}'")
+            raise ValueError(f"🚨 Cost parsing failed in the access plan of the query '{last_row}'")

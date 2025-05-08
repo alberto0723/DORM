@@ -1,19 +1,19 @@
-# 🛏️ Dynamic Object-Relational Mapping (DORM) 
+# Dynamic Object-Relational Mapping (DORM) 🛏️ 
 This tool allows to generate database schemas and queries in a flexible and dynamic way. 
 Thus, queries are expressed in terms of fixed domain concepts, and generated automatically depending on the current design.
 Hence, mappings dynamically change as database schema design evolves.
 Once the data are in the database powered by DORM, a new design also triggers the migration to the new schema.
 
-## 🔍 Project Information
+## Project Information 📝
 The motivation and need of evolving the database schema can be found in the paper:
 [Enrico Gallinucci, Matteo Golfarelli, Wafaa Radwan, Gabriel Zarate, Alberto Abelló:
 Impact Study of NoSQL Refactoring in SkyServer Database. DOLAP 2025: 1-11](https://ceur-ws.org/Vol-3931/paper1.pdf)
 On the other hand, the overall idea of having a generic representation of the schema independent of the storage engine is based on [Moditha Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis.
 
-## 🚀 Getting Started
+## Getting Started 📘
 There are three different inputs:
 
-### 1- Domain
+### 1- Domain 🌐
 Concepts to be represented in the database in terms of *classes*, *attributes* and *relationships*. 
 You can find a basic example about [Books and Authors](files/domains/book-authors.json) and [Students and Workers]().
 
@@ -28,7 +28,7 @@ The contents of the domain files are as follows:
    - Every generalization has a ``name``, some properties (i.e., ``Disjoint`` and ``Complete``), a ``superclass``, and a list of ``subclasses'':
       - Every subclass has a ``class`` and some properties: ``Constraint`` (which is a predicate over the attributes of the class).
 
-#### Constraints
+#### Constraints ⛓️
 General:
 - The domain cannot be empty
 - All element names must be unique
@@ -50,7 +50,7 @@ About generalizations:
 - The top of every generalization hierarchy must have an identifier.
 - Only the top of a generalization hierarchy can have identifier.
 
-### 2- Design
+### 2- Design ✏️
 Structure of the database expressed in terms of *structs* and *sets*.
 You can find an [exemplary design](files/designs/book-authors_normalized.json) corresponding to a normalized relational database.
 
@@ -60,7 +60,7 @@ The contents of the design files are as follows:
    1. ``Set``: Contains a list of elements (either classes or associations) contained in the set.
    2. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the ``anchor`` elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
 
-#### Semantics
+#### Semantics 🧠
 *Sets* are abstractions that represent tables, collections, arrays.
 
 *Structs* are abstractions that contain different elements (a.k.a. classes, attributes and associations) from the domain, and represent kinds of entities, semantic types, etc.
@@ -74,7 +74,7 @@ The anchor of a struct inside a set generates an identifier composed of the iden
 In the presence of a *generalization*, subclasses can directly access the attributes of the superclass.
 Hence, the superclass does not need to be explicitly included in the struct of the subclass.
 
-#### Constraints
+#### Constraints ⛓️
 General:
 - All elements in the domain must be (potentially by transitivity) inside some set (except superclasses).
 - All elements in the domain must be inside some struct (except superclasses).
@@ -94,7 +94,7 @@ About structs:
 - There is only one path from every element in a struct to its anchor.
 - Loose ends in the anchor must be loose ends in the struct.
   
-### 3- Queries
+### 3- Queries 🔍
 Select-Project-Join expressions in terms of the domain concepts.
 You can find some [query examples](files/queries/book-authors.json) over the same domain.
 
@@ -103,7 +103,7 @@ The content of the query files is just a list of SPJ queries, whose structure is
 2. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
 3. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 
-#### Semantics
+#### Semantics 🧠
 - The pattern may not contain any association.
 - The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
 - The use of generalizations is implicit.
@@ -113,24 +113,24 @@ Notice that, in case of many possible queries for every subclass, this could gen
 In this case, the corresponding association end should be used.
 - Any element (class or association) present in the pattern entails that one table containing it will participate in the query, even if no attribute is used.
 
-#### Constraints
+#### Constraints ⛓️
 - All elements in the three parts of a query must be connected (potentially by generalization).
 - Generalizations cannot be explicit in the query.
 - The pattern can not contain two classes (directly or transitively) related by generalization.
 
-#### Known issues
+#### Known issues ⚠️
 Still, there are some queries that cannot be properly translated:
 - If the result of the query would have twice the same table in the FROM clause, it will only appear once.
 However, the links would still be generated twice.
 
-## 🐍 Setup
+## Setup ⚙️
 It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 
 Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt).
 
 Some features can be tested with pure files, but full functionalities require a [PostgreSQL](https://www.postgresql.org) database connection.
 We tested with version 14.
 
-### 📦 Install Dependencies
+### Install Dependencies 🔗
 
 With the virtual environment activated, install all required packages:
 
@@ -146,10 +146,10 @@ pip freeze > requirements.txt
 
 There is an annoying bug in HyperNetX that constantly generates a warning. It can be avoided as explained in [BugFixForHyperNetX.txt](BugFixForHyperNetX.txt).
 
-## ▶️ Running
+## Launching 🚀
 There are some tools available to facilitate usage and testing.
 
-### catalogAction
+### catalogAction ▶️
 This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into CREATE TABLE statements.
 These can be directly executed in the DBMS.
 
@@ -188,7 +188,7 @@ options:
   --graph            Shows the catalog in graphical format
 ```
 
-### queryExecutor
+### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```

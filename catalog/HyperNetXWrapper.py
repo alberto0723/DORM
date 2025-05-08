@@ -388,7 +388,7 @@ class HyperNetXWrapper:
             subclasses = []
             for subclass_phantom in direct_subclasses["nodes_subclass"]:
                 subclass = self.get_edge_by_phantom_name(subclass_phantom)
-                assert subclass not in visited, f"Generalization cycle found for '{subclass}' in '{visited}'"
+                assert subclass not in visited, f"☠️ Generalization cycle found for '{subclass}' in '{visited}'"
                 subclasses.extend([subclass]+self.get_subclasses_by_class_name(subclass, visited + [class_name]))
             return subclasses
 
@@ -408,7 +408,7 @@ class HyperNetXWrapper:
         else:
             # This means there is one superclass (multiple-inheritance is not allowed)
             superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
-            assert superclass not in visited, f"Generalization cycle found for '{superclass}' in '{visited}'"
+            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
             return [superclass]+self.get_superclasses_by_class_name(superclass, visited + [class_name])
 
     def get_generalizations_by_class_name(self, class_name, visited: list[str]=[]) -> list[str]:
@@ -422,7 +422,7 @@ class HyperNetXWrapper:
             # This means there is one superclass (multiple-inheritance is not allowed)
             superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
             generalization = direct_superclass.index[0]
-            assert superclass not in visited, f"Generalization cycle found for '{superclass}' in '{visited}'"
+            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
             return [generalization]+self.get_generalizations_by_class_name(superclass, visited + [class_name])
 
     def get_discriminant_by_class_name(self, class_name) -> str:
@@ -475,9 +475,9 @@ class HyperNetXWrapper:
         for i, current in enumerate(path):
             if self.is_association(current):
                 ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
-                assert ends_ahead.shape[0] == 1, f"Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
+                assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
                 properties = ends_ahead.iloc[0].misc_properties
-                assert "MultiplicityMin" in properties, f"MultiplicityMin not provided for association end '{ends_ahead.iloc[0].name}'"
+                assert "MultiplicityMin" in properties, f"☠️ MultiplicityMin not provided for association end '{ends_ahead.iloc[0].name}'"
                 correct = correct and (properties.get("MultiplicityMin") >= 1)
         return correct
 
@@ -491,9 +491,9 @@ class HyperNetXWrapper:
         for i, current in enumerate(path):
             if self.is_association(current):
                 ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
-                assert ends_ahead.shape[0] == 1, f"Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
+                assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
                 properties = ends_ahead.iloc[0].misc_properties
-                assert "MultiplicityMax" in properties, f"MultiplicityMax not provided for association end '{ends_ahead.iloc[0].name}'"
+                assert "MultiplicityMax" in properties, f"☠️ MultiplicityMax not provided for association end '{ends_ahead.iloc[0].name}'"
                 correct = correct and (properties.get("MultiplicityMax") <= 1)
         return correct
 
@@ -512,7 +512,7 @@ class HyperNetXWrapper:
         node_labels = {}
         for i in self.H.nodes.dataframe['misc_properties'].items():
             node_labels[i[0]] = i[0]
-            assert i[1].get('Kind') in ['Identifier', 'Attribute', 'Phantom'], f"Undefined representation for node '{i[0]}' of kind '{i[1].get('Kind')}'"
+            assert i[1].get('Kind') in ['Identifier', 'Attribute', 'Phantom'], f"☠️ Undefined representation for node '{i[0]}' of kind '{i[1].get('Kind')}'"
             if i[1].get('Kind') == 'Identifier':
                 node_colors.append('blue')
             elif i[1].get('Kind') == 'Attribute':
@@ -526,7 +526,7 @@ class HyperNetXWrapper:
         # Customize edge graphical display
         edge_lines = []
         for i in self.H.edges.dataframe['misc_properties'].items():
-            assert i[1].get('Kind') in ['Class', 'Relationship', 'Struct', 'Set'], f"Wrong kind of edge {i[1].get('Kind')} for {i[0]}"
+            assert i[1].get('Kind') in ['Class', 'Relationship', 'Struct', 'Set'], f"☠️ Wrong kind of edge {i[1].get('Kind')} for {i[0]}"
             if i[1].get('Kind') == 'Class':
                 edge_lines.append('dotted')
             elif i[1].get('Kind') == 'Relationship':
