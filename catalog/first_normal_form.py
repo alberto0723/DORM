@@ -44,7 +44,8 @@ class FirstNormalForm(Relational):
                                 paths = list(nx.all_simple_paths(bipartite, source=anchor, target=member))
                                 assert len(paths) <= 1, f"☠️ Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor}' and '{member}'"
                                 if len(paths) == 1:
-                                    if not self.check_max_to_one(paths[0]):
+                                    # Second position in the tuple is the max multiplicity
+                                    if not self.check_multiplicities_to_one(paths[0])[1]:
                                         correct = False
                                         print(f"🚨 IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return correct

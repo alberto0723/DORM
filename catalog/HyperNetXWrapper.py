@@ -371,13 +371,15 @@ class HyperNetXWrapper:
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
         return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.tolist()
 
-    def get_subclasses_by_class_name(self, class_name, visited: list[str]=[]) -> list[str]:
+    def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """
         Gives the names of the subclasses of a given class (the class itself is not included in the list)
         :param class_name:
         :param visited: This is necessary for recursion purposes. Initially, it should be just an empty list
         :return: List of subclasses (no sorting can be assumed)
         """
+        if visited is None:
+            visited = []
         all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
             self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
             suffixes=("_superclass", "_subclass"), how="inner")
@@ -392,13 +394,15 @@ class HyperNetXWrapper:
                 subclasses.extend([subclass]+self.get_subclasses_by_class_name(subclass, visited + [class_name]))
             return subclasses
 
-    def get_superclasses_by_class_name(self, class_name, visited: list[str]=[]) -> list[str]:
+    def get_superclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """
         Gives the names of the superclasses of a given class (the class itself is not included in the list)
         :param class_name:
         :param visited: This is necessary for recursion purposes. Initially, it should be just an empty list
         :return: List of superclasses sorted from the bottom top of the hierarchy to the top
         """
+        if visited is None:
+            visited = []
         all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
             self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
             suffixes=("_superclass", "_subclass"), how="inner")
@@ -411,7 +415,9 @@ class HyperNetXWrapper:
             assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
             return [superclass]+self.get_superclasses_by_class_name(superclass, visited + [class_name])
 
-    def get_generalizations_by_class_name(self, class_name, visited: list[str]=[]) -> list[str]:
+    def get_generalizations_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
+        if visited is None:
+            visited = []
         all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
             self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
             suffixes=("_superclass", "_subclass"), how="inner")
@@ -465,36 +471,32 @@ class HyperNetXWrapper:
     def is_set(self, name) -> bool:
         return name in self.get_sets().index
 
-    def check_min_to_one(self, path) -> bool:
+    def check_multiplicities_to_one(self, path) -> (bool, bool):
         """
-        This method checks if minimum multiplicities in the path are all at least to-one.
+        This method checks if minimum multiplicities in the path are all at least to-one,
+        and  if maximum multiplicities in the path are all at most to-one.
         :param path: List of associations.
         :return: Boolean indicating if the path is at least to-one.
+        :return: Boolean indicating if the path is at most to-one.
         """
-        correct = True
+        correct = (True, True)
         for i, current in enumerate(path):
+            if self.is_association(current) or self.is_generalization(current):
+                assert i > 0, f"☠️ Path '{path}' cannot start with a relationship"
+                assert i < len(path)-1, f"☠️ Path '{path}' cannot end with a relationship"
+                assert self.is_class_phantom(path[i-1]) and self.is_class_phantom(path[i+1]), f"☠️ Path '{path}' must alternate relationships and class phantoms"
             if self.is_association(current):
                 ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
                 assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
                 properties = ends_ahead.iloc[0].misc_properties
                 assert "MultiplicityMin" in properties, f"☠️ MultiplicityMin not provided for association end '{ends_ahead.iloc[0].name}'"
-                correct = correct and (properties.get("MultiplicityMin") >= 1)
-        return correct
-
-    def check_max_to_one(self, path) -> bool:
-        """
-        This method checks if maximum multiplicities in the path are all at most to-one.
-        :param path: List of associations.
-        :return: Boolean indicating if the path is at most to-one.
-        """
-        correct = True
-        for i, current in enumerate(path):
-            if self.is_association(current):
-                ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
-                assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
-                properties = ends_ahead.iloc[0].misc_properties
                 assert "MultiplicityMax" in properties, f"☠️ MultiplicityMax not provided for association end '{ends_ahead.iloc[0].name}'"
-                correct = correct and (properties.get("MultiplicityMax") <= 1)
+                correct = (correct[0] and (properties.get("MultiplicityMin") >= 1), correct[1] and (properties.get("MultiplicityMax") <= 1))
+            # If it is not an association it still can be a generalization
+            elif self.is_generalization(current):
+                # Max is always to-one independently of the direction
+                # Min is also to-one if it goes upward, but less than one if it goes downwards
+                correct = (correct[0] and (self.get_edge_by_phantom_name(path[i+1]) in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(path[i-1]))), correct[1])
         return correct
 
     def show_textual(self) -> None:
