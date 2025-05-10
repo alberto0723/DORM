@@ -47,7 +47,7 @@
       "name": "Touches",
       "ends": [
         { "class": "Topic",
-          "prop": {"End_name": "Touches_Topic", "MultiplicityMin": 1, "MultiplicityMax": 5 }
+          "prop": {"End_name": "Touches_Topic", "MultiplicityMin": 0, "MultiplicityMax": 5 }
           },
         {
           "class": "Book",

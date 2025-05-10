@@ -1,0 +1,19 @@
+{
+    "domain": "..\\..\\domains\\book-authors-topic.json",
+    "hyperedges": [
+        {"kind": "Struct",
+         "name": "Writes_type",
+         "anchor": ["Book", "Writes", "Author"],
+         "elements": ["B_title","B_publisher","A_name","A_age","A_gender","A_address"]},
+        {"kind": "Set",
+         "name": "Writes_table",
+         "elements": ["Writes_type"]},
+        {"kind": "Struct",
+         "name": "Touches_type",
+         "anchor": ["Touches", "Topic"],
+         "elements": ["T_description"]},
+        {"kind": "Set",
+         "name": "Touches_table",
+         "elements": ["Touches_type"]}
+    ]
+}

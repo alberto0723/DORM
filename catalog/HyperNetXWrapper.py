@@ -352,7 +352,7 @@ class HyperNetXWrapper:
     def get_restricted_struct_hypergraph(self, struct_name, only_anchor=False) -> Self:
         anchor_points = self.get_anchor_points_by_struct_name(struct_name)
         if only_anchor:
-            outbounds = []
+            outbounds = [self.get_phantom_of_edge_by_name(ass) for ass in self.get_anchor_associations_by_struct_name(struct_name)]
         else:
             outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
         edge_names = []
@@ -450,6 +450,9 @@ class HyperNetXWrapper:
     def is_class(self, name) -> bool:
         return name in self.get_classes().index
 
+    def is_phantom(self, name) -> bool:
+        return name in self.get_phantoms().index
+
     def is_class_phantom(self, name) -> bool:
         return name in self.get_phantom_classes().index
 
@@ -487,7 +490,7 @@ class HyperNetXWrapper:
             if self.is_association(current) or self.is_generalization(current):
                 assert i > 0, f"☠️ Path '{path}' cannot start with a relationship"
                 assert i < len(path)-1, f"☠️ Path '{path}' cannot end with a relationship"
-                assert self.is_class_phantom(path[i-1]) and self.is_class_phantom(path[i+1]), f"☠️ Path '{path}' must alternate relationships and class phantoms"
+                assert self.is_phantom(path[i-1]) and self.is_phantom(path[i+1]), f"☠️ Path '{path}' must alternate relationships and phantoms"
             if self.is_association(current):
                 ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
                 assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"

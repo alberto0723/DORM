@@ -818,13 +818,10 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Design8 (produces just warnings)")
             for class_element in self.get_classes().itertuples():
                 class_name = class_element.Index
-                print("CLASS:", class_name)
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
                 for set in self.get_inbound_firstLevel().itertuples():
-                    print("  Set:", set.Index[0])
                     for struct_name in self.get_struct_names_inside_set_name(set.Index[0]):
-                        print("    Struct:", struct_name)
                         # Check if the class is in this struct
                         if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
                             dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
@@ -833,11 +830,9 @@ class Catalog(HyperNetXWrapper):
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                             for anchor_point in anchor_points:
                                 if self.is_class_phantom(anchor_point):
-                                    print("      Anchor_point:", anchor_point)
                                     paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
                                     # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
                                     for path in paths:
-                                        print("          Path:", path)
                                         # First position in the tuple is the min multiplicity
                                         found = self.check_multiplicities_to_one(path)[0]
                                         if found:
@@ -847,7 +842,8 @@ class Catalog(HyperNetXWrapper):
                                             bipartite_anchor = restricted_anchor_struct.H.bipartite()
                                             for anchor_point2 in anchor_points:
                                                 anchor_paths = list(nx.all_simple_paths(bipartite_anchor, source=anchor_point, target=anchor_point2))
-                                                assert len(anchor_paths) == 1, f"☠️ Multiple paths '{anchor_paths}' found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
+                                                assert len(anchor_paths) > 0, f"☠️ No path found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
+                                                assert len(anchor_paths) < 2, f"☠️ Multiple paths '{anchor_paths}' found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
                                                 found = found and self.check_multiplicities_to_one(anchor_paths[0])[0]
                                             # If the problem is in the anchor, we do not need to continue checking paths anyway (any other path to the same anchor point will have the same problem)
                                             break

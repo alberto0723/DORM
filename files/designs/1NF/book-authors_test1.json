@@ -9,7 +9,6 @@
          "name": "Books_table",
          "elements": ["Books_type"]},
 
-
         {"kind": "Struct",
          "name": "Authors_type",
          "anchor": ["Author"],
