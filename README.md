@@ -15,7 +15,7 @@ There are three different inputs:
 
 ### 1- Domain 🌐
 Concepts to be represented in the database in terms of *classes*, *attributes* and *relationships*. 
-You can find a basic example about [Books and Authors](files/domains/book-authors.json) and [Students and Workers]().
+You can find a basic example about [Books and Authors](files/domains/book-authors-topic.json) and [Students and Workers](files/domains/students-workers.json).
 
 The contents of the domain files are as follows:
 1. A list of ``classes`` is required:

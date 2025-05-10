@@ -10,6 +10,14 @@
         ]
       },
     {
+      "name": "Topic",
+      "prop": { "Count": 500 },
+      "attr": [
+        { "name": "T_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 500, "Identifier": true}},
+        { "name": "T_description", "prop": {"DataType": "String", "Size": 400, "DistinctVals": 500, "Identifier": false}}
+        ]
+      },
+    {
       "name": "Author",
       "prop": { "Count": 2500000 },
       "attr": [
@@ -32,6 +40,18 @@
         {
           "class": "Book",
           "prop": {"End_name": "Writes_Book", "MultiplicityMin": 1, "MultiplicityMax": 20 }
+          }
+        ]
+      },
+    {
+      "name": "Touches",
+      "ends": [
+        { "class": "Topic",
+          "prop": {"End_name": "Touches_Topic", "MultiplicityMin": 1, "MultiplicityMax": 5 }
+          },
+        {
+          "class": "Book",
+          "prop": {"End_name": "Touches_Book", "MultiplicityMin": 1, "MultiplicityMax": 8000 }
           }
         ]
       }

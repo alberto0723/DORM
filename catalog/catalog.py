@@ -812,33 +812,42 @@ class Catalog(HyperNetXWrapper):
                             if show_warnings:
                                 print(f"⚠️ WARNING: IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
 
-            # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one
-            #             This is relaxed to be just a warning, as above, just because of generalizations
+            # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one.
+            #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
+            #             This is relaxed to be just a warning, as above, just because of generalizations.
             logger.info("Checking IC-Design8 (produces just warnings)")
             for class_element in self.get_classes().itertuples():
                 class_name = class_element.Index
+                print("CLASS:", class_name)
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
                 for set in self.get_inbound_firstLevel().itertuples():
+                    print("  Set:", set.Index[0])
                     for struct_name in self.get_struct_names_inside_set_name(set.Index[0]):
-                        dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
-                        restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-                        bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
-                        for anchor_point in self.get_anchor_points_by_struct_name(struct_name):
-                            if self.is_class_phantom(anchor_point):
-                                paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
-                                # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
-                                for path in paths:
-                                    # First position in the tuple is the min multiplicity
-                                    found = self.check_multiplicities_to_one(path)[0]
-                                    if found: break
-                        if found: break
+                        print("    Struct:", struct_name)
+                        # Check if the class is in this struct
+                        if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                            dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
+                            restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                            bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
+                            for anchor_point in self.get_anchor_points_by_struct_name(struct_name):
+                                if self.is_class_phantom(anchor_point):
+                                    print("      Anchor_point:", anchor_point)
+                                    paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
+                                    # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
+                                    for path in paths:
+                                        print("          Path:", path)
+                                        # First position in the tuple is the min multiplicity
+                                        found = self.check_multiplicities_to_one(path)[0]
+                                        # TODO: Pending to check that the internal multiplicity of this class in the anchor is also min to one with all other anchor points
+                                        #       This means all dont_cross have min multiplicity one
+                                        if found: break
+                            if found: break
                     if found: break
                 if not found:
                     # correct = False
                     if show_warnings:
                         print(f"⚠️ WARNING: IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
-
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
