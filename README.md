@@ -161,56 +161,60 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [-h] [--logging] [--show_sql] [--hide_warnings] [--create] [--supersede]
-                        [--hg_path <path>] [--hypergraph <hg>] [--dbms <dbms>] [--ip <ip>]
-                        [--port <port>] [--user <user>] [--password <psw>] [--dbname <dbname>]
-                        [--dbschema <sch>] [--check] [--text] [--graph]
+usage: catalogAction.py [-h] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
+                        [--create] [--supersede] [--hg_path <path>] [--hypergraph <hg>]
+                        [--dbms <dbms>] [--ip <ip>] [--port <port>] [--user <user>]
+                        [--password <psw>] [--dbname <dbname>] [--dbschema <sch>] [--check] [--text]
+                        [--graph]
                         {domain,design} ...
 
-Perform basic actions to create and visualize a catalog
+▶️ Perform basic actions to create and visualize a catalog
 
 positional arguments:
-  {domain,design}    Kind of catalog
-    domain           Uses a hypergraph with only atoms
-    design           Uses a hypergraph with a full design
+  {domain,design}     Kind of catalog
+    domain            Uses a hypergraph with only atoms
+    design            Uses a hypergraph with a full design
 
 options:
-  -h, --help         show this help message and exit
-  --logging          Enables logging
-  --show_sql         Prints the generated statements
-  --hide_warnings    Silences warnings
-  --create           Creates the catalog (otherwise it would be loaded from either a file or DBMS)
-  --supersede        Overwrites the existing catalog during creation
-  --hg_path <path>   Path to hypergraphs folder
-  --hypergraph <hg>  File generated for the hypergraph with pickle
-  --dbms <dbms>      Kind of DBMS to connect to
-  --ip <ip>          IP address for the database connection
-  --port <port>      Port for the database connection
-  --user <user>      Username for the database connection
-  --password <psw>   Password for the database connection
-  --dbname <dbname>  Database name
-  --dbschema <sch>   Database schema
-  --check            Checks correctness of the catalog
-  --text             Shows the catalog in text format
-  --graph            Shows the catalog in graphical format
+  -h, --help          show this help message and exit
+  --logging           Enables logging
+  --show_sql          Prints the generated statements
+  --hide_warnings     Silences warnings
+  --paradigm <prdgm>  Implementation paradigm for the design (either 1NF or NF2_JSON)
+  --create            Creates the catalog (otherwise it would be loaded from either a file or DBMS)
+  --supersede         Overwrites the existing catalog during creation
+  --hg_path <path>    Path to hypergraphs folder
+  --hypergraph <hg>   File generated for the hypergraph with pickle
+  --dbms <dbms>       Kind of DBMS to connect to
+  --ip <ip>           IP address for the database connection
+  --port <port>       Port for the database connection
+  --user <user>       Username for the database connection
+  --password <psw>    Password for the database connection
+  --dbname <dbname>   Database name
+  --dbschema <sch>    Database schema
+  --check             Checks correctness of the catalog
+  --text              Shows the catalog in text format
+  --graph             Shows the catalog in graphical format
 ```
 
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```
-usage: queryExecutor.py [-h] [--logging] [--show_sql] [--hide_warnings] [--dbms <dbms>] [--ip <ip>]
-                        [--port <port>] [--user <user>] [--password <psw>] [--dbname <dbname>]
-                        [--dbschema <sch>] [--query_file <path>] [--print_rows] [--print_counter]
-                        [--print_cost] [--print_time]
+usage: queryExecutor.py [-h] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
+                        [--dbms <dbms>] [--ip <ip>] [--port <port>] [--user <user>]
+                        [--password <psw>] [--dbname <dbname>] [--dbschema <sch>]
+                        [--query_file <path>] [--print_rows] [--print_counter] [--print_cost]
+                        [--print_time]
 
-Execute queries over a pre-existing catalog
+🔍 Execute queries over a pre-existing catalog
 
 options:
   -h, --help           show this help message and exit
   --logging            Enables logging
   --show_sql           Prints the generated statements
   --hide_warnings      Silences warnings
+  --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2)
   --dbms <dbms>        Kind of DBMS to connect to
   --ip <ip>            IP address for the database connection
   --port <port>        Port for the database connection

@@ -2,7 +2,8 @@ import logging
 import sys
 import argparse
 from pathlib import Path
-from catalog import relational, first_normal_form
+from catalog.first_normal_form import FirstNormalForm
+from catalog.non_first_normal_form_json import NonFirstNormalFormJSON
 
 if __name__ == "__main__":
     # Path definitions
@@ -16,12 +17,13 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------------- #
     base_parser = argparse.ArgumentParser(
         formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=True,
-        description="Perform basic actions to create and visualize a catalog"
+        description="▶️ Perform basic actions to create and visualize a catalog"
     )
     subparsers = base_parser.add_subparsers(help="Kind of catalog")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
+    base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     base_parser.add_argument("--create", help="Creates the catalog (otherwise it would be loaded from either a file or DBMS)", action="store_true")
     base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
     base_parser.add_argument("--hg_path", type=Path, default=default_hypergraphs_path, help="Path to hypergraphs folder", metavar="<path>")
@@ -65,24 +67,36 @@ if __name__ == "__main__":
         if args.create:
             consistent = False
             if args.state == "domain":
-                cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                            password=args.password, dbname=args.dbname, dbschema=args.dbschema,
-                                            supersede=True)
+                # Any subclass can be used here (not Relational, because it is abstract and cannot be instantiated)
+                cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                      password=args.password, dbname=args.dbname, dbschema=args.dbschema, supersede=True)
                 cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
             elif args.state == "design":
-                cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema,
-                                                 supersede=args.supersede)
+                assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
+                if args.paradigm == "1NF":
+                    cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                          password=args.password, dbname=args.dbname, dbschema=args.dbschema, supersede=args.supersede)
+                else:
+                    cat = NonFirstNormalFormJSON(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema, supersede=args.supersede)
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")
         else:
             consistent = True
+            assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
             if args.user is None or args.password is None:
-                cat = first_normal_form.FirstNormalForm(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
+                if args.paradigm == "1NF":
+                    cat = FirstNormalForm(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
+                else:
+                    cat = NonFirstNormalFormJSON(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
             else:
-                cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                                        password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                if args.paradigm == "1NF":
+                    cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                          password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                else:
+                    cat = NonFirstNormalFormJSON(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema)
 
         if args.text:
             cat.show_textual()

@@ -3,7 +3,8 @@ import sys
 import argparse
 from pathlib import Path
 import json
-from catalog import first_normal_form
+from catalog.first_normal_form import FirstNormalForm
+from catalog.non_first_normal_form_json import NonFirstNormalFormJSON
 
 if __name__ == "__main__":
 
@@ -14,12 +15,14 @@ if __name__ == "__main__":
     #                                configure argparse begin                      #
     # ---------------------------------------------------------------------------- #
     base_parser = argparse.ArgumentParser(
-        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=True,
-        description="Execute queries over a pre-existing catalog"
+        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100),
+        add_help=True,
+        description="🔍 Execute queries over a pre-existing catalog"
     )
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
+    base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
     base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
     base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
@@ -43,7 +46,12 @@ if __name__ == "__main__":
         else:
             logging.disable()
         logging.info("BEGIN")
-        cat = first_normal_form.FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+        assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
+        if args.paradigm == "1NF":
+            cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
+                                  password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+        else:
+            cat = NonFirstNormalFormJSON(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                          password=args.password, dbname=args.dbname, dbschema=args.dbschema)
         logging.info("Executing batch queries")
         # Open and load the JSON file

@@ -122,17 +122,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         source = FirstNormalForm(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
-        # Basic consistency checks between both source and target catalogs
-        if source.metadata.get("domain", "") != self.metadata["domain"]:
-            raise ValueError(f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
-        if source.metadata.get("design", "") == self.metadata["design"]:
-            if show_warnings:
-                print("⚠️ WARNING: Design of source and target coincides in the migration")
-        if not source.metadata.get("tables_created", False):
-            raise ValueError(f"🚨 The source {migration_source} does not have tables to migrate (according to its metadata)")
-        if not source.metadata.get("data_migrated", False):
-            if show_warnings:
-                print(f"⚠️ WARNING: The source {migration_source} does not have data to migrate (according to its metadata)")
+        self.check_migration(source, migration_source, show_warnings)
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
