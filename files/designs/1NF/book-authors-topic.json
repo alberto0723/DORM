@@ -1,5 +1,5 @@
 {
-    "domain": "..\\domains\\book-authors_1-1.json",
+    "domain": "..\\..\\domains\\book-authors-topic.json",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_type",
@@ -21,6 +21,20 @@
          "elements": []},
         {"kind": "Set",
          "name": "Writes_table",
-         "elements": ["Writes_type"]}
+         "elements": ["Writes_type"]},
+        {"kind": "Struct",
+         "name": "Topics_type",
+         "anchor": ["Topic"],
+         "elements": ["T_ID","T_description"]},
+        {"kind": "Set",
+         "name": "Topics_table",
+         "elements": ["Topics_type"]},
+        {"kind": "Struct",
+         "name": "Touches_type",
+         "anchor": ["Touches"],
+         "elements": []},
+        {"kind": "Set",
+         "name": "Touches_table",
+         "elements": ["Touches_type"]}
     ]
 }

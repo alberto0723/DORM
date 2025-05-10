@@ -830,7 +830,8 @@ class Catalog(HyperNetXWrapper):
                             dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
                             restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                             bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
-                            for anchor_point in self.get_anchor_points_by_struct_name(struct_name):
+                            anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+                            for anchor_point in anchor_points:
                                 if self.is_class_phantom(anchor_point):
                                     print("      Anchor_point:", anchor_point)
                                     paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
@@ -839,9 +840,18 @@ class Catalog(HyperNetXWrapper):
                                         print("          Path:", path)
                                         # First position in the tuple is the min multiplicity
                                         found = self.check_multiplicities_to_one(path)[0]
-                                        # TODO: Pending to check that the internal multiplicity of this class in the anchor is also min to one with all other anchor points
-                                        #       This means all dont_cross have min multiplicity one
-                                        if found: break
+                                        if found:
+                                            # Check that the internal multiplicity of the anchor point in the anchor is also min to one with all other anchor points
+                                            # This means all dont_cross have min multiplicity one
+                                            restricted_anchor_struct = self.get_restricted_struct_hypergraph(struct_name, only_anchor=True)
+                                            bipartite_anchor = restricted_anchor_struct.H.bipartite()
+                                            for anchor_point2 in anchor_points:
+                                                anchor_paths = list(nx.all_simple_paths(bipartite_anchor, source=anchor_point, target=anchor_point2))
+                                                assert len(anchor_paths) == 1, f"☠️ Multiple paths '{anchor_paths}' found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
+                                                found = found and self.check_multiplicities_to_one(anchor_paths[0])[0]
+                                            # If the problem is in the anchor, we do not need to continue checking paths anyway (any other path to the same anchor point will have the same problem)
+                                            break
+                                    if found: break
                             if found: break
                     if found: break
                 if not found:

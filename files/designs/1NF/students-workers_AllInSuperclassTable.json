@@ -1,5 +1,5 @@
 {
-    "domain": "..\\domains\\students-workers.json",
+    "domain": "..\\..\\domains\\students-workers.json",
     "hyperedges": [
         {"kind": "Struct",
          "name": "People_type",

@@ -349,9 +349,12 @@ class HyperNetXWrapper:
             end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).tolist()
             return end_names
 
-    def get_restricted_struct_hypergraph(self, struct_name) -> Self:
+    def get_restricted_struct_hypergraph(self, struct_name, only_anchor=False) -> Self:
         anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-        outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+        if only_anchor:
+            outbounds = []
+        else:
+            outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
         edge_names = []
         for elem in drop_duplicates(outbounds + anchor_points):
             if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):

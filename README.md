@@ -52,7 +52,7 @@ About generalizations:
 
 ### 2- Design ✏️
 Structure of the database expressed in terms of *structs* and *sets*.
-You can find an [exemplary design](files/designs/book-authors_normalized.json) corresponding to a normalized relational database.
+You can find an [exemplary design](files/designs/1NF/book-authors.json) corresponding to a relational database in first normal form.
 
 The contents of the design files are as follows:
 1. The name of the corresponding domain.
@@ -91,8 +91,15 @@ About structs:
 - Elements and anchors in a struct can not contain two classes (directly or transitively) related by generalization.
 - The anchor must be a connected subgraph of the domain.
 - The elements and the anchor together must be a connected subgraph of the domain.
-- There is only one path from every element in a struct to its anchor.
 - Loose ends in the anchor must be loose ends in the struct.
+- Discriminant attributes are mandatory if there are sibling classes by generalization.
+- There is only one path from every element in a struct to its anchor.
+- All elements in a struct are connected.
+- All structs in a set must have the same attributes in the anchor.
+- For all structs in a set, there must be a difference in a class in the anchor, which are related by generalization.
+- If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided in the struct.
+- Any struct with a class with subclasses must contain the corresponding discriminants.
+- All classes must appear linked to at least one anchor with minimum multiplicitity one. Such anchor must have minimum multiplicity one internally in the anchor, to guarantee that it does not miss any instance.
   
 ### 3- Queries 🔍
 Select-Project-Join expressions in terms of the domain concepts.
