@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import logging
 import warnings
 import json
@@ -270,35 +271,39 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get("kind")}'")
 
-    def get_struct_attributes(self, struct_name) -> dict[str, str]:
+    def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
         """
         This generates the correspondence between attribute names in a struct and their corresponding attribute.
-        It is necessary to do it to consider foreign keys.
+        It is necessary to do it to consider loose ends (i.e., associations without class), which generate foreign keys.
         :param struct_name:
-        :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
+        :return: A list of tuples with pairs "attribute_name" and a list of elements.
+                 Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
+                 The last element corresponds to the "domain_name" in the hypergraph for the attribute, which can be the same attribute or association end.
         """
         # TODO: This needs to be generalized to nested structs and sets to support NF2
-        #       Every entry in the dictionary must be a list with the whole path to find the attribute
-        #       The elements of the list, must be dictionaries as well, to keep the kind of design element used being set or struct
-        elements = self.get_outbound_struct_by_name(struct_name)
+        # This cannot be a dictionary with the attribute name as key, because two loose ends over the same class would use the same entry
+        # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
+        attribute_list = []
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
-        # For each element in the table
-        attribute_dicc = {}
-        for elem in elements.itertuples():
-            assert self.is_attribute(elem.Index[1]) or self.is_class_phantom(elem.Index[1]) or self.is_association_phantom(elem.Index[1]) or self.is_generalization_phantom(elem.Index[1]), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'"
-            if self.is_attribute(elem.Index[1]):
-                attribute_dicc[elem.Index[1]] = elem.Index[1]
-            elif self.is_class_phantom(elem.Index[1]):
-                attribute_dicc[
-                    self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = (
-                    self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1])))
-            elif self.is_association_phantom(elem.Index[1]):
-                ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
+        # For each element in the struct
+        elem_names = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes")
+        for elem_name in elem_names:
+            assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
+            if self.is_attribute(elem_name):
+                attribute_list.append((elem_name, [{"kind": "Attribute", "name": elem_name}]))
+            elif self.is_class_phantom(elem_name):
+                attribute_list.append((self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name)),
+                                        [{"kind": "Attribute", "name": self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name))}]))
+            elif self.is_association_phantom(elem_name):
+                ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem_name))
                 for end in ends.itertuples():
                     if end.misc_properties["End_name"] in loose_ends:
-                        attribute_dicc[end.misc_properties['End_name']] = (
-                            self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
-        return attribute_dicc
+                        attribute_list.append((self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])),
+                                                [{"kind": "AssociationEnd", "name": end.misc_properties['End_name']}]))
+        # We need to remove duplicates to avoid ids appearing twice
+        attribute_list = drop_duplicates(attribute_list)
+        # TODO: assert that attribute names are not repeated
+        return attribute_list
 
     def is_correct(self, design=False, show_warnings=True) -> bool:
         """
@@ -1036,26 +1041,37 @@ class Catalog(HyperNetXWrapper):
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
+    @abstractmethod
+    def generate_attr_projection_clause(self, attr_path) -> str:
+        """
+        This generates the projection clause for a given an attribute path as produced by 'get_struct_attributes'
+        :param attr_path: List of element hops
+        :return: Projection clause depending on the implementation
+        """
+        pass
+
     def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param sets_combination: The set of tables in the FROM clause of a query.
         :return: Dictionary of aliases of tables.
-        :return: Dictionary of renamings of attributes.
+        :return: Dictionary of projections of attributes.
         :return: Dictionary of table locations of attributes.
         """
         alias_set = {}
-        alias_attr = {}
+        proj_attr = {}
         location_attr = {}
         # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
         for index, set_name in enumerate(reversed(sets_combination)):
             # Determine the aliases of tables and required attributes
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
-                for inset_name, domain_name in self.get_struct_attributes(struct_name).items():
-                    # TODO: This needs to be generalized to nested structs and sets, by changing get_struct_attributes to be recursive
-                    location_attr[inset_name] = alias_set[set_name]
-                    alias_attr[inset_name] = inset_name
+                for attr_name, attr_path in self.get_struct_attributes(struct_name):
+                    # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
+                    if attr_name in location_attr and location_attr[attr_name] == alias_set[set_name]:
+                        warnings.warn(f"⚠️ Attribute name '{attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)")
+                    location_attr[self.generate_attr_projection_clause(attr_path)] = alias_set[set_name]
+                    proj_attr[self.generate_attr_projection_clause(attr_path)] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 associations = self.get_inbound_associations()[
                     self.get_inbound_associations().index.get_level_values("nodes").isin(
@@ -1073,9 +1089,10 @@ class Catalog(HyperNetXWrapper):
                 # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
                 for end in association_ends.itertuples():
                     location_attr[end.misc_properties["End_name"]] = alias_set[set_name]
-                    alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
-                        self.get_edge_by_phantom_name(end.Index[1]))
-        return alias_set, alias_attr, location_attr
+                    attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
+                    assert attr_name in proj_attr, f"Attribute '{attr_name}' does not exist in '{struct_name}'"
+                    proj_attr[end.misc_properties["End_name"]] = proj_attr[attr_name]
+        return alias_set, proj_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
         """

@@ -52,6 +52,12 @@ class FirstNormalForm(Relational):
                                         print(f"🚨 IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return correct
 
+    def generate_attr_projection_clause(self, attr_path) -> str:
+        assert len(attr_path) == 1, f"Incorrect length of attribute path '{attr_path}', which should be one"
+        assert attr_path[0].get("kind", "") in ["Attribute", "AssociationEnd"], f"Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
+        assert "name" in attr_path[0], f"Incorrect attribute path '{attr_path}', whose final entry should have a name"
+        return attr_path[0].get("name")
+
     def generate_create_table_statements(self) -> list[str]:
         """
         Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
@@ -68,17 +74,19 @@ class FirstNormalForm(Relational):
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table.Index[0] + " (\n"
             # Get all the attributes in all the structs
-            attribute_dicc = {}
+            attr_paths = []
             for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-                attribute_dicc.update(self.get_struct_attributes(struct_name))
+                attr_paths.extend(self.get_struct_attributes(struct_name))
+            attr_paths = drop_duplicates(attr_paths)
+            assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths])) == len(attr_paths), f"☠️ Table '{table.Index[0]}' has the same attribute defined twice: {attr_paths}"
             # Add all the attributes to the CREATE TABLE sentence
             attribute_list = []
-            for attr_alias, attr_name in attribute_dicc.items():
+            for attr_name, attr_path in attr_paths:
                 attribute = self.get_attribute_by_name(attr_name)
                 if attribute["misc_properties"].get("DataType") == "String":
-                    attribute_list.append("  " + attr_alias + " VarChar(" + str(attribute["misc_properties"].get("Size")) + ")")
+                    attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " VarChar(" + str(attribute["misc_properties"].get("Size")) + ")")
                 else:
-                    attribute_list.append("  " + attr_alias + " " + attribute["misc_properties"].get("DataType"))
+                    attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " " + attribute["misc_properties"].get("DataType"))
             sentence += ",\n".join(attribute_list) + "\n  );"
             statements.append(sentence)
         return statements
@@ -100,7 +108,7 @@ class FirstNormalForm(Relational):
             logger.info(f"-- Generating data migration for table {table.Index[0]}")
             # For each struct in the table, we have to create a different extraction query
             for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-                project = list(self.get_struct_attributes(struct_name).keys())
+                project = [self.generate_attr_projection_clause(path) for _, path in self.get_struct_attributes(struct_name)]
                 pattern = []
                 for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
                     if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
@@ -152,16 +160,17 @@ class FirstNormalForm(Relational):
         # For each table
         for table_referee in firstlevels.itertuples():
             # Get all the attributes in all the structs
-            attribute_dicc = {}
+            attribute_list = []
             for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
-                attribute_dicc.update(self.get_struct_attributes(struct_name))
+                attribute_list.extend(self.get_struct_attributes(struct_name))
             # Check all the attributes to see if they require an FK
-            for attr_alias, attr_name in attribute_dicc.items():
+            for attr_name, attr_path in attribute_list:
+                attr_proj = self.generate_attr_projection_clause(attr_path)
                 # An attribute can only be a FK if it is a class ID
                 if self.is_id(attr_name):
                     # If it comes from an association
-                    if attr_alias != attr_name:
-                        class_referee = self.get_class_name_by_end_name(attr_alias)
+                    if attr_proj != attr_name:
+                        class_referee = self.get_class_name_by_end_name(attr_proj)
                         hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee)
                     # If the attribute comes from a class
                     else:
@@ -186,11 +195,11 @@ class FirstNormalForm(Relational):
                             assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
                             assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
                             if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
-                                    and (table_referee != table_referred or attr_alias != attr_name)):
+                                    and (table_referee != table_referred or attr_proj != attr_name)):
                                 found = True
-                                logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
+                                logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_proj}'")
                                 # Create the FK
-                                sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_alias}) REFERENCES {table_referred.Index[0]}({attr_name});"
+                                sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_proj}) REFERENCES {table_referred.Index[0]}({attr_name});"
 
                                 statements.append(sentence)
                         if found:

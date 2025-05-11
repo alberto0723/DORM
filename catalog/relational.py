@@ -318,23 +318,23 @@ class Relational(Catalog, ABC):
                 #       In general, this can be complex to check, because of the exponencial number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
-                alias_table, alias_attr, location_attr = self.get_aliases(tables_combination)
+                alias_table, proj_attr, location_attr = self.get_aliases(tables_combination)
                 modified_filter_clauses = [filter_clause]+self.get_discriminants(tables_combination, class_names)
                 # Simple case of only one table required by the query
                 if len(tables_combination) == 1:
                     # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([alias_attr[a] for a in project_attributes])
+                    sentence = "SELECT " + ", ".join([proj_attr[a] for a in project_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM " + schema_name + tables_combination[0]
                 # Case with several tables that require joins
                 else:
                     # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([location_attr[a]+"."+alias_attr[a] for a in project_attributes])
+                    sentence = "SELECT " + ", ".join([location_attr[a]+"."+proj_attr[a] for a in project_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{}, schema_name)
                     # Add alias to the WHERE clause if there is more than one table
-                    for attr in location_attr.items():
-                        modified_filter_clauses = [s.replace(attr[0], attr[1]+"."+alias_attr[attr[0]]) for s in modified_filter_clauses]
+                    for attr_name, attr_proj in proj_attr.items():
+                        modified_filter_clauses = [s.replace(attr_name, location_attr[attr_name]+"."+attr_proj) for s in modified_filter_clauses]
                 # Build the WHERE clause
                 sentence += "\nWHERE " + " AND ".join(modified_filter_clauses)
                 sentences.append(sentence)
