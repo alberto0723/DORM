@@ -278,6 +278,8 @@ class Catalog(HyperNetXWrapper):
         :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
         """
         # TODO: This needs to be generalized to nested structs and sets to support NF2
+        #       Every entry in the dictionary must be a list with the whole path to find the attribute
+        #       The elements of the list, must be dictionaries as well, to keep the kind of design element used being set or struct
         elements = self.get_outbound_struct_by_name(struct_name)
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the table
@@ -1042,7 +1044,6 @@ class Catalog(HyperNetXWrapper):
         :return: Dictionary of renamings of attributes.
         :return: Dictionary of table locations of attributes.
         """
-        # TODO: This needs to be generalized to nested structs and sets
         alias_set = {}
         alias_attr = {}
         location_attr = {}
@@ -1052,8 +1053,10 @@ class Catalog(HyperNetXWrapper):
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
                 for inset_name, domain_name in self.get_struct_attributes(struct_name).items():
+                    # TODO: This needs to be generalized to nested structs and sets, by changing get_struct_attributes to be recursive
                     location_attr[inset_name] = alias_set[set_name]
                     alias_attr[inset_name] = inset_name
+                # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 associations = self.get_inbound_associations()[
                     self.get_inbound_associations().index.get_level_values("nodes").isin(
                         pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
@@ -1077,16 +1080,17 @@ class Catalog(HyperNetXWrapper):
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
         """
         Based on the existence of superclasses, this method finds the corresponding discriminants.
-        :param sets_combination: The set of firtlevel element that is to be accessed by a query.
+        :param sets_combination: The set of firstlevel element that is to be accessed by a query.
         :param pattern_class_names: The set of classes in the pattern of the query.
         :return: List of discriminants necessary in the query.
         """
+        # TODO: Consider what happens with nested structures, when the same discriminant can come from more than one substructure
         discriminants = []
         # For every class in the pattern
         for pattern_class_name in pattern_class_names:
             pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name)
             if pattern_superclasses:
-                # For every firtlevel set required in the query
+                # For every firstlevel set required in the query
                 for set_name in sets_combination:
                     for struct_name in self.get_struct_names_inside_set_name(set_name):
                         # Get all classes in the current struct of the current table
