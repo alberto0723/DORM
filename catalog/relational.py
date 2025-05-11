@@ -151,57 +151,56 @@ class Relational(Catalog, ABC):
         :param show_warnings: Whether to print warnings or not.
         """
         logger.info("Creating schema")
-        statements = self.generate_create_table_statements(show_sql=show_sql)
+        statements = self.generate_create_table_statements()
         if migration_source is not None:
-            statements.extend(self.generate_migration_statements(migration_source, show_sql=show_sql, show_warnings=show_warnings))
-        statements.extend(self.generate_add_pk_statements(show_sql=show_sql))
-        statements.extend(self.generate_add_fk_statements(show_sql=show_sql))
+            statements.extend(self.generate_migration_statements(migration_source, show_warnings=show_warnings))
+        statements.extend(self.generate_add_pk_statements())
+        statements.extend(self.generate_add_fk_statements())
         if self.engine is not None:
             with self.engine.connect() as conn:
                 for statement in statements:
+                    if show_sql:
+                        print(statement)
                     conn.execute(sqlalchemy.text(statement))
                 conn.commit()
 
     @abstractmethod
-    def generate_create_table_statements(self, show_sql=False) -> list[str]:
+    def generate_create_table_statements(self) -> list[str]:
         """
         Table creation depends on the concrete implementation strategy.
-        :param show_sql: Indicates if the DDL should be printed
         :return: List of statements generated (one per table)
         """
         pass
 
     @abstractmethod
-    def generate_migration_statements(self, migration_source, show_sql=False, show_warnings=True) -> list[str]:
+    def generate_migration_statements(self, migration_source, show_warnings=True) -> list[str]:
         """
         Migration generation depends on the concrete implementation strategy.
         :param migration_source: Database schema to migrate the data from.
-        :param show_sql: Whether to print SQL statements or not.
         :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated to migrate the data (one per struct)
         """
         pass
 
     @abstractmethod
-    def generate_add_pk_statements(self, show_sql=False) -> list[str]:
+    def generate_add_pk_statements(self) -> list[str]:
         """
         PK generation depends on the concrete implementation strategy.
-        :param show_sql: Whether to print SQL statements or not.
         :return: List of statements generated (one per table)
         """
         pass
 
     @abstractmethod
-    def generate_add_fk_statements(self, show_sql=False) -> list[str]:
+    def generate_add_fk_statements(self, show_warnings=True) -> list[str]:
         """
         FK generation depends on the concrete implementation strategy.
-        :param show_sql: Whether to print SQL statements or not.
+        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated (one per FK)
         """
         pass
 
     @abstractmethod
-    def generate_sql(self, spec, show_warnings=True) -> list[str]:
+    def generate_query_statement(self, spec, show_warnings=True) -> list[str]:
         """
         SQL generation depends on the concrete implementation strategy.
         :param spec: Specification of a query.
@@ -210,14 +209,19 @@ class Relational(Catalog, ABC):
         """
         pass
 
+    def check_execution(self) -> None:
+        if self.engine is None:
+            raise ValueError("🚨 Queries cannot be executed without a connection to the DBMS")
+        if not self.metadata.get("tables_created", False):
+            print(f"🚨 There are no tables to be queried in the schema '{self.dbschema}'")
+
     def execute(self, query) -> sqlalchemy.Sequence[sqlalchemy.Row]:
         """
         Executes a query in the engine associated to the catalog.
         :param query: SQL query to be executed.
         :return: Set of rows resulting from the query execution.
         """
-        if self.engine is None:
-            raise ValueError("🚨 Queries cannot be executed without a connection to the DBMS")
+        self.check_execution()
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(query)).fetchall()
         return result
@@ -228,8 +232,7 @@ class Relational(Catalog, ABC):
         :param query: SQL query to be executed.
         :return: Unitless estimated cost.
         """
-        if self.engine is None:
-            raise ValueError("🚨 Query cost cannot be estimated without a connection to the DBMS")
+        self.check_execution()
         with self.engine.connect() as conn:
             first_row = conn.execute(sqlalchemy.text("EXPLAIN " + query)).fetchone()
         assert first_row is not None, "☠️ Empty access plan"
@@ -248,8 +251,7 @@ class Relational(Catalog, ABC):
         :param query: SQL query to be executed.
         :return: Estimated time in milliseconds.
         """
-        if self.engine is None:
-            raise ValueError("🚨 Query cost cannot be estimated without a connection to the DBMS")
+        self.check_execution()
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(f"EXPLAIN (ANALYZE TRUE, SUMMARY TRUE) " + query)).fetchall()
         assert len(result) > 0, "☠️ Empty access plan"

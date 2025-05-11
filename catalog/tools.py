@@ -7,7 +7,7 @@ def drop_duplicates(dirty_list):
     return unique_elems
 
 
-def combine_tables(patterns_list):
+def combine_buckets(patterns_list):
     '''
     Combines all lists of patterns in a smart way, by removing duplicates ASAP
     :param patterns_list:
@@ -18,7 +18,7 @@ def combine_tables(patterns_list):
     else:
         current_pattern = patterns_list.pop(0)
         combinations = []
-        for combination in combine_tables(patterns_list):
+        for combination in combine_buckets(patterns_list):
             for current_table in current_pattern:
                 if current_table not in combination:
                     temp = combination + [current_table]

@@ -1,17 +1,17 @@
 import logging
-import itertools
+import warnings
 import pandas as pd
 from IPython.display import display
 import networkx as nx
 
 from .relational import Relational
-from .tools import combine_tables, drop_duplicates
+from .tools import drop_duplicates
 
 # Library initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
-logger = logging.getLogger("FirstNormalForm")
+logger = logging.getLogger("NonFirstNormalFormJSON")
 
 
 class NonFirstNormalFormJSON(Relational):
@@ -20,6 +20,9 @@ class NonFirstNormalFormJSON(Relational):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        logger.info("Using a non-first normal form (NF2) implementation of the schema using JSON")
+        # This print is just to avoid silly mistakes while testing, can eventually be removed
+        print("*********************** NonFirstNormalFormJSON ***********************")
 
     def is_correct(self, design=False, show_warnings=True) -> bool:
         correct = super().is_correct(design, show_warnings=show_warnings)
@@ -28,41 +31,10 @@ class NonFirstNormalFormJSON(Relational):
             pass
         return correct
 
-    def get_struct_attributes(self, struct_name) -> dict[str, str]:
-        """
-        This generates the correspondence between attribute names in a struct and their corresponding attribute.
-        It is necessary to do it to consider foreign keys.
-        :param struct_name:
-        :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
-        """
-        elements = self.get_outbound_struct_by_name(struct_name)
-        loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
-        # For each element in the table
-        attribute_dicc = {}
-        # TODO
-        # for elem in elements.itertuples():
-        #     assert self.is_attribute(elem.Index[1]) or self.is_class_phantom(elem.Index[1]) or self.is_association_phantom(elem.Index[1]) or self.is_generalization_phantom(elem.Index[1]), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'"
-        #     if self.is_attribute(elem.Index[1]):
-        #         attribute_dicc[elem.Index[1]] = elem.Index[1]
-        #     elif self.is_class_phantom(elem.Index[1]):
-        #         attribute_dicc[
-        #             self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = (
-        #             self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1])))
-        #     elif self.is_association_phantom(elem.Index[1]):
-        #         ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
-        #         for end in ends.itertuples():
-        #             if end.misc_properties["End_name"] in loose_ends:
-        #                 attribute_dicc[end.misc_properties['End_name']] = (
-        #                     self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
-        return attribute_dicc
-
-    def generate_create_table_statements(self, show_sql=False) -> list[str]:
+    def generate_create_table_statements(self) -> list[str]:
         """
         Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
-        One or more structs are expected inside the set, but all of them should generate the same attributes.
-        Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
-        of the associations.
-        :param show_sql: Indicates if the DDL should be printed
+        The same table is generated irrespectively of the attributes: one numerical key and one JSON value that will contain all the data.
         :return: List of statements generated (one per table)
         """
         statements = []
@@ -71,32 +43,15 @@ class NonFirstNormalFormJSON(Relational):
         for table in firstlevels.itertuples():
             logger.info("-- Creating table " + table.Index[0])
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
-            sentence = "CREATE TABLE " + table.Index[0] + " (\n"
-            # Get all the attributes in all the structs
-            attribute_dicc = {}
-            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-                attribute_dicc.update(self.get_struct_attributes(struct_name))
-            # Add all the attributes to the CREATE TABLE sentence
-            attribute_list = []
-            # TODO
-            # for attr_alias, attr_name in attribute_dicc.items():
-            #     attribute = self.get_attribute_by_name(attr_name)
-            #     if attribute["misc_properties"].get("DataType") == "String":
-            #         attribute_list.append("  " + attr_alias + " VarChar(" + str(attribute["misc_properties"].get("Size")) + ")")
-            #     else:
-            #         attribute_list.append("  " + attr_alias + " " + attribute["misc_properties"].get("DataType"))
-            sentence += ",\n".join(attribute_list) + "\n  );"
-            if show_sql:
-                print(sentence)
+            sentence = "CREATE TABLE " + table.Index[0] + " (\n  key SERIAL PRIMARY KEY,\n  value JSONB\n  );"
             statements.append(sentence)
         return statements
 
-    def generate_migration_statements(self, migration_source, show_sql=False, show_warnings=True) -> list[str]:
+    def generate_migration_statements(self, migration_source, show_warnings=True) -> list[str]:
         """
         Generates insertions to migrate data from one schema to another one.
         Both must be in the same database for it to work.
         :param migration_source: Database schema to migrate the data from.
-        :param show_sql: Whether to print SQL statements or not.
         :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated to migrate the data (one per struct)
         """
@@ -116,233 +71,47 @@ class NonFirstNormalFormJSON(Relational):
         #             if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
         #                 pattern.append(self.get_edge_by_phantom_name(incidence.Index[1]))
         #         sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_sql({"project": project, "pattern": pattern}, explicit_schema=True, show_warnings=show_warnings)[0] + ";"
-        #         if show_sql:
-        #             print(sentence)
         #         statements.append(sentence)
         return statements
 
-    def generate_add_pk_statements(self, show_sql=False) -> list[str]:
+    def generate_add_pk_statements(self) -> list[str]:
         """
-        Generated the DDL to add PKs to the tables
-        The primary key of the table is composed by the IDs of the classes in the anchor of the struct, plus the loose
-        ends of the associations in the anchor.
-        :param show_sql: Whether to print SQL statements or not.
+        Generated the DDL to add PKs to the tables.
+        Actually, in the case of NF2, it just adds uniqueness to the corresponding attributes inside the JSON, for the
+        IDs of the classes in the anchor of the struct, plus the loose ends of the associations in the anchor.
         :return: List of statements generated (one per table)
         """
         statements = []
         firstlevels = self.get_inbound_firstLevel()
         # For each table
-        # TODO
-        # for table in firstlevels.itertuples():
-        #     logger.info(f"-- Altering table {table.Index[0]} to add the PK")
-        #     sentence = "ALTER TABLE " + table.Index[0] + " ADD"
-        #     # Create the PK
-        #     # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-        #     struct_name = self.get_struct_names_inside_set_name(table.Index[0])[0]
-        #     key_list = []
-        #     for key in self.get_anchor_end_names_by_struct_name(struct_name):
-        #         if self.is_class_phantom(key):
-        #             key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
-        #         # If it is not a class, it is a loose end
-        #         else:
-        #             key_list.append(key)
-        #     assert key_list, f"☠️ Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
-        #     sentence += " PRIMARY KEY (" + ", ".join(key_list) + ");\n"
-        #     if show_sql:
-        #         print(sentence)
-        #     statements.append(sentence)
+        for table in firstlevels.itertuples():
+            logger.info(f"-- Altering table {table.Index[0]} to add the PK (actually just uniqueness)")
+            sentence = "CREATE UNIQUE INDEX pk_" + table.Index[0] + " ON " + table.Index[0]
+            # Create the PK
+            # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
+            struct_name = self.get_struct_names_inside_set_name(table.Index[0])[0]
+            key_list = []
+            for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                if self.is_class_phantom(key):
+                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                # If it is not a class, it is a loose end
+                else:
+                    key_list.append(key)
+            assert key_list, f"☠️ Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
+            # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
+            sentence += "((" + "), (".join(["value->>'" + k + "'" for k in key_list]) + "));\n"
+            statements.append(sentence)
         return statements
 
-    def generate_add_fk_statements(self, show_sql=False) -> list[str]:
+    def generate_add_fk_statements(self, show_warnings=True) -> list[str]:
         """
-        Generated the DDL to add FKs to the tables.
-        The foreign keys of a table come from the ends of its associations or class IDs,
-        which are attributes and there is another table that has their class (or corresponding superclass) as an anchor.
-        :param show_sql: Whether to print SQL statements or not.
+        FKs cannot be generated over JSONB attributes in PostgreSQL.
+        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated (one per table)
         """
-        statements = []
-        firstlevels = self.get_inbound_firstLevel()
-        # For each table
-        # TODO
-        # for table_referee in firstlevels.itertuples():
-        #     # Get all the attributes in all the structs
-        #     attribute_dicc = {}
-        #     for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
-        #         attribute_dicc.update(self.get_struct_attributes(struct_name))
-        #     # Check all the attributes to see if they require an FK
-        #     for attr_alias, attr_name in attribute_dicc.items():
-        #         # An attribute can only be a FK if it is a class ID
-        #         if self.is_id(attr_name):
-        #             # If it comes from an association
-        #             if attr_alias != attr_name:
-        #                 class_referee = self.get_class_name_by_end_name(attr_alias)
-        #                 hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee)
-        #             # If the attribute comes from a class
-        #             else:
-        #                 # Get the classes in the struct that provide the ID
-        #                 hierarchies = []
-        #                 for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
-        #                     for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
-        #                         if self.is_class_phantom(elem):
-        #                             class_name = self.get_edge_by_phantom_name(elem)
-        #                             if attr_name == self.get_class_id_by_name(class_name):
-        #                                 hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name))
-        #                 assert len(hierarchies) > 0, f"☠️ The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
-        #                 # Take the shorter hierarchy
-        #                 hierarchy = sorted(hierarchies, key=len)[0]
-        #             # Follow the hierarchy bottom to top in order until a superclass is found to point to
-        #             found = False
-        #             for class_name in hierarchy:
-        #                 for table_referred in firstlevels.itertuples():
-        #                     # We can take any struct in the set, because all must share the anchor
-        #                     struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
-        #                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-        #                     assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
-        #                     assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
-        #                     if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
-        #                             and (table_referee != table_referred or attr_alias != attr_name)):
-        #                         found = True
-        #                         logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_alias}'")
-        #                         # Create the FK
-        #                         sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_alias}) REFERENCES {table_referred.Index[0]}({attr_name});"
-        #
-        #                         if show_sql:
-        #                             print(sentence)
-        #                         statements.append(sentence)
-        #                 if found:
-        #                     break
-        return statements
-
-    def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
-        """
-        For each required domain element in the pattern, create a bucket with all the tables where it can come from.
-        Then, combine all these buckets to cover all elements.
-        :param pattern: List of classes and associations in the query.
-        :param required_attributes: List of attributes used in the query.
-        :return: List of combinations of tables covering all the required elements.
-        :return: List of classes required.
-        :return: List of associations required.
-        """
-        tables = []
-        classes = []
-        associations = []
-        # TODO
-        # for elem in pattern:
-        #     # Find the tables (aka fist level elements) where the element belongs
-        #     hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
-        #     hierarchy_phantoms = [self.get_phantom_of_edge_by_name(c) for c in hierarchy]
-        #     second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes').isin(hierarchy_phantoms)]
-        #     inbounds = self.get_inbound_structs()
-        #     inbounds["nodes"] = inbounds.index.get_level_values('nodes')
-        #     second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
-        #     # No need to check if they are at first level, because sets always are (no nested structures are allowed)
-        #     first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].index.get_level_values("edges").tolist()
-        #     # Sorting the list of tables is important to drop duplicates later
-        #     first_levels.sort()
-        #     # Split join edges into classes and associations
-        #     if self.is_association(elem):
-        #         associations.append(elem)
-        #         # If the element is an association, any table containing it is an option
-        #         tables.append(first_levels)
-        #     if self.is_class(elem):
-        #         classes.append(elem)
-        #         # If it is a class, the id always belongs to the table, hence we add it even if not required
-        #         current_attributes = []
-        #         # Take the required attributes in the class that are in the current table
-        #         for class_name in hierarchy:
-        #             current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').tolist())
-        #         if self.get_class_id_by_name(elem) not in current_attributes:
-        #             current_attributes.append(self.get_class_id_by_name(elem))
-        #         # If it is a class, it may be vertically partitioned
-        #         # We need to generate joins of these tables that cover all required attributes one by one
-        #         # Get the tables independently for every attribute in the class
-        #         for attr in current_attributes:
-        #             if not self.is_id(attr) or len(current_attributes) == 1:
-        #                 attr_tables = []
-        #                 for table in first_levels:
-        #                     kind = self.H.get_cell_properties(table, attr, "Kind")
-        #                     if kind is not None:
-        #                         attr_tables.append(table)
-        #                 if attr_tables:
-        #                     tables.append(attr_tables)
-        # Generate combinations of the buckets of each element to get the combinations that cover all of them
-        return combine_tables(drop_duplicates(tables)), classes, associations
-
-    def get_aliases(self, tables_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-        """
-        This method generates correspondences of aliases of tables and renamings of attributes in a query.
-        :param tables_combination: The set of tables in the FROM clause of a query.
-        :return: Dictionary of aliases of tables.
-        :return: Dictionary of renamings of attributes.
-        :return: Dictionary of table locations of attributes.
-        """
-        alias_table = {}
-        alias_attr = {}
-        location_attr = {}
-        # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
-        # TODO
-        # for index, table in enumerate(reversed(tables_combination)):
-        #     # Determine the aliases of tables and required attributes
-        #     alias_table[table] = self.config.prepend_table_alias + str(len(tables_combination) - index)
-        #     for struct_name in self.get_struct_names_inside_set_name(table):
-        #         for intable_name, domain_name in self.get_struct_attributes(struct_name).items():
-        #             location_attr[intable_name] = alias_table[table]
-        #             alias_attr[intable_name] = intable_name
-        #         associations = self.get_inbound_associations()[
-        #             self.get_inbound_associations().index.get_level_values("nodes").isin(
-        #                 pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
-        #                          on="nodes", how="inner").index)]
-        #         classes = self.get_inbound_classes()[
-        #             self.get_inbound_classes().index.get_level_values("nodes").isin(
-        #                 pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
-        #                          on="nodes", how="inner").index)]
-        #         association_ends = self.get_outbound_associations()[
-        #             (self.get_outbound_associations().index.get_level_values("edges").isin(
-        #                 associations.index.get_level_values("edges"))) & (
-        #                 self.get_outbound_associations().index.get_level_values("nodes").isin(
-        #                     classes.index.get_level_values("nodes")))]
-        #         # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
-        #         for end in association_ends.itertuples():
-        #             location_attr[end.misc_properties["End_name"]] = alias_table[table]
-        #             alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
-        #                 self.get_edge_by_phantom_name(end.Index[1]))
-        return alias_table, alias_attr, location_attr
-
-    def get_discriminants(self, tables_combination, pattern_class_names) -> list[str]:
-        """
-        Based on the existence of superclasses, this method finds the corresponding discriminants.
-        :param tables_combination: The set of tables in the FROM clause of a query.
-        :param pattern_class_names: The set of classes in the pattern of the query.
-        :return: List of discriminants necessary in the query.
-        """
-        discriminants = []
-        # For every class in the pattern
-        # TODO
-        # for pattern_class_name in pattern_class_names:
-        #     pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name)
-        #     if pattern_superclasses:
-        #         # For every table in the query
-        #         for table in tables_combination:
-        #             for struct_name in self.get_struct_names_inside_set_name(table):
-        #                 # Get all classes in the current struct of the current table
-        #                 table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
-        #                 # For all classes in the table
-        #                 for table_class_name in table_classes.index.get_level_values("edges"):
-        #                     # Check if they are siblings
-        #                     if table_class_name in pattern_superclasses:
-        #                         discriminant = self.get_discriminant_by_class_name(pattern_class_name)
-        #                         assert discriminant is not None, f"☠️ No discriminant for '{pattern_class_name}'"
-        #                         found = True
-        #                         for attribute_name in self.parse_predicate(discriminant):
-        #                             found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
-        #                         if not found:
-        #                             raise ValueError(f"🚨 Some discriminant attribute missing in struct '{struct_name}' of table '{table}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
-        #                         # Add the corresponding discriminant (this works because we have single inheritance)
-        #                         discriminants.append(discriminant)
-        # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
-        # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
-        return drop_duplicates(discriminants)
+        if show_warnings:
+            warnings.warn("⚠️ Foreign keys cannot be defined over PostgreSQL JSONB attributes (hence, not implemented in NonFirstNormalFormJSON class)")
+        return []
 
     def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name="") -> str:
         """
@@ -427,7 +196,7 @@ class NonFirstNormalFormJSON(Relational):
         # else:
         #     return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name)
 
-    def generate_sql(self, spec, explicit_schema=False, show_warnings=True) -> list[str]:
+    def generate_query_statement(self, spec, explicit_schema=False, show_warnings=True) -> list[str]:
         """
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
@@ -438,8 +207,8 @@ class NonFirstNormalFormJSON(Relational):
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables
         """
         logger.info("Resolving query")
-        if not self.metadata.get("tables_created", False):
-            raise ValueError(f"🚨 There are no tables to be queried in the schema '{self.dbschema}'")
+        if show_warnings and not self.metadata.get("tables_created", False):
+            warnings.warn("⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
             schema_name = self.dbschema + "."
@@ -456,7 +225,7 @@ class NonFirstNormalFormJSON(Relational):
         # if implicit_classes.empty:
         #     query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
         #     if len(query_alternatives) > 1:
-        #         if show_warnings: print(f"⚠️ WARNING: The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
+        #         if show_warnings: warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
         #         # TODO: Can we check here if two combinations differ in only one table whose difference is by generaliazation? Then, we can prioritize taking first the query using the table with the subclass.
         #         #       In general, this can be complex to check, because of the exponencial number of mappings between classes in the two queries and
         #         query_alternatives = sorted(query_alternatives, key=len)

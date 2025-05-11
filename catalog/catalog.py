@@ -1,11 +1,12 @@
 import logging
+import warnings
 import json
 import networkx as nx
 from IPython.display import display
 import pandas as pd
 import sqlparse
 
-from .tools import drop_duplicates, df_difference
+from .tools import combine_buckets, drop_duplicates, df_difference
 from .HyperNetXWrapper import HyperNetXWrapper
 
 # Libraries initialization
@@ -32,12 +33,13 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
         if source.metadata.get("design", "") == self.metadata["design"]:
             if show_warnings:
-                print("⚠️ WARNING: Design of source and target coincides in the migration")
+                warnings.warn("⚠️ Design of source and target coincides in the migration")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"🚨 The source {name} does not have tables to migrate (according to its metadata)")
         if not source.metadata.get("data_migrated", False):
             if show_warnings:
-                print(f"⚠️ WARNING: The source {name} does not have data to migrate (according to its metadata)")
+                warnings.warn(f"⚠️ The source {name} does not have data to migrate (according to its metadata)")
+
     def add_class(self, class_name, properties, att_list) -> None:
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
@@ -267,6 +269,34 @@ class Catalog(HyperNetXWrapper):
                 self.add_set(h.get("name"), h.get("elements"))
             else:
                 raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get("kind")}'")
+
+    def get_struct_attributes(self, struct_name) -> dict[str, str]:
+        """
+        This generates the correspondence between attribute names in a struct and their corresponding attribute.
+        It is necessary to do it to consider foreign keys.
+        :param struct_name:
+        :return: A dictionary with the pairs "intable_name" and "domain_name" in the hypergraph attribute
+        """
+        # TODO: This needs to be generalized to nested structs and sets to support NF2
+        elements = self.get_outbound_struct_by_name(struct_name)
+        loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
+        # For each element in the table
+        attribute_dicc = {}
+        for elem in elements.itertuples():
+            assert self.is_attribute(elem.Index[1]) or self.is_class_phantom(elem.Index[1]) or self.is_association_phantom(elem.Index[1]) or self.is_generalization_phantom(elem.Index[1]), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem.Index[1]}'"
+            if self.is_attribute(elem.Index[1]):
+                attribute_dicc[elem.Index[1]] = elem.Index[1]
+            elif self.is_class_phantom(elem.Index[1]):
+                attribute_dicc[
+                    self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1]))] = (
+                    self.get_class_id_by_name(self.get_edge_by_phantom_name(elem.Index[1])))
+            elif self.is_association_phantom(elem.Index[1]):
+                ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem.Index[1]))
+                for end in ends.itertuples():
+                    if end.misc_properties["End_name"] in loose_ends:
+                        attribute_dicc[end.misc_properties['End_name']] = (
+                            self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])))
+        return attribute_dicc
 
     def is_correct(self, design=False, show_warnings=True) -> bool:
         """
@@ -737,7 +767,7 @@ class Catalog(HyperNetXWrapper):
             if violations5_3.shape[0] > 0:
                 # correct = False
                 if show_warnings:
-                    print("⚠️ WARNING: IC-Design3 violation: Some atoms do not belong to any struct")
+                    warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
@@ -822,7 +852,7 @@ class Catalog(HyperNetXWrapper):
                         if any(attr not in attribute_names for attr in self.parse_predicate(discriminant)):
                             # correct = False
                             if show_warnings:
-                                print(f"⚠️ WARNING: IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
+                                warnings.warn(f"⚠️ IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
 
             # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one.
             #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
@@ -865,7 +895,7 @@ class Catalog(HyperNetXWrapper):
                 if not found:
                     # correct = False
                     if show_warnings:
-                        print(f"⚠️ WARNING: IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
+                        warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
@@ -949,3 +979,131 @@ class Catalog(HyperNetXWrapper):
 
         self.check_query_structure(project_attributes, filter_attributes, pattern_edges, required_attributes)
         return project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause
+
+    def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
+        """
+        For each required domain element in the pattern, create a bucket with all the tables where it can come from.
+        Then, combine all these buckets to cover all elements.
+        :param pattern: List of classes and associations in the query.
+        :param required_attributes: List of attributes used in the query.
+        :return: List of combinations of tables covering all the required elements.
+        :return: List of classes required.
+        :return: List of associations required.
+        """
+        buckets = []
+        classes = []
+        associations = []
+        for elem in pattern:
+            # Find the tables (aka fist level elements) where the element belongs
+            hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
+            hierarchy_phantoms = [self.get_phantom_of_edge_by_name(c) for c in hierarchy]
+            second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes').isin(hierarchy_phantoms)]
+            inbounds = self.get_inbound_structs()
+            inbounds["nodes"] = inbounds.index.get_level_values('nodes')
+            second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
+            # No need to check if they are at first level, because sets always are (no nested structures are allowed)
+            first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].index.get_level_values("edges").tolist()
+            # Sorting the list of tables is important to drop duplicates later
+            first_levels.sort()
+            # Split join edges into classes and associations
+            if self.is_association(elem):
+                associations.append(elem)
+                # If the element is an association, any table containing it is an option
+                buckets.append(first_levels)
+            if self.is_class(elem):
+                classes.append(elem)
+                # If it is a class, the id always belongs to the table, hence we add it even if not required
+                current_attributes = []
+                # Take the required attributes in the class that are in the current table
+                for class_name in hierarchy:
+                    current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').tolist())
+                if self.get_class_id_by_name(elem) not in current_attributes:
+                    current_attributes.append(self.get_class_id_by_name(elem))
+                # If it is a class, it may be vertically partitioned
+                # We need to generate joins of these tables that cover all required attributes one by one
+                # Get the tables independently for every attribute in the class
+                for attr in current_attributes:
+                    if not self.is_id(attr) or len(current_attributes) == 1:
+                        attr_tables = []
+                        for table in first_levels:
+                            kind = self.H.get_cell_properties(table, attr, "Kind")
+                            if kind is not None:
+                                attr_tables.append(table)
+                        if attr_tables:
+                            buckets.append(attr_tables)
+        # Generate combinations of the buckets of each element to get the combinations that cover all of them
+        return combine_buckets(drop_duplicates(buckets)), classes, associations
+
+    def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+        """
+        This method generates correspondences of aliases of tables and renamings of attributes in a query.
+        :param sets_combination: The set of tables in the FROM clause of a query.
+        :return: Dictionary of aliases of tables.
+        :return: Dictionary of renamings of attributes.
+        :return: Dictionary of table locations of attributes.
+        """
+        # TODO: This needs to be generalized to nested structs and sets
+        alias_set = {}
+        alias_attr = {}
+        location_attr = {}
+        # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
+        for index, set_name in enumerate(reversed(sets_combination)):
+            # Determine the aliases of tables and required attributes
+            alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
+            for struct_name in self.get_struct_names_inside_set_name(set_name):
+                for inset_name, domain_name in self.get_struct_attributes(struct_name).items():
+                    location_attr[inset_name] = alias_set[set_name]
+                    alias_attr[inset_name] = inset_name
+                associations = self.get_inbound_associations()[
+                    self.get_inbound_associations().index.get_level_values("nodes").isin(
+                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
+                                 on="nodes", how="inner").index)]
+                classes = self.get_inbound_classes()[
+                    self.get_inbound_classes().index.get_level_values("nodes").isin(
+                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
+                                 on="nodes", how="inner").index)]
+                association_ends = self.get_outbound_associations()[
+                    (self.get_outbound_associations().index.get_level_values("edges").isin(
+                        associations.index.get_level_values("edges"))) & (
+                        self.get_outbound_associations().index.get_level_values("nodes").isin(
+                            classes.index.get_level_values("nodes")))]
+                # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
+                for end in association_ends.itertuples():
+                    location_attr[end.misc_properties["End_name"]] = alias_set[set_name]
+                    alias_attr[end.misc_properties["End_name"]] = self.get_class_id_by_name(
+                        self.get_edge_by_phantom_name(end.Index[1]))
+        return alias_set, alias_attr, location_attr
+
+    def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
+        """
+        Based on the existence of superclasses, this method finds the corresponding discriminants.
+        :param sets_combination: The set of firtlevel element that is to be accessed by a query.
+        :param pattern_class_names: The set of classes in the pattern of the query.
+        :return: List of discriminants necessary in the query.
+        """
+        discriminants = []
+        # For every class in the pattern
+        for pattern_class_name in pattern_class_names:
+            pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name)
+            if pattern_superclasses:
+                # For every firtlevel set required in the query
+                for set_name in sets_combination:
+                    for struct_name in self.get_struct_names_inside_set_name(set_name):
+                        # Get all classes in the current struct of the current table
+                        table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
+                        # For all classes in the table
+                        for table_class_name in table_classes.index.get_level_values("edges"):
+                            # Check if they are siblings
+                            if table_class_name in pattern_superclasses:
+                                discriminant = self.get_discriminant_by_class_name(pattern_class_name)
+                                assert discriminant is not None, f"☠️ No discriminant for '{pattern_class_name}'"
+                                found = True
+                                for attribute_name in self.parse_predicate(discriminant):
+                                    found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
+                                if not found:
+                                    raise ValueError(f"🚨 Some discriminant attribute missing in struct '{struct_name}' of table '{set_name}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
+                                # Add the corresponding discriminant (this works because we have single inheritance)
+                                discriminants.append(discriminant)
+        # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
+        # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
+        return drop_duplicates(discriminants)

@@ -60,7 +60,7 @@ if __name__ == "__main__":
         for i, spec in enumerate(query_specs):
             print(f"-- Running query specification {i}")
             if True:
-                queries = cat.generate_sql(spec, explicit_schema=False, show_warnings=not args.hide_warnings)
+                queries = cat.generate_query_statement(spec, explicit_schema=False, show_warnings=not args.hide_warnings)
                 if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
                     if len(queries) > 1:

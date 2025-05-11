@@ -1,4 +1,5 @@
 import logging
+import warnings
 import sys
 import argparse
 from pathlib import Path
@@ -106,7 +107,7 @@ if __name__ == "__main__":
                 print("The catalog is correct")
             else:
                 consistent = False
-                print("⚠️ WARNING: The catalog is not consistent!!!")
+                warnings.warn("⚠️ The catalog is not consistent!!!")
         if consistent or (args.user is not None and args.password is not None):
             if args.state == "domain":
                 if args.user is None or args.password is None:

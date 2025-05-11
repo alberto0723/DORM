@@ -304,6 +304,7 @@ class HyperNetXWrapper:
         return anchor_associations
 
     def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
+        # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
         elements = self.get_outbound_struct_by_name(struct_name)
         elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
         inbounds = self.get_inbound_associations()
