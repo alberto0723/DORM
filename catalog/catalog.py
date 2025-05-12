@@ -30,17 +30,6 @@ class Catalog(HyperNetXWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def check_migration(self, source, name):
-        # Basic consistency checks between both source and target catalogs
-        if source.metadata.get("domain", "") != self.metadata["domain"]:
-            raise ValueError(f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
-        if source.metadata.get("design", "") == self.metadata["design"]:
-            warnings.warn("⚠️ Design of source and target coincides in the migration")
-        if not source.metadata.get("tables_created", False):
-            raise ValueError(f"🚨 The source {name} does not have tables to migrate (according to its metadata)")
-        if not source.metadata.get("data_migrated", False):
-            warnings.warn(f"⚠️ The source {name} does not have data to migrate (according to its metadata)")
-
     def add_class(self, class_name, properties, att_list) -> None:
         """Besides the class name and the number of instances of the class, this method requires
         a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.

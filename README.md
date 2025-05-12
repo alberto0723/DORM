@@ -176,7 +176,7 @@ positional arguments:
     design            Uses a hypergraph with a full design
 
 options:
-  --help              Shows custom help
+  --help              Shows this help message and exit
   --logging           Enables logging
   --show_sql          Prints the generated statements
   --hide_warnings     Silences warnings
@@ -205,16 +205,17 @@ options:
   --dom_spec <domain>  Specification of the domain (only atomic elements) in a JSON file
 ------------------------------------------------------------------------------------------
 usage: catalogAction.py design [--dsg_path <path>] [--dsg_spec <design>] [--translate]
-                               [--datasource <dbsch>]
+                               [--src_sch <sch>] [--src_kind <prdgm>]
 
 ▶️ Acts on a catalog with both domain and design elements
 
 options:
-  --dsg_path <path>     Path to designs folder
-  --dsg_spec <design>   Specification of the design in a JSON file
-  --translate           Translates the design into the database schema (i.e., generates create
-                        tables); necessary only files (no DBMS) are used
-  --datasource <dbsch>  Database schema to migrate the data from
+  --dsg_path <path>    Path to designs folder
+  --dsg_spec <design>  Specification of the design in a JSON file
+  --translate          Translates the design into the database schema (i.e., generates create
+                       tables); necessary only files (no DBMS) are used
+  --src_sch <sch>      Database schema to migrate the data from
+  --src_kind <prdgm>   Paradigm of the catalog to migrate the data from
 ```
 
 ### queryExecutor 🔍
@@ -230,7 +231,7 @@ usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --pa
 🔍 Execute queries over a pre-existing catalog
 
 options:
-  --help               Shows custom help
+  --help               Shows this help message and exit
   --logging            Enables logging
   --show_sql           Prints the generated statements
   --hide_warnings      Silences warnings
@@ -247,5 +248,4 @@ options:
   --print_counter      Prints the number of rows
   --print_cost         Prints the unitless cost estimation of each query
   --print_time         Prints the estimated time of each query (in milliseconds)
-
 ```

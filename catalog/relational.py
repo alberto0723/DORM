@@ -8,6 +8,9 @@ import sqlalchemy
 import hypernetx as hnx
 import json
 import re
+from typing import Type, TypeVar
+
+RelationalType = TypeVar('RelationalType', bound='Relational')
 
 from .tools import custom_warning, drop_duplicates
 from .catalog import Catalog
@@ -62,7 +65,7 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{dbschema}'"
+                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{dbschema}' of database '{dbname}'"
                     logger.info(f"Loading the catalog from the database connection")
                     df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
@@ -91,7 +94,7 @@ class Relational(Catalog, ABC):
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
-    def save(self, file_path=None, migration_source=None, show_sql=False) -> None:
+    def save(self, file_path=None, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
@@ -107,9 +110,9 @@ class Relational(Catalog, ABC):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
-                self.create_schema(migration_source=migration_source, show_sql=show_sql)
+                self.create_schema(migration_source_sch=migration_source_sch, migration_source_kind=migration_source_kind, show_sql=show_sql)
                 self.metadata["tables_created"] = "design" in self.metadata
-                if migration_source is not None:
+                if migration_source_sch is not None and migration_source_kind is not None:
                     self.metadata["data_migrated"] = True
                 with (self.engine.connect() as conn):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
@@ -154,7 +157,7 @@ class Relational(Catalog, ABC):
                 display(violations6_1)
         return correct
 
-    def create_schema(self, migration_source=None, show_sql=False) -> None:
+    def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         """
         Creates the tables according to the design.
         :param migration_source: Name of the database schema to migrate the data from.
@@ -162,8 +165,8 @@ class Relational(Catalog, ABC):
         """
         logger.info("Creating schema")
         statements = self.generate_create_table_statements()
-        if migration_source is not None:
-            statements.extend(self.generate_migration_statements(migration_source))
+        if migration_source_sch is not None and migration_source_kind is not None:
+            statements.extend(self.generate_migration_statements(migration_source_sch, migration_source_kind))
         statements.extend(self.generate_add_pk_statements())
         statements.extend(self.generate_add_fk_statements())
         if self.engine is not None:
@@ -183,13 +186,49 @@ class Relational(Catalog, ABC):
         pass
 
     @abstractmethod
-    def generate_migration_statements(self, migration_source) -> list[str]:
+    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Type[RelationalType]) -> str:
+        '''
+        Generates insert statements to migrate data from a database to another.
+        :param table_name: The table to be loaded.
+        :param project: List of attributes to be loaded in that table.
+        :param pattern: List of domain elements that determine the content of the table.
+        :param source: The source catalog to get the data from.
+        :return: The SQL statement that moves the data from one schema to another.
+        '''
+        pass
+
+    def generate_migration_statements(self, migration_source_sch, migration_source_kind) -> list[str]:
         """
-        Migration generation depends on the concrete implementation strategy.
+        Generates insertions to migrate data from one schema to another one.
+        Both must be in the same database for it to work.
         :param migration_source: Database schema to migrate the data from.
         :return: List of statements generated to migrate the data (one per struct)
         """
-        pass
+        source = migration_source_kind(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source_sch)
+        # Basic consistency checks between both source and target catalogs
+        if source.metadata.get("domain", "") != self.metadata["domain"]:
+            raise ValueError(
+                f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
+        if source.metadata.get("design", "") == self.metadata["design"]:
+            warnings.warn("⚠️ Design of source and target coincides in the migration")
+        if not source.metadata.get("tables_created", False):
+            raise ValueError(f"🚨 The source {migration_source_sch} does not have tables to migrate (according to its metadata)")
+        if not source.metadata.get("data_migrated", False):
+            warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
+        statements = []
+        # For each table
+        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            logger.info(f"-- Generating data migration for table {table_name}")
+            # For each struct in the table, we have to create a different extraction query
+            for struct_name in self.get_struct_names_inside_set_name(table_name):
+                project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
+                pattern = []
+                for node_name in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                    if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
+                        pattern.append(self.get_edge_by_phantom_name(node_name))
+                sentence = self.generate_insert_statement(table_name, project, pattern, source)
+                statements.append(sentence)
+        return statements
 
     @abstractmethod
     def generate_add_pk_statements(self) -> list[str]:
@@ -330,7 +369,7 @@ class Relational(Catalog, ABC):
                 # Simple case of only one table required by the query
                 if len(tables_combination) == 1:
                     # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([proj_attr[a] for a in project_attributes])
+                    sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM " + schema_name + tables_combination[0]
                 # Case with several tables that require joins

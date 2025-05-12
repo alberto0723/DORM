@@ -55,13 +55,14 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- Schemas
     domain_parser.set_defaults(state="domain")  # This is the subfolder where hypergraphs are stored
     domain_parser.add_argument("--dom_path", type=Path, default=default_domains_path, help="Path to domains folder", metavar="<path>")
-    domain_parser.add_argument("--dom_spec", type=str, default="default_specification", help="Specification of the domain (only atomic elements) in a JSON file", metavar="<domain>")
+    domain_parser.add_argument("--dom_spec", type=str, default="default_spec", help="Specification of the domain (only atomic elements) in a JSON file", metavar="<domain>")
     # ---------------------------------------------------------------------- Designs
     design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
     design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
-    design_parser.add_argument("--dsg_spec", type=str, default="default_specification", help="Specification of the design in a JSON file", metavar="<design>")
+    design_parser.add_argument("--dsg_spec", type=str, default="default_spec", help="Specification of the design in a JSON file", metavar="<design>")
     design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables); necessary only files (no DBMS) are used", action="store_true")
-    design_parser.add_argument("--datasource", type=str, help="Database schema to migrate the data from", metavar="<dbsch>")
+    design_parser.add_argument("--src_sch", type=str, help="Database schema to migrate the data from", metavar="<sch>")
+    design_parser.add_argument("--src_kind", type=str, choices=["1NF", "NF2_JSON"], help="Paradigm of the catalog to migrate the data from", metavar="<prdgm>")
 
     # Manually check for help before full parsing
     if len(sys.argv) == 1 or '--help' in sys.argv or '-h' in sys.argv:
@@ -134,7 +135,11 @@ if __name__ == "__main__":
                     if args.translate:
                         cat.create_schema(show_sql=args.show_sql)
                 else:
-                    cat.save(migration_source=args.datasource, show_sql=args.show_sql)
+                    assert args.src_kind is None or args.src_kind in ["1NF", "NF2_JSON"], f"☠️ Only source catalog paradigms allowed are 1NF and NF2_JSON"
+                    if args.src_kind == "1NF":
+                        cat.save(migration_source_sch=args.src_sch, migration_source_kind=FirstNormalForm, show_sql=args.show_sql)
+                    else:
+                        cat.save(migration_source_sch=args.src_sch, migration_source_kind=NonFirstNormalFormJSON, show_sql=args.show_sql)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:

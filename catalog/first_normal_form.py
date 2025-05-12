@@ -91,31 +91,17 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def generate_migration_statements(self, migration_source) -> list[str]:
-        """
-        Generates insertions to migrate data from one schema to another one.
-        Both must be in the same database for it to work.
-        :param migration_source: Database schema to migrate the data from.
-        :return: List of statements generated to migrate the data (one per struct)
-        """
-        statements = []
-        source = FirstNormalForm(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
-        self.check_migration(source, migration_source)
-        firstlevels = self.get_inbound_firstLevel()
-        # For each table
-        for table in firstlevels.itertuples():
-            logger.info(f"-- Generating data migration for table {table.Index[0]}")
-            # For each struct in the table, we have to create a different extraction query
-            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-                project = [self.generate_attr_projection_clause(path) for _, path in self.get_struct_attributes(struct_name)]
-                pattern = []
-                for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
-                    if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
-                        pattern.append(self.get_edge_by_phantom_name(incidence.Index[1]))
-                sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_query_statement({"project": project, "pattern": pattern},
-                                                                                                                     explicit_schema=True)[0] + ";"
-                statements.append(sentence)
-        return statements
+    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
+        '''
+        Generates insert statements to migrate data from a database to another.
+        :param table_name: The table to be loaded.
+        :param project: List of attributes to be loaded in that table.
+        :param pattern: List of domain elements that determine the content of the table.
+        :param source: The source catalog to get the data from.
+        :return: The SQL statement that moves the data from one schema to another.
+        '''
+        return (f"INSERT INTO {table_name}({", ".join(project)})\n  SELECT {", ".join(project)}\n  FROM (\n    " +
+                            source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
     def generate_add_pk_statements(self) -> list[str]:
         """

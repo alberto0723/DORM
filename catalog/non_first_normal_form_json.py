@@ -38,6 +38,26 @@ class NonFirstNormalFormJSON(Relational):
         path += "->>'" + attr_path[-1].get("name") + "'"
         return path
 
+    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
+        '''
+        Generates insert statements to migrate data from a database to another.
+        :param table_name: The table to be loaded.
+        :param project: List of attributes to be loaded in that table.
+        :param pattern: List of domain elements that determine the content of the table.
+        :param source: The source catalog to get the data from.
+        :return: The SQL statement that moves the data from one schema to another.
+        '''
+        attr_paths = []
+        for struct_name in self.get_struct_names_inside_set_name(table_name):
+            attr_paths.extend(self.get_struct_attributes(struct_name))
+        attr_paths = drop_duplicates(attr_paths)
+        assert len(attr_paths) == len(project), f"Mismatch in the number of attributes of the table {table_name} ({len(attr_paths)}) and those required for the migration ({len(project)})"
+        assert all([attr in project for attr, _ in attr_paths]), f"Some attribute in the paths '{attr_paths}' of table '{table_name}' is not in the projection of the migration table {project}"
+        # TODO: This needs to be properly implemented to consider nested elements
+        formatted_pairs = ["'" + attr_path[-1].get("name") + "', " + dom_attr_name for dom_attr_name, attr_path in attr_paths]
+        return (f"INSERT INTO {table_name}(value)\n  SELECT jsonb_build_object({", ".join(formatted_pairs)})\n  FROM (\n    " +
+                            source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
+
     def generate_create_table_statements(self) -> list[str]:
         """
         Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
@@ -52,32 +72,6 @@ class NonFirstNormalFormJSON(Relational):
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table.Index[0] + " (\n  key SERIAL PRIMARY KEY,\n  value JSONB\n  );"
             statements.append(sentence)
-        return statements
-
-    def generate_migration_statements(self, migration_source) -> list[str]:
-        """
-        Generates insertions to migrate data from one schema to another one.
-        Both must be in the same database for it to work.
-        :param migration_source: Database schema to migrate the data from.
-        :return: List of statements generated to migrate the data (one per struct)
-        """
-        statements = []
-        source = NonFirstNormalFormJSON(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
-        self.check_migration(source, migration_source)
-        firstlevels = self.get_inbound_firstLevel()
-        # TODO: Create the insertions with JSON format
-        # For each table
-        # for table in firstlevels.itertuples():
-        #     logger.info(f"-- Generating data migration for table {table.Index[0]}")
-        #     # For each struct in the table, we have to create a different extraction query
-        #     for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
-        #         project = list(self.get_struct_attributes(struct_name).keys())
-        #         pattern = []
-        #         for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
-        #             if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
-        #                 pattern.append(self.get_edge_by_phantom_name(incidence.Index[1]))
-        #         sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_sql({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ";"
-        #         statements.append(sentence)
         return statements
 
     def generate_add_pk_statements(self) -> list[str]:
