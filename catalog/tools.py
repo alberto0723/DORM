@@ -1,10 +1,11 @@
 import pandas as pd
 from . import config
+import os
 
 
 def custom_warning(message, category, filename, lineno, file=None, line=None):
     if config.show_warnings:
-        print(f"{message} ({filename}:{lineno})")
+        print(f"{message} 👉 {os.path.basename(filename)}:{lineno}")
 
 
 def drop_duplicates(dirty_list):

@@ -271,6 +271,26 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get("kind")}'")
 
+    @staticmethod
+    def get_domain_attribute_from_path(attr_path: list[dict[str, str]]) -> str:
+        final_hop = attr_path[-1]
+        assert final_hop.get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
+        assert "name" in final_hop, f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
+        if final_hop.get("kind") == "Attribute":
+            return final_hop["name"]
+        else:
+            assert "id" in final_hop, f"☠️ Incorrect attribute path '{attr_path}', whose final entry is an AssociationEnd without 'id' key in it"
+            return final_hop.get("id")
+
+    @abstractmethod
+    def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
+        """
+        This generates the projection clause for a given an attribute path as produced by 'get_struct_attributes'
+        :param attr_path: List of element hops
+        :return: Projection clause depending on the implementation
+        """
+        pass
+
     def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
         """
         This generates the correspondence between attribute names in a struct and their corresponding attribute.
@@ -281,7 +301,7 @@ class Catalog(HyperNetXWrapper):
                  The last element corresponds to the "domain_name" in the hypergraph for the attribute, which can be the same attribute or association end.
         """
         # TODO: This needs to be generalized to nested structs and sets to support NF2
-        # This cannot be a dictionary with the attribute name as key, because two loose ends over the same class would use the same entry
+        # This cannot be a dictionary with the domain attribute name as key, because two loose ends over the same class would use the same entry
         # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
         attribute_list = []
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
@@ -293,13 +313,13 @@ class Catalog(HyperNetXWrapper):
                 attribute_list.append((elem_name, [{"kind": "Attribute", "name": elem_name}]))
             elif self.is_class_phantom(elem_name):
                 attribute_list.append((self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name)),
-                                        [{"kind": "Attribute", "name": self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name))}]))
+                                       [{"kind": "Attribute", "name": self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name))}]))
             elif self.is_association_phantom(elem_name):
                 ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem_name))
                 for end in ends.itertuples():
                     if end.misc_properties["End_name"] in loose_ends:
-                        attribute_list.append((self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1])),
-                                                [{"kind": "AssociationEnd", "name": end.misc_properties['End_name']}]))
+                        attribute_list.append((end.misc_properties['End_name'],
+                                               [{"kind": "AssociationEnd", "name": end.misc_properties['End_name'], "id": self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))}]))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         # TODO: assert that attribute names are not repeated
@@ -1038,22 +1058,13 @@ class Catalog(HyperNetXWrapper):
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
-    @abstractmethod
-    def generate_attr_projection_clause(self, attr_path) -> str:
-        """
-        This generates the projection clause for a given an attribute path as produced by 'get_struct_attributes'
-        :param attr_path: List of element hops
-        :return: Projection clause depending on the implementation
-        """
-        pass
-
     def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param sets_combination: The set of tables in the FROM clause of a query.
         :return: Dictionary of aliases of tables.
-        :return: Dictionary of projections of attributes.
-        :return: Dictionary of table locations of attributes.
+        :return: Dictionary of projections of domain attributes.
+        :return: Dictionary of table locations of domain attributes.
         """
         alias_set = {}
         proj_attr = {}
@@ -1063,12 +1074,14 @@ class Catalog(HyperNetXWrapper):
             # Determine the aliases of tables and required attributes
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
-                for attr_name, attr_path in self.get_struct_attributes(struct_name):
+                print(struct_name)
+                print(self.get_struct_attributes(struct_name))
+                for dom_attr_name, attr_path in self.get_struct_attributes(struct_name):
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
-                    if attr_name in location_attr and location_attr[attr_name] == alias_set[set_name]:
-                        warnings.warn(f"⚠️ Attribute name '{attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)", stacklevel=1)
-                    location_attr[self.generate_attr_projection_clause(attr_path)] = alias_set[set_name]
-                    proj_attr[self.generate_attr_projection_clause(attr_path)] = self.generate_attr_projection_clause(attr_path)
+                    if dom_attr_name in location_attr and location_attr[dom_attr_name] == alias_set[set_name]:
+                        warnings.warn(f"⚠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)", stacklevel=1)
+                    location_attr[dom_attr_name] = alias_set[set_name]
+                    proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 associations = self.get_inbound_associations()[
                     self.get_inbound_associations().index.get_level_values("nodes").isin(
@@ -1086,9 +1099,9 @@ class Catalog(HyperNetXWrapper):
                 # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
                 for end in association_ends.itertuples():
                     location_attr[end.misc_properties["End_name"]] = alias_set[set_name]
-                    attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
-                    assert attr_name in proj_attr, f"Attribute '{attr_name}' does not exist in '{struct_name}'"
-                    proj_attr[end.misc_properties["End_name"]] = proj_attr[attr_name]
+                    dom_attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
+                    assert dom_attr_name in proj_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
+                    proj_attr[end.misc_properties["End_name"]] = proj_attr[dom_attr_name]
         return alias_set, proj_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:

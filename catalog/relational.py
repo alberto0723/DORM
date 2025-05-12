@@ -329,8 +329,8 @@ class Relational(Catalog, ABC):
                     # Build the FROM clause
                     sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{}, schema_name)
                     # Add alias to the WHERE clause if there is more than one table
-                    for attr_name, attr_proj in proj_attr.items():
-                        modified_filter_clauses = [s.replace(attr_name, location_attr[attr_name]+"."+attr_proj) for s in modified_filter_clauses]
+                    for dom_attr_name, attr_proj in proj_attr.items():
+                        modified_filter_clauses = [s.replace(dom_attr_name, location_attr[dom_attr_name]+"."+attr_proj) for s in modified_filter_clauses]
                 # Build the WHERE clause
                 sentence += "\nWHERE " + " AND ".join(modified_filter_clauses)
                 sentences.append(sentence)

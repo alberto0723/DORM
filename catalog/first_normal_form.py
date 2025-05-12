@@ -55,9 +55,9 @@ class FirstNormalForm(Relational):
         return correct
 
     def generate_attr_projection_clause(self, attr_path) -> str:
-        assert len(attr_path) == 1, f"Incorrect length of attribute path '{attr_path}', which should be one"
-        assert attr_path[0].get("kind", "") in ["Attribute", "AssociationEnd"], f"Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
-        assert "name" in attr_path[0], f"Incorrect attribute path '{attr_path}', whose final entry should have a name"
+        assert len(attr_path) == 1, f"☠️ Incorrect length of attribute path '{attr_path}', which should be one"
+        assert attr_path[0].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
+        assert "name" in attr_path[0], f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
         return attr_path[0].get("name")
 
     def generate_create_table_statements(self) -> list[str]:
@@ -83,8 +83,8 @@ class FirstNormalForm(Relational):
             assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths])) == len(attr_paths), f"☠️ Table '{table.Index[0]}' has the same attribute defined twice: {attr_paths}"
             # Add all the attributes to the CREATE TABLE sentence
             attribute_list = []
-            for attr_name, attr_path in attr_paths:
-                attribute = self.get_attribute_by_name(attr_name)
+            for _, attr_path in attr_paths:
+                attribute = self.get_attribute_by_name(self.get_domain_attribute_from_path(attr_path))
                 if attribute["misc_properties"].get("DataType") == "String":
                     attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " VarChar(" + str(attribute["misc_properties"].get("Size")) + ")")
                 else:
@@ -163,15 +163,14 @@ class FirstNormalForm(Relational):
             for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
                 attribute_list.extend(self.get_struct_attributes(struct_name))
             # Check all the attributes to see if they require an FK
-            for attr_name, attr_path in attribute_list:
-                attr_proj = self.generate_attr_projection_clause(attr_path)
-                # An attribute can only be a FK if it is a class ID
-                if self.is_id(attr_name):
+            for dom_attr_name, attr_path in attribute_list:
+                attr_correspondence = self.get_domain_attribute_from_path(attr_path)
+                if self.is_id(attr_correspondence):
                     # If it comes from an association
-                    if attr_proj != attr_name:
-                        class_referee = self.get_class_name_by_end_name(attr_proj)
+                    if dom_attr_name != attr_correspondence:
+                        class_referee = self.get_class_name_by_end_name(dom_attr_name)
                         hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee)
-                    # If the attribute comes from a class
+                    # If the attribute comes from a class (the FK corresponds to generalization)
                     else:
                         # Get the classes in the struct that provide the ID
                         hierarchies = []
@@ -179,9 +178,9 @@ class FirstNormalForm(Relational):
                             for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
                                 if self.is_class_phantom(elem):
                                     class_name = self.get_edge_by_phantom_name(elem)
-                                    if attr_name == self.get_class_id_by_name(class_name):
+                                    if dom_attr_name == self.get_class_id_by_name(class_name):
                                         hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name))
-                        assert len(hierarchies) > 0, f"☠️ The ID '{attr_name}' we are looking for should be in some struct in '{table_referee}'"
+                        assert len(hierarchies) > 0, f"☠️ The ID '{dom_attr_name}' we are looking for should be in some struct in '{table_referee}'"
                         # Take the shorter hierarchy
                         hierarchy = sorted(hierarchies, key=len)[0]
                     # Follow the hierarchy bottom to top in order until a superclass is found to point to
@@ -193,12 +192,13 @@ class FirstNormalForm(Relational):
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                             assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
                             assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
+                            attr_proj = self.generate_attr_projection_clause(attr_path)
                             if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
-                                    and (table_referee != table_referred or attr_proj != attr_name)):
+                                    and (table_referee != table_referred or attr_proj != attr_correspondence)):
                                 found = True
                                 logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_proj}'")
                                 # Create the FK
-                                sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_proj}) REFERENCES {table_referred.Index[0]}({attr_name});"
+                                sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_proj}) REFERENCES {table_referred.Index[0]}({attr_correspondence});"
 
                                 statements.append(sentence)
                         if found:
