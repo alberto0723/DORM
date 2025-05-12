@@ -43,6 +43,9 @@ class Relational(Catalog, ABC):
     TABLE_INCIDENCES = '__dorm_catalog_incidences'
 
     def __init__(self, paradigm_name=None, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None, supersede=False):
+        # This print is just to avoid silly mistakes while testing, can eventually be removed
+        print(f"*********************** {paradigm_name} ***********************")
+
         if user is None or password is None:
             super().__init__(file_path=file_path)
         else:
@@ -85,8 +88,6 @@ class Relational(Catalog, ABC):
                             raise ValueError(f"🚨 Expected paradigm in the existing design in the DBMS is {paradigm_name}, '{self.metadata["paradigm"]}' found instead")
                     else:
                         self.metadata["paradigm"] = paradigm_name
-                    # This print is just to avoid silly mistakes while testing, can eventually be removed
-                    print(f"*********************** {paradigm_name} ***********************")
 
     def get_engine(self, dbschema) -> sqlalchemy.engine.Engine:
         assert self.dbms is not None and self.ip is not None and self.port is not None and self.user is not None and self.password is not None and self.dbname is not None and dbschema is not None, "☠️ Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema"
@@ -372,13 +373,16 @@ class Relational(Catalog, ABC):
                     sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM " + schema_name + tables_combination[0]
+                    # Replace the domain name by the name in the table in the WHERE clause
+                    for dom_attr_name, attr_proj in proj_attr.items():
+                        modified_filter_clauses = [s.replace(dom_attr_name, attr_proj) for s in modified_filter_clauses]
                 # Case with several tables that require joins
                 else:
                     # Build the SELECT clause
                     sentence = "SELECT " + ", ".join([location_attr[a]+"."+proj_attr[a] for a in project_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, proj_attr, schema_name)
-                    # Add alias to the WHERE clause if there is more than one table
+                    # Replace the domain name by the name in the table in the WHERE clause, and also add the alias since there is more than one table now
                     for dom_attr_name, attr_proj in proj_attr.items():
                         modified_filter_clauses = [s.replace(dom_attr_name, location_attr[dom_attr_name]+"."+attr_proj) for s in modified_filter_clauses]
                 # Build the WHERE clause

@@ -62,7 +62,7 @@ if __name__ == "__main__":
     design_parser.add_argument("--dsg_spec", type=str, default="default_spec", help="Specification of the design in a JSON file", metavar="<design>")
     design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables); necessary only files (no DBMS) are used", action="store_true")
     design_parser.add_argument("--src_sch", type=str, help="Database schema to migrate the data from", metavar="<sch>")
-    design_parser.add_argument("--src_kind", type=str, choices=["1NF", "NF2_JSON"], help="Paradigm of the catalog to migrate the data from", metavar="<prdgm>")
+    design_parser.add_argument("--src_kind", type=str, choices=["1NF", "NF2_JSON"], help="Paradigm of the catalog to migrate the data from (either 1NF or NF2_JSON)", metavar="<prdgm>")
 
     # Manually check for help before full parsing
     if len(sys.argv) == 1 or '--help' in sys.argv or '-h' in sys.argv:
