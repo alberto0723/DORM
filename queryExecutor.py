@@ -16,9 +16,10 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------------- #
     base_parser = argparse.ArgumentParser(
         formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100),
-        add_help=True,
+        add_help=False,
         description="🔍 Execute queries over a pre-existing catalog"
     )
+    base_parser.add_argument("--help", help="Shows this help message and exit", action="store_true")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
@@ -36,10 +37,12 @@ if __name__ == "__main__":
     base_parser.add_argument("--print_cost", help="Prints the unitless cost estimation of each query", action="store_true")
     base_parser.add_argument("--print_time", help="Prints the estimated time of each query (in milliseconds)", action="store_true")
 
-    args = base_parser.parse_args()
-    if len(sys.argv) == 1:
+    # Manually check for help before full parsing
+    if len(sys.argv) == 1 or '--help' in sys.argv or '-h' in sys.argv:
         base_parser.print_help()
+        sys.exit(0)
     else:
+        args = base_parser.parse_args()
         if args.logging:
             # Enable logging
             logging.basicConfig(level=logging.INFO)

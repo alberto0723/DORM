@@ -17,10 +17,11 @@ if __name__ == "__main__":
     #                                configure argparse begin                      #
     # ---------------------------------------------------------------------------- #
     base_parser = argparse.ArgumentParser(
-        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=True,
+        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=False,
         description="▶️ Perform basic actions to create and visualize a catalog"
     )
-    subparsers = base_parser.add_subparsers(help="Kind of catalog")
+    subparsers = base_parser.add_subparsers(help="Kind of catalog", dest="command")
+    base_parser.add_argument("--help", help="Shows this help message and exit", action="store_true")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
@@ -43,8 +44,12 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------------------ #
     #                                   Subparsers                                   #
     # ------------------------------------------------------------------------------ #
-    domain_parser = subparsers.add_parser("domain", help="Uses a hypergraph with only atoms", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    design_parser = subparsers.add_parser("design", help="Uses a hypergraph with a full design", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    domain_parser = subparsers.add_parser("domain", help="Uses a hypergraph with only atoms",
+                                          formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=False,
+                                          description="▶️ Acts on a catalog with only domain elements")
+    design_parser = subparsers.add_parser("design", help="Uses a hypergraph with a full design",
+                                          formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=False,
+                                          description="▶️ Acts on a catalog with both domain and design elements")
     # ---------------------------------------------------------------------- Schemas
     domain_parser.set_defaults(state="domain")  # This is the subfolder where hypergraphs are stored
     domain_parser.add_argument("--dom_path", type=Path, default=default_domains_path, help="Path to domains folder", metavar="<path>")
@@ -53,13 +58,19 @@ if __name__ == "__main__":
     design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
     design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
     design_parser.add_argument("--dsg_spec", type=str, default="default_specification", help="Specification of the design in a JSON file", metavar="<design>")
-    design_parser.add_argument("--translate", help="Translates the design into the database schema (e.g., create tables)", action="store_true")
-    design_parser.add_argument("--datasource", type=str, help="Database schema to migrate the data from", metavar="<dbschema>")
+    design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables); necessary only files (no DBMS) are used", action="store_true")
+    design_parser.add_argument("--datasource", type=str, help="Database schema to migrate the data from", metavar="<dbsch>")
 
-    args = base_parser.parse_args()
-    if len(sys.argv) == 1:
+    # Manually check for help before full parsing
+    if len(sys.argv) == 1 or '--help' in sys.argv or '-h' in sys.argv:
         base_parser.print_help()
+        print("------------------------------------------------------------------------------------------")
+        domain_parser.print_help()
+        print("------------------------------------------------------------------------------------------")
+        design_parser.print_help()
+        sys.exit(0)
     else:
+        args = base_parser.parse_args()
         if args.logging:
             # Enable logging
             logging.basicConfig(level=logging.INFO)

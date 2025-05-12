@@ -161,7 +161,7 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [-h] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
+usage: catalogAction.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
                         [--create] [--supersede] [--hg_path <path>] [--hypergraph <hg>]
                         [--dbms <dbms>] [--ip <ip>] [--port <port>] [--user <user>]
                         [--password <psw>] [--dbname <dbname>] [--dbschema <sch>] [--check] [--text]
@@ -176,7 +176,7 @@ positional arguments:
     design            Uses a hypergraph with a full design
 
 options:
-  -h, --help          show this help message and exit
+  --help              Shows custom help
   --logging           Enables logging
   --show_sql          Prints the generated statements
   --hide_warnings     Silences warnings
@@ -195,13 +195,33 @@ options:
   --check             Checks correctness of the catalog
   --text              Shows the catalog in text format
   --graph             Shows the catalog in graphical format
+------------------------------------------------------------------------------------------
+usage: catalogAction.py domain [--dom_path <path>] [--dom_spec <domain>]
+
+▶️ Acts on a catalog with only domain elements
+
+options:
+  --dom_path <path>    Path to domains folder
+  --dom_spec <domain>  Specification of the domain (only atomic elements) in a JSON file
+------------------------------------------------------------------------------------------
+usage: catalogAction.py design [--dsg_path <path>] [--dsg_spec <design>] [--translate]
+                               [--datasource <dbsch>]
+
+▶️ Acts on a catalog with both domain and design elements
+
+options:
+  --dsg_path <path>     Path to designs folder
+  --dsg_spec <design>   Specification of the design in a JSON file
+  --translate           Translates the design into the database schema (i.e., generates create
+                        tables); necessary only files (no DBMS) are used
+  --datasource <dbsch>  Database schema to migrate the data from
 ```
 
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```
-usage: queryExecutor.py [-h] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
+usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
                         [--dbms <dbms>] [--ip <ip>] [--port <port>] [--user <user>]
                         [--password <psw>] [--dbname <dbname>] [--dbschema <sch>]
                         [--query_file <path>] [--print_rows] [--print_counter] [--print_cost]
@@ -210,11 +230,11 @@ usage: queryExecutor.py [-h] [--logging] [--show_sql] [--hide_warnings] --paradi
 🔍 Execute queries over a pre-existing catalog
 
 options:
-  -h, --help           show this help message and exit
+  --help               Shows custom help
   --logging            Enables logging
   --show_sql           Prints the generated statements
   --hide_warnings      Silences warnings
-  --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2)
+  --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2_JSON)
   --dbms <dbms>        Kind of DBMS to connect to
   --ip <ip>            IP address for the database connection
   --port <port>        Port for the database connection
@@ -227,4 +247,5 @@ options:
   --print_counter      Prints the number of rows
   --print_cost         Prints the unitless cost estimation of each query
   --print_time         Prints the estimated time of each query (in milliseconds)
+
 ```
