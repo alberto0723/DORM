@@ -1074,12 +1074,10 @@ class Catalog(HyperNetXWrapper):
             # Determine the aliases of tables and required attributes
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
-                print(struct_name)
-                print(self.get_struct_attributes(struct_name))
                 for dom_attr_name, attr_path in self.get_struct_attributes(struct_name):
+                    # In case of generalization, the attribute may be overwritten, but they should coincide
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
-                    if dom_attr_name in location_attr and location_attr[dom_attr_name] == alias_set[set_name]:
-                        warnings.warn(f"⚠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)", stacklevel=1)
+                    assert dom_attr_name not in location_attr or location_attr[dom_attr_name] != alias_set[set_name] or self.generate_attr_projection_clause(attr_path) == proj_attr[dom_attr_name], f"☠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)"
                     location_attr[dom_attr_name] = alias_set[set_name]
                     proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
