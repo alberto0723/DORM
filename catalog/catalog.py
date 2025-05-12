@@ -289,7 +289,9 @@ class Catalog(HyperNetXWrapper):
         :param attr_path: List of element hops
         :return: Projection clause depending on the implementation
         """
-        pass
+        assert len(attr_path) > 0, f"☠️ Incorrect length of attribute path '{attr_path}', which should be greater than one"
+        assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
+        assert "name" in attr_path[-1], f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
 
     def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
         """

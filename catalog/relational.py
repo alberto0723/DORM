@@ -39,7 +39,7 @@ class Relational(Catalog, ABC):
     TABLE_EDGES = '__dorm_catalog_edges'
     TABLE_INCIDENCES = '__dorm_catalog_incidences'
 
-    def __init__(self, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None, supersede=False):
+    def __init__(self, paradigm_name=None, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None, supersede=False):
         if user is None or password is None:
             super().__init__(file_path=file_path)
         else:
@@ -62,7 +62,7 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database"
+                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{dbschema}'"
                     logger.info(f"Loading the catalog from the database connection")
                     df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
@@ -77,6 +77,13 @@ class Relational(Catalog, ABC):
                     row = result.fetchone()
                     assert row, "☠️ No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin)"
                     self.metadata = json.loads(row.comment)
+                    if "paradigm" in self.metadata:
+                        if self.metadata["paradigm"] != paradigm_name:
+                            raise ValueError(f"🚨 Expected paradigm in the existing design in the DBMS is {paradigm_name}, '{self.metadata["paradigm"]}' found instead")
+                    else:
+                        self.metadata["paradigm"] = paradigm_name
+                    # This print is just to avoid silly mistakes while testing, can eventually be removed
+                    print(f"*********************** {paradigm_name} ***********************")
 
     def get_engine(self, dbschema) -> sqlalchemy.engine.Engine:
         assert self.dbms is not None and self.ip is not None and self.port is not None and self.user is not None and self.password is not None and self.dbname is not None and dbschema is not None, "☠️ Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema"
@@ -200,7 +207,7 @@ class Relational(Catalog, ABC):
         """
         pass
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name="") -> str:
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, proj_attr, schema_name: str = "", visited: dict[str, str] = None) -> str:
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -214,14 +221,18 @@ class Relational(Catalog, ABC):
         :param query_classes: List of classes to be provided by the query (can be empty)
         :param query_associations: List of associations to be provided by the query (can be empty)
         :param alias_table: Dictionary with the alias of every table in the query
-        :param alias_attr: Dictionary indicating from which table each attribute must be taken
+        :param proj_attr: Dictionary indicating where the domain attribute can be found in the table
         :param visited: Dictionary with all visited classes and from which table they are taken
         :param schema_name: Schema name to be concatenated in front of every table in the FROM clause
         :return: String containing the join clause of the tables received as parameter
         """
         # TODO: Consider that there could be more than one connected component (provided by the query) in the table
         #   (associations should be used to choose the right one)
-        first_table = (visited == {})
+        if visited is None:
+            first_table = True
+            visited = dict()
+        else:
+            first_table = False
         unjoinable = []
         associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
         query_superclasses = query_classes.copy()
@@ -235,9 +246,9 @@ class Relational(Catalog, ABC):
             plugs = []  # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
             # For every struct in the table
             for struct_name in self.get_struct_names_inside_set_name(current_table):
-                for incidence in self.get_outbound_struct_by_name(struct_name).itertuples():
-                    if self.is_class_phantom(incidence.Index[1]):
-                        class_name = self.get_edge_by_phantom_name(incidence.Index[1])
+                for node_name in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                    if self.is_class_phantom(node_name):
+                        class_name = self.get_edge_by_phantom_name(node_name)
                         if class_name in query_superclasses:
                             # Any class in the query is a potential connection point per se
                             plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
@@ -259,7 +270,7 @@ class Relational(Catalog, ABC):
             joins = []
             for plug in plugs:
                 if plug[1] in visited:
-                    joins.append(alias_table[visited[plug[1]]]+"."+plug[1]+"="+alias_table[current_table]+"."+plug[0])
+                    joins.append(alias_table[visited[plug[1]]]+"."+proj_attr[plug[1]]+"="+alias_table[current_table]+"."+proj_attr[plug[0]])
             if not first_table and not joins:
                 unjoinable.append(current_table)
             else:
@@ -280,7 +291,7 @@ class Relational(Catalog, ABC):
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name)
+            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, proj_attr, schema_name, visited)
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
@@ -327,7 +338,7 @@ class Relational(Catalog, ABC):
                     # Build the SELECT clause
                     sentence = "SELECT " + ", ".join([location_attr[a]+"."+proj_attr[a] for a in project_attributes])
                     # Build the FROM clause
-                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, location_attr,{}, schema_name)
+                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, proj_attr, schema_name)
                     # Add alias to the WHERE clause if there is more than one table
                     for dom_attr_name, attr_proj in proj_attr.items():
                         modified_filter_clauses = [s.replace(dom_attr_name, location_attr[dom_attr_name]+"."+attr_proj) for s in modified_filter_clauses]

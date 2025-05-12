@@ -19,10 +19,9 @@ class NonFirstNormalFormJSON(Relational):
     This is a subclass of Relational that implements the code generation as normalized in 1NF.
     """
     def __init__(self, *args, **kwargs):
+        kwargs["paradigm_name"] = "Non First Normal Form with JSON"
         super().__init__(*args, **kwargs)
         logger.info("Using a non-first normal form (NF2) implementation of the schema using JSON")
-        # This print is just to avoid silly mistakes while testing, can eventually be removed
-        print("*********************** NonFirstNormalFormJSON ***********************")
 
     def is_correct(self, design=False) -> bool:
         correct = super().is_correct(design)
@@ -30,6 +29,14 @@ class NonFirstNormalFormJSON(Relational):
         if correct:
             pass
         return correct
+
+    def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
+        super().generate_attr_projection_clause(attr_path)
+        path = "value"
+        for hop in attr_path[:-1]:
+            path += "->'" + hop.get("name") + "'"
+        path += "->>'" + attr_path[-1].get("name") + "'"
+        return path
 
     def generate_create_table_statements(self) -> list[str]:
         """

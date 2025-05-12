@@ -20,10 +20,9 @@ class FirstNormalForm(Relational):
     This is a subclass of Relational that implements the code generation as normalized in 1NF.
     """
     def __init__(self, *args, **kwargs):
+        kwargs["paradigm_name"] = "First Normal Form"
         super().__init__(*args, **kwargs)
         logger.info("Using a first normal form (1NF) traditional implementation of the schema")
-        # This print is just to avoid silly mistakes while testing, can eventually be removed
-        print("*********************** FirstNormalForm ***********************")
 
     def is_correct(self, design=False) -> bool:
         correct = super().is_correct(design)
@@ -54,10 +53,9 @@ class FirstNormalForm(Relational):
                                         print(f"🚨 IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return correct
 
-    def generate_attr_projection_clause(self, attr_path) -> str:
+    def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
+        super().generate_attr_projection_clause(attr_path)
         assert len(attr_path) == 1, f"☠️ Incorrect length of attribute path '{attr_path}', which should be one"
-        assert attr_path[0].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
-        assert "name" in attr_path[0], f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
         return attr_path[0].get("name")
 
     def generate_create_table_statements(self) -> list[str]:
