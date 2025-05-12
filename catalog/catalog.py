@@ -7,7 +7,8 @@ from IPython.display import display
 import pandas as pd
 import sqlparse
 
-from .tools import combine_buckets, drop_duplicates, df_difference
+from .config import show_warnings
+from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference
 from .HyperNetXWrapper import HyperNetXWrapper
 
 # Libraries initialization
@@ -15,6 +16,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
 logger = logging.getLogger("Catalog")
+warnings.showwarning = custom_warning
 
 
 class Catalog(HyperNetXWrapper):
@@ -28,18 +30,16 @@ class Catalog(HyperNetXWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def check_migration(self, source, name, show_warnings=True):
+    def check_migration(self, source, name):
         # Basic consistency checks between both source and target catalogs
         if source.metadata.get("domain", "") != self.metadata["domain"]:
             raise ValueError(f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
         if source.metadata.get("design", "") == self.metadata["design"]:
-            if show_warnings:
-                warnings.warn("⚠️ Design of source and target coincides in the migration")
+            warnings.warn("⚠️ Design of source and target coincides in the migration")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"🚨 The source {name} does not have tables to migrate (according to its metadata)")
         if not source.metadata.get("data_migrated", False):
-            if show_warnings:
-                warnings.warn(f"⚠️ The source {name} does not have data to migrate (according to its metadata)")
+            warnings.warn(f"⚠️ The source {name} does not have data to migrate (according to its metadata)")
 
     def add_class(self, class_name, properties, att_list) -> None:
         """Besides the class name and the number of instances of the class, this method requires
@@ -305,12 +305,11 @@ class Catalog(HyperNetXWrapper):
         # TODO: assert that attribute names are not repeated
         return attribute_list
 
-    def is_correct(self, design=False, show_warnings=True) -> bool:
+    def is_correct(self, design=False) -> bool:
         """
         This method checks all the integrity constrains of the catalog.
         It can be expensive, so just do it at the end, not for each operation.
         :param design: Whether the catalog contains a desing, or just a domain (more or less ICs will be checked)
-        :param show_warnings: Whether to print warnings or not
         :return: If the catalog is honors all integrity constraints
         """
         correct = True
@@ -773,8 +772,8 @@ class Catalog(HyperNetXWrapper):
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
             if violations5_3.shape[0] > 0:
                 # correct = False
+                warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct")
                 if show_warnings:
-                    warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct")
                     display(violations5_3)
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
@@ -858,8 +857,7 @@ class Catalog(HyperNetXWrapper):
                         assert discriminant is not None, f"☠️ No discriminant for '{class_name}'"
                         if any(attr not in attribute_names for attr in self.parse_predicate(discriminant)):
                             # correct = False
-                            if show_warnings:
-                                warnings.warn(f"⚠️ IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
+                            warnings.warn(f"⚠️ IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
 
             # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one.
             #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
@@ -901,8 +899,7 @@ class Catalog(HyperNetXWrapper):
                     if found: break
                 if not found:
                     # correct = False
-                    if show_warnings:
-                        warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
+                    warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
         return correct
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
@@ -1069,7 +1066,7 @@ class Catalog(HyperNetXWrapper):
                 for attr_name, attr_path in self.get_struct_attributes(struct_name):
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
                     if attr_name in location_attr and location_attr[attr_name] == alias_set[set_name]:
-                        warnings.warn(f"⚠️ Attribute name '{attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)")
+                        warnings.warn(f"⚠️ Attribute name '{attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)", stacklevel=1)
                     location_attr[self.generate_attr_projection_clause(attr_path)] = alias_set[set_name]
                     proj_attr[self.generate_attr_projection_clause(attr_path)] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID

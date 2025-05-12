@@ -3,6 +3,8 @@ import warnings
 import sys
 import argparse
 from pathlib import Path
+
+import catalog.config as config
 from catalog.first_normal_form import FirstNormalForm
 from catalog.non_first_normal_form_json import NonFirstNormalFormJSON
 
@@ -71,6 +73,7 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         args = base_parser.parse_args()
+        config.show_warnings = not args.hide_warnings
         if args.logging:
             # Enable logging
             logging.basicConfig(level=logging.INFO)
@@ -113,7 +116,7 @@ if __name__ == "__main__":
         if args.text:
             cat.show_textual()
         if args.check and (args.user is None or args.password is None):
-            if cat.is_correct(design=(args.state == "design"), show_warnings=not args.hide_warnings):
+            if cat.is_correct(design=(args.state == "design")):
                 consistent = True
                 print("The catalog is correct")
             else:
@@ -129,9 +132,9 @@ if __name__ == "__main__":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                     if args.translate:
-                        cat.create_schema(show_sql=args.show_sql, show_warnings=not args.hide_warnings)
+                        cat.create_schema(show_sql=args.show_sql)
                 else:
-                    cat.save(migration_source=args.datasource, show_sql=args.show_sql, show_warnings=not args.hide_warnings)
+                    cat.save(migration_source=args.datasource, show_sql=args.show_sql)
             else:
                 raise Exception("Unknown catalog type to be saved")
         else:

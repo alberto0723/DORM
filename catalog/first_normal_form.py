@@ -1,16 +1,18 @@
 import logging
+import warnings
 import pandas as pd
 from IPython.display import display
 import networkx as nx
 
 from .relational import Relational
-from .tools import drop_duplicates
+from .tools import custom_warning, drop_duplicates
 
 # Library initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
 logger = logging.getLogger("FirstNormalForm")
+warnings.showwarning = custom_warning
 
 
 class FirstNormalForm(Relational):
@@ -23,8 +25,8 @@ class FirstNormalForm(Relational):
         # This print is just to avoid silly mistakes while testing, can eventually be removed
         print("*********************** FirstNormalForm ***********************")
 
-    def is_correct(self, design=False, show_warnings=True) -> bool:
-        correct = super().is_correct(design, show_warnings=show_warnings)
+    def is_correct(self, design=False) -> bool:
+        correct = super().is_correct(design)
         # Not worth to check anything if the more basic stuff is already not correct
         if correct:
             # ---------------------------------------------------------------- ICs about being a normalized catalog
@@ -91,17 +93,16 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def generate_migration_statements(self, migration_source, show_warnings=True) -> list[str]:
+    def generate_migration_statements(self, migration_source) -> list[str]:
         """
         Generates insertions to migrate data from one schema to another one.
         Both must be in the same database for it to work.
         :param migration_source: Database schema to migrate the data from.
-        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated to migrate the data (one per struct)
         """
         statements = []
         source = FirstNormalForm(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source)
-        self.check_migration(source, migration_source, show_warnings)
+        self.check_migration(source, migration_source)
         firstlevels = self.get_inbound_firstLevel()
         # For each table
         for table in firstlevels.itertuples():
@@ -114,8 +115,7 @@ class FirstNormalForm(Relational):
                     if self.is_class_phantom(incidence.Index[1]) or self.is_association_phantom(incidence.Index[1]):
                         pattern.append(self.get_edge_by_phantom_name(incidence.Index[1]))
                 sentence = f"INSERT INTO {table.Index[0]}({", ".join(project)})\n" + source.generate_query_statement({"project": project, "pattern": pattern},
-                                                                                                                     explicit_schema=True,
-                                                                                                                     show_warnings=show_warnings)[0] + ";"
+                                                                                                                     explicit_schema=True)[0] + ";"
                 statements.append(sentence)
         return statements
 
@@ -147,12 +147,11 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def generate_add_fk_statements(self, show_warnings=True) -> list[str]:
+    def generate_add_fk_statements(self) -> list[str]:
         """
         Generated the DDL to add FKs to the tables.
         The foreign keys of a table come from the ends of its associations or class IDs,
         which are attributes and there is another table that has their class (or corresponding superclass) as an anchor.
-        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated (one per table)
         """
         statements = []

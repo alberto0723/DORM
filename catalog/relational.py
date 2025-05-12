@@ -9,14 +9,15 @@ import hypernetx as hnx
 import json
 import re
 
+from .tools import custom_warning, drop_duplicates
 from .catalog import Catalog
-from .tools import drop_duplicates
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
 
 logger = logging.getLogger("Relational")
+warnings.showwarning = custom_warning
 
 
 class Relational(Catalog, ABC):
@@ -83,12 +84,12 @@ class Relational(Catalog, ABC):
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
-    def save(self, file_path=None, migration_source=None, show_sql=False, show_warnings=True) -> None:
+    def save(self, file_path=None, migration_source=None, show_sql=False) -> None:
         if file_path is not None:
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
-            if self.is_correct(design="design" in self.metadata, show_warnings=show_warnings):
+            if self.is_correct(design="design" in self.metadata):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
                 df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
@@ -110,8 +111,8 @@ class Relational(Catalog, ABC):
         else:
            raise ValueError("🚨 No connection to the database or file provided")
 
-    def is_correct(self, design=False, show_warnings=True) -> bool:
-        correct = super().is_correct(design, show_warnings=show_warnings)
+    def is_correct(self, design=False) -> bool:
+        correct = super().is_correct(design)
         # Only needs to run further checks if the basic one succeeded
         if correct:
             structs = self.get_structs()
@@ -146,17 +147,16 @@ class Relational(Catalog, ABC):
                 display(violations6_1)
         return correct
 
-    def create_schema(self, migration_source=None, show_sql=False, show_warnings=True) -> None:
+    def create_schema(self, migration_source=None, show_sql=False) -> None:
         """
         Creates the tables according to the design.
         :param migration_source: Name of the database schema to migrate the data from.
         :param show_sql: Whether to print SQL statements or not.
-        :param show_warnings: Whether to print warnings or not.
         """
         logger.info("Creating schema")
         statements = self.generate_create_table_statements()
         if migration_source is not None:
-            statements.extend(self.generate_migration_statements(migration_source, show_warnings=show_warnings))
+            statements.extend(self.generate_migration_statements(migration_source))
         statements.extend(self.generate_add_pk_statements())
         statements.extend(self.generate_add_fk_statements())
         if self.engine is not None:
@@ -176,11 +176,10 @@ class Relational(Catalog, ABC):
         pass
 
     @abstractmethod
-    def generate_migration_statements(self, migration_source, show_warnings=True) -> list[str]:
+    def generate_migration_statements(self, migration_source) -> list[str]:
         """
         Migration generation depends on the concrete implementation strategy.
         :param migration_source: Database schema to migrate the data from.
-        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated to migrate the data (one per struct)
         """
         pass
@@ -194,10 +193,9 @@ class Relational(Catalog, ABC):
         pass
 
     @abstractmethod
-    def generate_add_fk_statements(self, show_warnings=True) -> list[str]:
+    def generate_add_fk_statements(self) -> list[str]:
         """
         FK generation depends on the concrete implementation strategy.
-        :param show_warnings: Whether to print warnings statements or not.
         :return: List of statements generated (one per FK)
         """
         pass
@@ -284,18 +282,17 @@ class Relational(Catalog, ABC):
         else:
             return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, alias_attr, visited, schema_name)
 
-    def generate_query_statement(self, spec, explicit_schema=False, show_warnings=True) -> list[str]:
+    def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
         Generates SQL statements corresponding to the given query.
         It uses the bucket algorithm of query rewriting using views to generate all possible combinations of tables to
-        retrieve the required classes and associations
-        :param spec: A JSON containing the select-project-join information
-        :param explicit_schema: Adds the dbschema to every table in the FROM clause
-        :param show_warnings: Whether to print warnings or not
-        :return: A list with all possible SQL statements ascendantly sorted by the number of tables
+        retrieve the required classes and associations.
+        :param spec: A JSON containing the select-project-join information.
+        :param explicit_schema: Adds the dbschema to every table in the FROM clause.
+        :return: A list with all possible SQL statements ascendantly sorted by the number of tables.
         """
         logger.info("Resolving query")
-        if show_warnings and not self.metadata.get("tables_created", False):
+        if not self.metadata.get("tables_created", False):
             warnings.warn("⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
@@ -312,8 +309,7 @@ class Relational(Catalog, ABC):
         if implicit_classes.empty:
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
-                if show_warnings:
-                    warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
+                warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 # TODO: Can we check here if two combinations differ in only one table whose difference is by generaliazation? Then, we can prioritize taking first the query using the table with the subclass.
                 #       In general, this can be complex to check, because of the exponencial number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
@@ -351,7 +347,7 @@ class Relational(Catalog, ABC):
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom.Index) if elem == superclass_name else elem for elem in new_query["pattern"]]
-                subqueries.append(self.generate_query_statement(new_query, explicit_schema, show_warnings=show_warnings))
+                subqueries.append(self.generate_query_statement(new_query, explicit_schema))
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
                 sentences.append("\nUNION\n".join(combination))

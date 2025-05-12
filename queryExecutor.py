@@ -3,6 +3,8 @@ import sys
 import argparse
 from pathlib import Path
 import json
+
+import catalog.config as config
 from catalog.first_normal_form import FirstNormalForm
 from catalog.non_first_normal_form_json import NonFirstNormalFormJSON
 
@@ -43,6 +45,7 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         args = base_parser.parse_args()
+        config.show_warnings = not args.hide_warnings
         if args.logging:
             # Enable logging
             logging.basicConfig(level=logging.INFO)
@@ -61,9 +64,9 @@ if __name__ == "__main__":
         with open(args.query_file, 'r') as file:
             query_specs = json.load(file).get("queries")
         for i, spec in enumerate(query_specs):
-            print(f"-- Running query specification {i}")
-            if True:
-                queries = cat.generate_query_statement(spec, explicit_schema=False, show_warnings=not args.hide_warnings)
+            if i==0: #True:
+                print(f"-- Running query specification {i}")
+                queries = cat.generate_query_statement(spec, explicit_schema=False)
                 if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
                     if len(queries) > 1:

@@ -2,6 +2,8 @@ import logging
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
+show_warnings = True
+
 
 class Config(object):
 

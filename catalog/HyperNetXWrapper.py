@@ -8,7 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 
-from . import config
+from .config import Config
 from .tools import drop_duplicates, df_difference
 
 # Libraries initialization
@@ -26,7 +26,7 @@ class HyperNetXWrapper:
     It implements all the basic stuff and auxiliary, private functions of the catalog to simplify the use of the library.
     """
     def __init__(self, file_path=None, hypergraph=None):
-        self.config = config.Config()
+        self.config = Config()
         if hypergraph is not None:
             self.H = hypergraph
         elif file_path is not None:
