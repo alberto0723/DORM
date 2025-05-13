@@ -48,6 +48,7 @@ class Relational(Catalog, ABC):
 
         if user is None or password is None:
             super().__init__(file_path=file_path)
+            self.metadata["paradigm"] = paradigm_name
         else:
             self.dbms = dbms
             self.ip = ip
@@ -66,6 +67,7 @@ class Relational(Catalog, ABC):
                     conn.commit()
                     # This creates either an empty hypergraph or reads it from a file
                     super().__init__(file_path=file_path)
+                    self.metadata["paradigm"] = paradigm_name
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
                     assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{dbschema}' of database '{dbname}'"
@@ -210,8 +212,8 @@ class Relational(Catalog, ABC):
         if source.metadata.get("domain", "") != self.metadata["domain"]:
             raise ValueError(
                 f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
-        if source.metadata.get("design", "") == self.metadata["design"]:
-            warnings.warn("⚠️ Design of source and target coincides in the migration")
+        if source.metadata.get("design", "") == self.metadata["design"] and source.metadata.get("paradigm", "") == self.metadata["paradigm"]:
+            warnings.warn("⚠️ Design and paradigm of source and target coincide in the migration")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"🚨 The source {migration_source_sch} does not have tables to migrate (according to its metadata)")
         if not source.metadata.get("data_migrated", False):

@@ -249,3 +249,51 @@ options:
   --print_cost         Prints the unitless cost estimation of each query
   --print_time         Prints the estimated time of each query (in milliseconds)
 ```
+
+## Demo 💻
+
+Understanding the contribution of this project is tricky, since it must be seen in the DBMS itself.
+For this, you can follow the next steps:
+
+1. Create a database in PostgreSQL.
+2. Create a schema in the database to contain some data (these will be migrated later to other versions of this schema).
+```bash
+python catalogAction.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <sourcesch> --supersede --create design --dsg_spec 1NF/book-authors_test2
+```
+3. Insert some testing data.
+```SQL
+INSERT INTO <sourcesch>.books_table VALUES (1, 'The Lord of the Rings', 'HarperCollins', 101, 'J.R.R. Tolkien', 133, 'M', 'U.K.');
+INSERT INTO <sourcesch>.books_table VALUES (2, 'The Goods Themselves', 'Galaxy', 102, 'Isaac Asimov', 105, 'M', 'New York City, U.S.A.');
+```
+4. Indicate that the schema contains data by annotating it.
+```SQL
+DO $$
+DECLARE
+    metadata JSONB;
+BEGIN
+    SELECT d.description::JSONB INTO metadata
+    FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
+    WHERE n.nspname = '<sourcesch>';
+
+    EXECUTE format('COMMENT ON SCHEMA <sourcesch> IS %L', metadata || '{"data_migrated": true}');
+END $$
+```
+5. Query the source schema.
+```bash
+python queryExecutor.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <sourcesch> --show_sql --print_rows --query_file files/queries/book-authors.json
+```
+6. Create another schema containing a different design and migrate the same data there.
+```bash
+python catalogAction.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <newsch> --supersede --create design --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
+```
+7. Check the tables and contents of the new schema and compare against the source one.
+8. Query the new schema.
+```bash
+python queryExecutor.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <newsch> --show_sql --print_rows --query_file files/queries/book-authors.json
+```
+
+Notice that despite the source and the new schema being different, the query specification file we use is exactly the same, and the resulting tuples we get also coincide.
+Nevertheless, the SQL queries being generated are different.
+
+Steps 6 to 8 can be repeated any of [1NF/book-authors_test](files/designs/1NF/book-authors_test.json), [1NF/book-authors_test1](files/designs/1NF/book-authors_test1.json), [1NF/book-authors_test2](files/designs/1NF/book-authors_test2.json), and [1NF/book-authors_test3](files/designs/1NF/book-authors_test3.json).
+Moreover, the three design can also be instantiated using `NF2_JSON` as paradigm (still keeping the source paradigm as `1NF`).
