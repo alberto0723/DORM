@@ -25,7 +25,7 @@ if __name__ == "__main__":
     subparsers = base_parser.add_subparsers(help="Kind of catalog", dest="command")
     base_parser.add_argument("--help", help="Shows this help message and exit", action="store_true")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
-    base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
+    base_parser.add_argument("--show_sql", help="Prints the generated SQL statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     base_parser.add_argument("--create", help="Creates the catalog (otherwise it would be loaded from either a file or DBMS)", action="store_true")
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--password", type=str, help="Password for the database connection", metavar="<psw>")
     base_parser.add_argument("--dbname", type=str, default="postgres", help="Database name", metavar="<dbname>")
     base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<sch>")
-    base_parser.add_argument("--check", help="Checks correctness of the catalog", action="store_true")
+    base_parser.add_argument("--check", help="Forces checking the consistency of the catalog when using files (when using a DBMS, the check is always performed)", action="store_true")
     base_parser.add_argument("--text", help="Shows the catalog in text format", action="store_true")
     base_parser.add_argument("--graph", help="Shows the catalog in graphical format", action="store_true")
 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
     design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
     design_parser.add_argument("--dsg_spec", type=str, default="default_spec", help="Specification of the design in a JSON file", metavar="<design>")
-    design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables); necessary only files (no DBMS) are used", action="store_true")
+    design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables) when files are used (when using a DBMS, the translation is always performed)", action="store_true")
     design_parser.add_argument("--src_sch", type=str, help="Database schema to migrate the data from", metavar="<sch>")
     design_parser.add_argument("--src_kind", type=str, choices=["1NF", "NF2_JSON"], help="Paradigm of the catalog to migrate the data from (either 1NF or NF2_JSON)", metavar="<prdgm>")
 
@@ -117,9 +117,9 @@ if __name__ == "__main__":
         if args.text:
             cat.show_textual()
         if args.check and (args.user is None or args.password is None):
-            if cat.is_correct(design=(args.state == "design")):
+            if cat.is_consistent(design=(args.state == "design")):
                 consistent = True
-                print("The catalog is correct")
+                print("The catalog is consistent!")
             else:
                 consistent = False
                 warnings.warn("⚠️ The catalog is not consistent!!!")
@@ -133,6 +133,7 @@ if __name__ == "__main__":
                 if args.user is None or args.password is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                     if args.translate:
+                        # Translating without showing the SQL sentences does not make much sense when using file (show_sql should always be True in this case)
                         cat.create_schema(show_sql=args.show_sql)
                 else:
                     assert args.src_kind is None or args.src_kind in ["1NF", "NF2_JSON"], f"☠️ Only source catalog paradigms allowed are 1NF and NF2_JSON"

@@ -23,12 +23,12 @@ class NonFirstNormalFormJSON(Relational):
         super().__init__(*args, **kwargs)
         logger.info("Using a non-first normal form (NF2) implementation of the schema using JSON")
 
-    def is_correct(self, design=False) -> bool:
-        correct = super().is_correct(design)
-        # Not worth to check anything if the more basic stuff is already not correct
-        if correct:
+    def is_consistent(self, design=False) -> bool:
+        consistent = super().is_consistent(design)
+        # Not worth to check anything if the more basic stuff is already not consistent
+        if consistent:
             pass
-        return correct
+        return consistent
 
     def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
         super().generate_attr_projection_clause(attr_path)

@@ -23,6 +23,11 @@ This is exemplified by offering two different implementation paradigms:
 All attributes in the domain are then stored inside the *value*. 
 By now, no nested documents or arrays are generated inside the *value*, but eventually they should.
 
+Regarding the errors, the system can produce three different kinds:
+- ⚠️ *Warning*: Some potential issue (e.g., a query can be translated in multiple ways), but the system is working fine (these can be disabled through the corresponding parameter ``hide_warnings``).
+- 🚨 *Error*: A problem (most probably in the inputs) that prevents the system from working properly (e.g., giving rise to an inconsistent catalog).
+- ☠️ *Assertion violation*: An internal error, just relevant for development (should hopefully never happen). 
+
 There are three different inputs:
 
 ### 1- Domain 🌐
@@ -166,7 +171,7 @@ pip freeze > requirements.txt
 There is an annoying bug in HyperNetX that constantly generates a warning. It can be avoided as explained in [BugFixForHyperNetX.txt](BugFixForHyperNetX.txt).
 
 ## Launching 🚀
-There are some tools available to facilitate usage and testing.
+There are two tools available to facilitate usage and testing.
 
 ### catalogAction ▶️
 This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into CREATE TABLE statements.
@@ -190,7 +195,7 @@ positional arguments:
 options:
   --help              Shows this help message and exit
   --logging           Enables logging
-  --show_sql          Prints the generated statements
+  --show_sql          Prints the generated SQL statements
   --hide_warnings     Silences warnings
   --paradigm <prdgm>  Implementation paradigm for the design (either 1NF or NF2_JSON)
   --create            Creates the catalog (otherwise it would be loaded from either a file or DBMS)
@@ -204,7 +209,8 @@ options:
   --password <psw>    Password for the database connection
   --dbname <dbname>   Database name
   --dbschema <sch>    Database schema
-  --check             Checks correctness of the catalog
+  --check             Forces checking the consistency of the catalog when using files (when using a
+                      DBMS, the check is always performed)
   --text              Shows the catalog in text format
   --graph             Shows the catalog in graphical format
 ------------------------------------------------------------------------------------------
@@ -225,9 +231,10 @@ options:
   --dsg_path <path>    Path to designs folder
   --dsg_spec <design>  Specification of the design in a JSON file
   --translate          Translates the design into the database schema (i.e., generates create
-                       tables); necessary only files (no DBMS) are used
+                       tables) when files are used (when using a DBMS, the translation is always
+                       performed)
   --src_sch <sch>      Database schema to migrate the data from
-  --src_kind <prdgm>   Paradigm of the catalog to migrate the data from
+  --src_kind <prdgm>   Paradigm of the catalog to migrate the data from (either 1NF or NF2_JSON)
 ```
 
 ### queryExecutor 🔍

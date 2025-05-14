@@ -102,7 +102,7 @@ class Relational(Catalog, ABC):
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
-            if self.is_correct(design="design" in self.metadata):
+            if self.is_consistent(design="design" in self.metadata):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
                 df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
@@ -121,13 +121,15 @@ class Relational(Catalog, ABC):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
                     conn.execute(sqlalchemy.text(statement))
                     conn.commit()
+            else:
+                raise ValueError("🚨 An inconsistent catalog cannot be saved in the DBMS")
         else:
            raise ValueError("🚨 No connection to the database or file provided")
 
-    def is_correct(self, design=False) -> bool:
-        correct = super().is_correct(design)
+    def is_consistent(self, design=False) -> bool:
+        consistent = super().is_consistent(design)
         # Only needs to run further checks if the basic one succeeded
-        if correct:
+        if consistent:
             structs = self.get_structs()
             sets = self.get_sets()
             # --------------------------------------------------------------------- ICs about being a relational catalog
@@ -136,7 +138,7 @@ class Relational(Catalog, ABC):
             matches6_1 = self.get_inbound_firstLevel().reset_index(drop=False)
             violations6_1 = sets[~sets["name"].isin(matches6_1["edges"])]
             if violations6_1.shape[0] > 0:
-                correct = False
+                consistent = False
                 print("🚨 IC-Relational1 violation: Some sets are not at the first level")
                 display(violations6_1)
 
@@ -147,7 +149,7 @@ class Relational(Catalog, ABC):
                             self.get_inbounds().reset_index(drop=False), on="nodes", how="inner", suffixes=(None, "_secondhop"))
             violations6_2 = matches6_2[~matches6_2["misc_properties_secondhop"].apply(lambda x: x['Kind'] == 'StructIncidence')]
             if violations6_2.shape[0] > 0:
-                correct = False
+                consistent = False
                 print("🚨 IC-Relational2 violation: Some second level are not structs")
                 display(violations6_2)
 
@@ -155,10 +157,10 @@ class Relational(Catalog, ABC):
             logger.info("Checking IC-Relational3")
             violations6_3 = structs[~structs["name"].isin(matches6_2["edges_secondhop"])]
             if violations6_3.shape[0] > 0:
-                correct = False
+                consistent = False
                 print("🚨 IC-Relational3 violation: Some structs are not at the second level")
                 display(violations6_1)
-        return correct
+        return consistent
 
     def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         """

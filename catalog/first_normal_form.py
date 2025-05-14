@@ -24,10 +24,10 @@ class FirstNormalForm(Relational):
         super().__init__(*args, **kwargs)
         logger.info("Using a first normal form (1NF) traditional implementation of the schema")
 
-    def is_correct(self, design=False) -> bool:
-        correct = super().is_correct(design)
-        # Not worth to check anything if the more basic stuff is already not correct
-        if correct:
+    def is_consistent(self, design=False) -> bool:
+        consistent = super().is_consistent(design)
+        # Not worth to check anything if the more basic stuff is already not consistent
+        if consistent:
             # ---------------------------------------------------------------- ICs about being a normalized catalog
             # IC-Normalized1: All associations from the anchor of a class must be to one (at most)
             logger.info("Checking IC-Normalized1")
@@ -49,9 +49,9 @@ class FirstNormalForm(Relational):
                                 if len(paths) == 1:
                                     # Second position in the tuple is the max multiplicity
                                     if not self.check_multiplicities_to_one(paths[0])[1]:
-                                        correct = False
+                                        consistent = False
                                         print(f"🚨 IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
-        return correct
+        return consistent
 
     def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
         super().generate_attr_projection_clause(attr_path)
