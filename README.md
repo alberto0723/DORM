@@ -11,6 +11,18 @@ Impact Study of NoSQL Refactoring in SkyServer Database. DOLAP 2025: 1-11](https
 On the other hand, the overall idea of having a generic representation of the schema independent of the storage engine is based on [Moditha Hewasinghage](documents/Thesis-Moditha.pdf)'s PhD thesis.
 
 ## Getting Started 📘
+This prototype of object-relational mapping implements conceptual schemas in databases.
+Its dynamicity comes from the same domain information being potentially implementing in many different designs, without affecting the way user expresses the queries.
+Thus, the system automatically translates those queries depending on the existing database schema underneath.
+Moreover, the design can be modified and data is automatically migrated from one database schema to another.
+
+For demonstration purposes, it has been implemented in PostgreSQL, but it could be generalized to any other relational DBMS or even non-relational document or key-value stores.
+This is exemplified by offering two different implementation paradigms:
+- *First Normal Form* (``1NF``): This option maps every domain attribute into a table attribute.
+- *Non First Normal Form with JSON* (``NF2-JSON``): This option generates two attributes (namely an autoincrement integer *key* and a JSON *value*).
+All attributes in the domain are then stored inside the *value*. 
+By now, no nested documents or arrays are generated inside the *value*, but eventually they should.
+
 There are three different inputs:
 
 ### 1- Domain 🌐
@@ -252,10 +264,10 @@ options:
 
 ## Demo 💻
 
-Understanding the contribution of this project is tricky, since it must be seen in the DBMS itself.
-For this, you can follow the next steps:
+Understanding the contribution of this project is tricky, since it must be seen in the DBMS itself (everything automatically happens behind scenes).
+To grasp the idea of what the prototype is actually doing, you can follow the next steps:
 
-1. Create a database in PostgreSQL.
+1. Create a database in PostgreSQL on your own.
 2. Create a schema in the database to contain some data (these will be migrated later to other versions of this schema).
 ```bash
 python catalogAction.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <sourcesch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test2
