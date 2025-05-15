@@ -28,15 +28,33 @@ class FirstNormalForm(Relational):
         consistent = super().is_consistent(design)
         # Not worth to check anything if the more basic stuff is already not consistent
         if consistent:
-            # ---------------------------------------------------------------- ICs about being a normalized catalog
-            # IC-Normalized1: All associations from the anchor of a class must be to one (at most)
-            logger.info("Checking IC-Normalized1")
-            firstlevels = self.get_inbound_firstLevel()
+            firstlevel_names = self.get_inbound_firstLevel().index.get_level_values("edges")
+
+            # ---------------------------------------------------------------- ICs about being a First Normal Form catalog
+            # IC-FirstNormalForm1: Sets can only appear at the first level
+            logger.info("Checking IC-FirstNormalForm1")
+            violations7_1 = self.get_sets()[~self.get_sets().index.isin(firstlevel_names)]
+            if not violations7_1.empty:
+                consistent = False
+                print(f"🚨 IC-FirstNormalForm1 violation: Some sets are not at first level")
+                display(violations7_1)
+
+            # IC-FirstNormalForm2: Structs can only appear at the second level
+            logger.info("Checking IC-FirstNormalForm2")
+            struct_phantom_names = self.get_inbound_structs().index.get_level_values("nodes")
+            violations7_2 = self.get_outbounds()[self.get_outbounds().index.to_frame().apply(lambda row: row["edges"] not in firstlevel_names and row["nodes"] in struct_phantom_names, axis=1)]
+            if not violations7_2.empty:
+                consistent = False
+                print("🚨 IC-FirstNormalForm2 violation: Some structs are not at the second level")
+                display(violations7_2)
+
+            # IC-FirstNormalForm3: All associations from the anchor of a class must be to one (at most)
+            logger.info("Checking IC-FirstNormalForm3")
             # For each table
-            for table in firstlevels.itertuples():
-                for struct in self.get_outbound_set_by_name(table.Index[0]).itertuples():
-                    struct_name = self.get_edge_by_phantom_name(struct.Index[1])
-                    members = self.get_outbound_struct_by_name(struct_name).index.get_level_values(1).tolist()
+            for set_name in firstlevel_names:
+                for struct_phantom in self.get_outbound_set_by_name(set_name).index.get_level_values("nodes"):
+                    struct_name = self.get_edge_by_phantom_name(struct_phantom)
+                    members = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                     dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
                     restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
@@ -50,7 +68,7 @@ class FirstNormalForm(Relational):
                                     # Second position in the tuple is the max multiplicity
                                     if not self.check_multiplicities_to_one(paths[0])[1]:
                                         consistent = False
-                                        print(f"🚨 IC-FirstNormalForm1 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
+                                        print(f"🚨 IC-FirstNormalForm3 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return consistent
 
     def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:

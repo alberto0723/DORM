@@ -343,7 +343,7 @@ class Catalog(HyperNetXWrapper):
         # -------------------------------------------------------------------------------------------------- Generic ICs
         # Pre-check emptiness
         logger.info("Checking emptiness")
-        if self.get_nodes().shape[0] == 0 or self.get_edges().shape[0] == 0 or self.get_incidences().shape[0] == 0:
+        if self.get_nodes().empty or self.get_edges().empty or self.get_incidences().empty:
             print(f"This is a degenerated hypergraph: {self.get_nodes().shape[0]} nodes, {self.get_edges().shape[0]} edges, and {self.get_incidences().shape[0]} incidences")
             return False
 
@@ -351,7 +351,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Generic1")
         union1_1 = pd.concat([self.get_nodes()["name"], self.get_edges()["name"]], ignore_index=True)
         violations1_1 = union1_1.groupby(union1_1).size()
-        if violations1_1[violations1_1 > 1].shape[0] > 0:
+        if not violations1_1[violations1_1 > 1].empty:
             consistent = False
             print("🚨 IC-Generic1 violation: Some names are not unique")
             display(violations1_1[violations1_1 > 1])
@@ -366,7 +366,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Generic3")
         matches1_3 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
         violations1_3 = phantoms[~phantoms["name"].isin((matches1_3.reset_index(drop=False))["nodes"])]
-        if violations1_3.shape[0] > 0:
+        if not violations1_3.empty:
             consistent = False
             print("🚨 IC-Generic3 violation: There are phantoms without an edge")
             display(violations1_3)
@@ -375,7 +375,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Generic4")
         matches1_4 = self.get_inbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
         violations1_4 = df_difference(edges.reset_index(drop=False)['edges'], matches1_4)
-        if violations1_4.shape[0] > 0:
+        if not violations1_4.empty:
             consistent = False
             print("🚨 IC-Generic4 violation: There are edges without inbound")
             display(violations1_4)
@@ -384,7 +384,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Generic5")
         matches1_5 = self.get_outbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
         violations1_5 = df_difference(edges.reset_index(drop=False)['edges'], matches1_5)
-        if violations1_5.shape[0] > 0:
+        if not violations1_5.empty:
             consistent = False
             print("🚨 IC-Generic4 violation: There are edges without outbound")
             display(violations1_5)
@@ -392,7 +392,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic6: An edge cannot have more than one inbound
         logger.info("Checking IC-Generic6")
         violations1_6 = inbounds.groupby(inbounds.index.get_level_values('edges')).size()
-        if violations1_6[violations1_6 > 1].shape[0] > 0:
+        if not violations1_6[violations1_6 > 1].empty:
             consistent = False
             print("🚨 IC-Generic6 violation: There are edges with more than one inbound")
             display(violations1_6[violations1_6 > 1])
@@ -400,7 +400,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic7: An edge cannot be cyclic
         logger.info("Checking IC-Generic7")
         violations1_7 = pd.merge(inbounds, pd.concat([outbounds, transitives]), on=["nodes", "edges"], how="inner")
-        if violations1_7.shape[0] > 0:
+        if not violations1_7.empty:
             consistent = False
             print("🚨 IC-Generic7 violation: There are cyclic edges")
             display(violations1_7)
@@ -408,7 +408,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic8: Outbounds and transitive of an edge must be disjoint
         logger.info("Checking IC-Generic8")
         violations1_8 = pd.merge(outbounds, transitives, on=["nodes", "edges"], how="inner")
-        if violations1_8.shape[0] > 0:
+        if not violations1_8.empty:
             consistent = False
             print("🚨 IC-Generic8 violation: There are edges with common outbound and transitive incidences")
             display(violations1_8)
@@ -418,7 +418,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms2")
         matches2_2 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
         violations2_2 = ids[~ids["name"].isin((matches2_2.reset_index(drop=False))["nodes"])]
-        if violations2_2.shape[0] > 0:
+        if not violations2_2.empty:
             consistent = False
             print("🚨 IC-Atoms2 violation: There are IDs without a class")
             display(violations2_2)
@@ -427,7 +427,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms3")
         matches2_3 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
         violations2_3 = attributes[~attributes["name"].isin((matches2_3.reset_index(drop=False))["nodes"])]
-        if violations2_3.shape[0] > 0:
+        if not violations2_3.empty:
             consistent = False
             print("🚨 IC-Atoms3 violation: There are attributes without a class")
             display(violations2_3)
@@ -436,7 +436,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms4")
         matches2_4 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner').join(attributes, on='nodes', rsuffix='_nodes', how='inner')
         violations2_4 = matches2_4.groupby(matches2_4.index.get_level_values('nodes')).size()
-        if violations2_4[violations2_4 > 1].shape[0] > 0:
+        if not violations2_4[violations2_4 > 1].empty:
             consistent = False
             print("🚨 IC-Atoms4 violation: There are attributes with more than one class")
             display(violations2_4[violations2_4 > 1])
@@ -445,7 +445,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms5")
         matches2_5 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
         violations2_5 = matches2_5[matches2_5.apply(lambda r: r["misc_properties"]["DistinctVals"] > r["misc_properties_class"]["Count"], axis=1)]
-        if violations2_5.shape[0] > 0:
+        if not violations2_5.empty:
             consistent = False
             print("🚨 IC-Atoms5 violation: The number of different values of an attribute is greater than the cardinality of its class")
             display(violations2_5)
@@ -454,7 +454,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms6")
         matches2_6 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
         violations2_6 = associations[~associations["name"].isin((matches2_6.reset_index(drop=False))["edges"])]
-        if violations2_6.shape[0] > 0:
+        if not violations2_6.empty:
             consistent = False
             print("🚨 IC-Atoms6 violation: There are associations without phantom")
             display(violations2_6)
@@ -463,7 +463,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms7")
         matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(associations, on='edges', rsuffix='_edges', how='inner').groupby(['edges']).size()
         violations2_7 = matches2_7[matches2_7 != 2]
-        if violations2_7.shape[0] > 0:
+        if not violations2_7.empty:
             consistent = False
             print("🚨 IC-Atoms7 violation: There are non-binary associations")
             display(violations2_7)
@@ -472,7 +472,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms8")
         matches2_8 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
         violations2_8 = matches2_8[matches2_8.apply(lambda r: r["misc_properties"]["Identifier"] and r["misc_properties"]["DistinctVals"] != r["misc_properties_class"]["Count"], axis=1)]
-        if violations2_8.shape[0] > 0:
+        if not violations2_8.empty:
             consistent = False
             print("🚨 IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
             display(violations2_8)
@@ -481,7 +481,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms9")
         matches2_9 = self.get_outbound_generalization_subclasses().groupby(["nodes"]).size()
         violations2_9 = matches2_9[matches2_9 > 1]
-        if violations2_9.shape[0] > 0:
+        if not violations2_9.empty:
             consistent = False
             print("🚨 IC-Atoms9 violation: There are classes with more than one superclass")
             display(violations2_9)
@@ -489,7 +489,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms10: Every generalization outgoing of a subclass must have a discriminant
         logger.info("Checking IC-Atoms10")
         violations2_10 = self.get_outbound_generalization_subclasses()[~self.get_outbound_generalization_subclasses().apply(lambda r: "Constraint" in r["misc_properties"], axis=1)]
-        if violations2_10.shape[0] > 0:
+        if not violations2_10.empty:
             consistent = False
             print("🚨 IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
             display(violations2_10)
@@ -498,7 +498,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms11")
         matches2_11 = generalizations[generalizations.apply(lambda r: "Disjoint" in r["misc_properties"] and "Complete" in r["misc_properties"], axis=1)]
         violations2_11 = df_difference(generalizations["name"], matches2_11["name"])
-        if violations2_11.shape[0] > 0:
+        if not violations2_11.empty:
             consistent = False
             print("🚨 IC-Atoms11 violation: There are generalizations without completeness and disjointness constraints")
             display(violations2_11)
@@ -506,7 +506,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms12: Generalizations cannot have cycles
         logger.info("Checking IC-Atoms12")
         violations2_12 = classes[classes.apply(lambda r: r["name"] in self.get_superclasses_by_class_name(r["name"]), axis=1)]
-        if violations2_12.shape[0] > 0:
+        if not violations2_12.empty:
             consistent = False
             print("🚨 IC-Atoms12 violation: There are some cyclic generalizations")
             display(violations2_12)
@@ -582,7 +582,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Structs1")
             matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
             violations3_1 = structs[~structs["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
-            if violations3_1.shape[0] > 0:
+            if not violations3_1.empty:
                 consistent = False
                 print("🚨 IC-Structs1 violation: There are structs without phantom")
                 display(violations3_1)
@@ -598,7 +598,7 @@ class Catalog(HyperNetXWrapper):
                     structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
                     on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
             violations3_2 = df_difference(matches3_2, self.get_transitives().reset_index(drop=False)[["edges", "nodes"]])
-            if violations3_2.shape[0] > 0:
+            if not violations3_2.empty:
                 consistent = False
                 print("🚨 IC-Structs2 violation: There are missing elements in some struct")
                 display(violations3_2)
@@ -607,7 +607,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Structs3")
             matches3_3 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].groupby('edges').size()
             violations3_3 = structs[~structs["name"].isin((matches3_3[matches3_3 > 0].reset_index(drop=False))["edges"])]
-            if violations3_3.shape[0] > 0:
+            if not violations3_3.empty:
                 consistent = False
                 print("🚨 IC-Structs3 violation: There are structs without exactly one anchor")
                 display(violations3_3)
@@ -616,7 +616,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Structs3")
             matches3_4 = outbounds[outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].reset_index(drop=False)['nodes']
             violations3_4 = df_difference(matches3_4, pd.concat([self.get_phantom_classes(), self.get_phantom_associations()])["name"])
-            if violations3_4.shape[0] > 0:
+            if not violations3_4.empty:
                 consistent = False
                 print("🚨 IC-Structs4 violation: There are structs with an anchor which is neither class nor association")
                 display(violations3_4)
@@ -731,7 +731,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Sets1")
             matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
             violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
-            if violations4_1.shape[0] > 0:
+            if not violations4_1.empty:
                 consistent = False
                 print("🚨 IC-Sets1 violation: There are sets without phantom")
                 display(violations4_1)
@@ -743,7 +743,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Sets3: Sets cannot directly contain classes
             logger.info("Checking IC-Sets3")
             violations4_3 = pd.merge(self.get_outbound_sets(), self.get_inbound_classes(), on='nodes', suffixes=('_setOutbounds', '_classInbounds'), how='inner')
-            if violations4_3.shape[0] > 0:
+            if not violations4_3.empty:
                 consistent = False
                 print("🚨 IC-Sets3 violation: There are sets that contain classes")
                 display(violations4_3)
@@ -751,17 +751,21 @@ class Catalog(HyperNetXWrapper):
             # IC-Sets4: Sets cannot directly contain other sets
             logger.info("Checking IC-Sets4")
             violations4_4 = pd.merge(self.get_outbound_sets(), self.get_inbound_sets(), on='nodes', suffixes=('_setOutbounds', '_setInbounds'), how='inner')
-            if violations4_4.shape[0] > 0:
+            if not violations4_4.empty:
                 consistent = False
                 print("🚨 IC-Sets4 violation: There are sets that contain other sets")
                 display(violations4_4)
+
+            # IC-Sets5: Sets must contain at least one struct
+            logger.info("Checking IC-Sets5 -> TO BE IMPLEMENTED")
+            # TODO!!!
 
             # ----------------------------------------------------------------------------------------- ICs about design
             # IC-Design1: All the first levels must be sets
             logger.info("Checking IC-Design1")
             matches5_1 = self.get_inbound_firstLevel()
             violations5_1 = matches5_1[~matches5_1["misc_properties"].apply(lambda x: x['Kind'] == 'SetIncidence')]
-            if violations5_1.shape[0] > 0:
+            if not violations5_1.empty:
                 consistent = False
                 print("🚨 IC-Design1 violation: All first levels must be sets")
                 display(violations5_1)
@@ -771,7 +775,7 @@ class Catalog(HyperNetXWrapper):
             matches5_2 = self.get_inbound_firstLevel().join(pd.concat([self.get_outbounds(), self.get_transitives()]).reset_index(level="nodes"), on="edges", rsuffix='_tokeep', how='inner')
             atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_associations()])
             violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2["nodes"])]
-            if violations5_2.shape[0] > 0:
+            if not violations5_2.empty:
                 consistent = False
                 print("🚨 IC-Design2 violation: Atoms disconnected from the first level")
                 display(violations5_2)
@@ -781,7 +785,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Design3 (produces just warnings)")
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
             violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
-            if violations5_3.shape[0] > 0:
+            if not violations5_3.empty:
                 # consistent = False
                 warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct")
                 if show_warnings:
@@ -916,17 +920,17 @@ class Catalog(HyperNetXWrapper):
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if non_existing_attributes.shape[0] > 0:
+        if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         # Check if the hypergraph contains all the filter attributes
         non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if non_existing_attributes.shape[0] > 0:
+        if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
-        if non_existing_associations.shape[0] > 0:
+        if not non_existing_associations.empty:
             raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
         superclasses = []
@@ -951,7 +955,7 @@ class Catalog(HyperNetXWrapper):
             missing_attributes = df_difference(pd.DataFrame(required_attributes), attributes)
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
-        if missing_attributes.shape[0] > 0:
+        if not missing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the query is not covered by the elements in the pattern: {missing_attributes.values.tolist()[0]}")
 
     def parse_predicate(self, predicate) -> list[str]:

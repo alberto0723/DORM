@@ -130,36 +130,9 @@ class Relational(Catalog, ABC):
         consistent = super().is_consistent(design)
         # Only needs to run further checks if the basic one succeeded
         if consistent:
-            structs = self.get_structs()
-            sets = self.get_sets()
             # --------------------------------------------------------------------- ICs about being a relational catalog
-            # IC-Relational1: All sets are first level
-            logger.info("Checking IC-Relational1")
-            matches6_1 = self.get_inbound_firstLevel().reset_index(drop=False)
-            violations6_1 = sets[~sets["name"].isin(matches6_1["edges"])]
-            if violations6_1.shape[0] > 0:
-                consistent = False
-                print("🚨 IC-Relational1 violation: Some sets are not at the first level")
-                display(violations6_1)
+            pass
 
-            # IC-Relational2: All second level are structs
-            logger.info("Checking IC-Relational2")
-            matches6_2 = self.get_inbound_firstLevel().merge(
-                            self.get_outbounds().reset_index(drop=False), on="edges", how="inner", suffixes=(None, "_firsthop")).merge(
-                            self.get_inbounds().reset_index(drop=False), on="nodes", how="inner", suffixes=(None, "_secondhop"))
-            violations6_2 = matches6_2[~matches6_2["misc_properties_secondhop"].apply(lambda x: x['Kind'] == 'StructIncidence')]
-            if violations6_2.shape[0] > 0:
-                consistent = False
-                print("🚨 IC-Relational2 violation: Some second level are not structs")
-                display(violations6_2)
-
-            # IC-Relational3: All structs are at second level
-            logger.info("Checking IC-Relational3")
-            violations6_3 = structs[~structs["name"].isin(matches6_2["edges_secondhop"])]
-            if violations6_3.shape[0] > 0:
-                consistent = False
-                print("🚨 IC-Relational3 violation: Some structs are not at the second level")
-                display(violations6_1)
         return consistent
 
     def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
