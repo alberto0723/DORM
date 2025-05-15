@@ -5,7 +5,7 @@ from IPython.display import display
 import networkx as nx
 
 from .relational import Relational
-from .tools import custom_warning, drop_duplicates
+from .tools import custom_warning, drop_duplicates, df_difference
 
 # Library initialization
 pd.set_option('display.max_columns', None)
@@ -39,17 +39,26 @@ class FirstNormalForm(Relational):
                 print(f"🚨 IC-FirstNormalForm1 violation: Some sets are not at first level")
                 display(violations7_1)
 
-            # IC-FirstNormalForm2: Structs can only appear at the second level
+            # IC-FirstNormalForm2: Sets can only contain structs
             logger.info("Checking IC-FirstNormalForm2")
             struct_phantom_names = self.get_inbound_structs().index.get_level_values("nodes")
-            violations7_2 = self.get_outbounds()[self.get_outbounds().index.to_frame().apply(lambda row: row["edges"] not in firstlevel_names and row["nodes"] in struct_phantom_names, axis=1)]
+            violations7_2 = self.get_outbound_sets()[~self.get_outbound_sets().index.get_level_values("nodes").isin(struct_phantom_names)]
             if not violations7_2.empty:
                 consistent = False
-                print("🚨 IC-FirstNormalForm2 violation: Some structs are not at the second level")
+                print("🚨 IC-FirstNormalForm2 violation: Some sets contain elements that are not structs")
                 display(violations7_2)
 
-            # IC-FirstNormalForm3: All associations from the anchor of a class must be to one (at most)
+            # IC-FirstNormalForm3: Structs can only appear at the second level
             logger.info("Checking IC-FirstNormalForm3")
+            struct_phantom_names = self.get_inbound_structs().index.get_level_values("nodes")
+            violations7_3 = self.get_outbounds()[self.get_outbounds().index.to_frame().apply(lambda row: row["edges"] not in firstlevel_names and row["nodes"] in struct_phantom_names, axis=1)]
+            if not violations7_3.empty:
+                consistent = False
+                print("🚨 IC-FirstNormalForm3 violation: Some structs are not at the second level")
+                display(violations7_3)
+
+            # IC-FirstNormalForm4: All associations from the anchor of a class must be to one (at most)
+            logger.info("Checking IC-FirstNormalForm4")
             # For each table
             for set_name in firstlevel_names:
                 for struct_phantom in self.get_outbound_set_by_name(set_name).index.get_level_values("nodes"):
@@ -68,7 +77,7 @@ class FirstNormalForm(Relational):
                                     # Second position in the tuple is the max multiplicity
                                     if not self.check_multiplicities_to_one(paths[0])[1]:
                                         consistent = False
-                                        print(f"🚨 IC-FirstNormalForm3 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
+                                        print(f"🚨 IC-FirstNormalForm4 violation: A struct '{struct_name}' has an unacceptable path (not to one) '{paths[0]}'")
         return consistent
 
     def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:

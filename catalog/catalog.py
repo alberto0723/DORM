@@ -756,9 +756,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets4 violation: There are sets that contain other sets")
                 display(violations4_4)
 
-            # IC-Sets5: Sets must contain at least one struct
-            logger.info("Checking IC-Sets5 -> TO BE IMPLEMENTED")
-            # TODO!!!
+            # IC-Sets5: Sets cannot be empty
+            logger.info("Checking IC-Sets5")
+            matches5_5 = self.get_outbound_sets().reset_index(drop=False).set_index("edges", drop=False)["edges"]
+            violations5_5 = df_difference(sets["name"], matches5_5)
+            if not violations5_5.empty:
+                consistent = False
+                print("🚨 IC-Sets5 violation: There are sets that are empty")
+                display(violations5_5)
 
             # ----------------------------------------------------------------------------------------- ICs about design
             # IC-Design1: All the first levels must be sets
