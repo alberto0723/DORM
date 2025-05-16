@@ -37,7 +37,7 @@ class Catalog(HyperNetXWrapper):
         'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding class "+class_name)
-        if self.is_attribute(class_name) or self.is_association_end(class_name) or self.is_hyperedge(class_name):
+        if self.is_attribute(class_name) or self.is_association_end(class_name) or self.is_edge(class_name):
             raise ValueError(f"🚨 Some element called '{class_name}' already exists")
         # First element in the pair is the name and the second its properties
         properties["Kind"] = 'Class'
@@ -52,7 +52,7 @@ class Catalog(HyperNetXWrapper):
         if len(unique_attr) < len(att_list):
             raise ValueError(f"🚨 Some attribute in '{class_name}' is repeated")
         for att in att_list:
-            if self.is_attribute(att['name']) or self.is_association_end(att['name']) or self.is_hyperedge(att['name']):
+            if self.is_attribute(att['name']) or self.is_association_end(att['name']) or self.is_edge(att['name']):
                 raise ValueError(f"🚨 Some element end called '{att['name']}' already exists")
             incidence_properties = {'Kind': 'ClassIncidence',
                                     'Direction': 'Outbound',
@@ -78,7 +78,7 @@ class Catalog(HyperNetXWrapper):
         'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding association "+association_name)
-        if self.is_attribute(association_name) or self.is_association_end(association_name) or self.is_hyperedge(association_name):
+        if self.is_attribute(association_name) or self.is_association_end(association_name) or self.is_edge(association_name):
             raise ValueError(f"🚨 The element '{association_name}' already exists")
         if len(ends_list) != 2:
             raise ValueError(f"🚨 The association '{association_name}' should have exactly two ends, but has {len(ends_list)}")
@@ -93,7 +93,7 @@ class Catalog(HyperNetXWrapper):
             end_name = end['prop'].get('End_name', None)
             if end_name is None:
                 raise ValueError(f"🚨 Association end '{association_name}' does not have a name for its end towards '{end['class']}'")
-            if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_hyperedge(end_name):
+            if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_edge(end_name):
                 raise ValueError(f"🚨 There is already an element called '{end_name}'")
             if end['prop'].get('MultiplicityMax', None) is None or end['prop'].get('MultiplicityMin', None) is None:
                 raise ValueError(f"🚨 '{association_name}' does not have both min and max multiplicity for its end '{end_name}'")
@@ -109,7 +109,7 @@ class Catalog(HyperNetXWrapper):
         The latter is another dictionary that contains at least one constraint predicate that discriminates the subclass.
         """
         logger.info("Adding generalization "+generalization_name)
-        if self.is_attribute(generalization_name) or self.is_association_end(generalization_name) or self.is_hyperedge(generalization_name):
+        if self.is_attribute(generalization_name) or self.is_association_end(generalization_name) or self.is_edge(generalization_name):
             raise ValueError(f"🚨 The element called '{generalization_name}' already exists")
         self.H.add_edge(generalization_name, Kind='Generalization', Disjoint=properties.get('Disjoint', False), Complete=properties.get('Complete', False))
         # This adds a special phantom node required to represent different cases of inclusion in structs
@@ -135,7 +135,7 @@ class Catalog(HyperNetXWrapper):
 
     def add_struct(self, struct_name, anchor, elements) -> None:
         logger.info("Adding struct "+struct_name)
-        if self.is_hyperedge(struct_name):
+        if self.is_edge(struct_name):
             raise ValueError(f"🚨 The hyperedge '{struct_name}' already exists")
         for element in anchor:
             if not self.is_class(element) and not self.is_association(element):
@@ -164,15 +164,6 @@ class Catalog(HyperNetXWrapper):
                     incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_struct(elem) or self.is_set(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-                for outbound_elem in self.get_outbounds().loc[elem].index:
-                    if outbound_elem not in [self.get_phantom_of_edge_by_name(anchor)] + elements:
-                        incidences.append((struct_name, outbound_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
-                try:
-                    for transitive_elem in self.get_transitives().loc[elem].index:
-                        if transitive_elem not in [self.get_phantom_of_edge_by_name(anchor)] + elements:
-                            incidences.append((struct_name, transitive_elem, {'Kind': 'StructIncidence', 'Direction': 'Transitive'}))
-                except KeyError:
-                    pass
             elif self.is_generalization(elem):
                 pass
             else:
@@ -207,15 +198,6 @@ class Catalog(HyperNetXWrapper):
                 incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
             elif self.is_association(elem) or self.is_struct(elem):
                 incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-                for outbound_elem in self.get_outbounds().loc[elem].index:
-                    if outbound_elem not in elements:
-                        incidences.append((set_name, outbound_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
-                try:
-                    for transitive_elem in self.get_transitives().loc[elem].index:
-                        if transitive_elem not in elements:
-                            incidences.append((set_name, transitive_elem, {'Kind': 'SetIncidence', 'Direction': 'Transitive'}))
-                except KeyError:
-                    pass
             elif self.is_class(elem):
                 raise ValueError(f"🚨 Sets cannot contain classes (adding '{elem}' into '{set_name}')")
             elif self.is_set(elem):
@@ -338,7 +320,6 @@ class Catalog(HyperNetXWrapper):
         structInbounds = self.get_inbound_structs()
         outbounds = self.get_outbounds()
         structOutbounds = self.get_outbound_structs()
-        transitives = self.get_transitives()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
         # Pre-check emptiness
@@ -397,21 +378,16 @@ class Catalog(HyperNetXWrapper):
             print("🚨 IC-Generic6 violation: There are edges with more than one inbound")
             display(violations1_6[violations1_6 > 1])
 
-        # IC-Generic7: An edge cannot be cyclic
+        # IC-Generic7: A hyperedge cannot be cyclic
         logger.info("Checking IC-Generic7")
-        violations1_7 = pd.merge(inbounds, pd.concat([outbounds, transitives]), on=["nodes", "edges"], how="inner")
+        matches1_7 = pd.concat([self.get_sets(), self.get_structs()])
+        violations1_7 = matches1_7[matches1_7.apply(lambda row: self.is_cyclic(row["name"]), axis=1)]
         if not violations1_7.empty:
             consistent = False
-            print("🚨 IC-Generic7 violation: There are cyclic edges")
+            print("🚨 IC-Generic7 violation: There are cyclic hyperedges")
             display(violations1_7)
 
-        # IC-Generic8: Outbounds and transitive of an edge must be disjoint
-        logger.info("Checking IC-Generic8")
-        violations1_8 = pd.merge(outbounds, transitives, on=["nodes", "edges"], how="inner")
-        if not violations1_8.empty:
-            consistent = False
-            print("🚨 IC-Generic8 violation: There are edges with common outbound and transitive incidences")
-            display(violations1_8)
+        # IC-Generic8: Unused
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
         # IC-Atoms2: Every ID belongs to one class which is outbound
@@ -587,21 +563,7 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Structs1 violation: There are structs without phantom")
                 display(violations3_1)
 
-            # IC-Structs2: Structs are transitive on themselves
-            logger.info("Checking IC-Structs2")
-            matches3_2_partial = structOutbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr") \
-                .join(
-                    structInbounds.reset_index(drop=False).set_index('nodes', drop=False, verify_integrity=False).rename_axis("joinattr"),
-                    on='joinattr', rsuffix='_firsthop', how='inner')
-            matches3_2 = matches3_2_partial.set_index('edges_firsthop', drop=False, verify_integrity=False).rename_axis("joinattr") \
-                .join(
-                    structOutbounds.reset_index(drop=False).set_index('edges', drop=False, verify_integrity=False).rename_axis("joinattr"),
-                    on='joinattr', rsuffix='_secondhop', how='inner')[["edges", "nodes_secondhop"]].reset_index(drop=True).rename(columns={"nodes_secondhop": "nodes"})
-            violations3_2 = df_difference(matches3_2, self.get_transitives().reset_index(drop=False)[["edges", "nodes"]])
-            if not violations3_2.empty:
-                consistent = False
-                print("🚨 IC-Structs2 violation: There are missing elements in some struct")
-                display(violations3_2)
+            # IC-Structs2: Unused
 
             # IC-Structs3: Every struct has at least one anchor
             logger.info("Checking IC-Structs3")
@@ -775,11 +737,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Design1 violation: All first levels must be sets")
                 display(violations5_1)
 
-            # IC-Design2: All the atoms in the domain are connected to the first level
+            # IC-Design2: All the attributes and associations in the domain are connected to the first level
+            #             Classes are excluded from the check because of generalization
             logger.info("Checking IC-Design2")
-            matches5_2 = self.get_inbound_firstLevel().join(pd.concat([self.get_outbounds(), self.get_transitives()]).reset_index(level="nodes"), on="edges", rsuffix='_tokeep', how='inner')
+            matches5_2 = []
+            for set_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+                matches5_2.extend(self.get_atoms_including_transitivity_by_edge_name(set_name))
             atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_associations()])
-            violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2["nodes"])]
+            violations5_2 = atoms5_2[~atoms5_2.index.isin(matches5_2)]
             if not violations5_2.empty:
                 consistent = False
                 print("🚨 IC-Design2 violation: Atoms disconnected from the first level")
@@ -1024,6 +989,7 @@ class Catalog(HyperNetXWrapper):
             inbounds["nodes"] = inbounds.index.get_level_values('nodes')
             second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
             # No need to check if they are at first level, because sets always are (no nested structures are allowed)
+            # TODO: Generalize this to NF2
             first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].index.get_level_values("edges").tolist()
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
@@ -1046,13 +1012,12 @@ class Catalog(HyperNetXWrapper):
                 # Get the tables independently for every attribute in the class
                 for attr in current_attributes:
                     if not self.is_id(attr) or len(current_attributes) == 1:
-                        attr_tables = []
-                        for table in first_levels:
-                            kind = self.H.get_cell_properties(table, attr, "Kind")
-                            if kind is not None:
-                                attr_tables.append(table)
-                        if attr_tables:
-                            buckets.append(attr_tables)
+                        firstlevels_with_attr = []
+                        for set_name in first_levels:
+                            if attr in self.get_atoms_including_transitivity_by_edge_name(set_name):
+                                firstlevels_with_attr.append(set_name)
+                        if firstlevels_with_attr:
+                            buckets.append(firstlevels_with_attr)
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 

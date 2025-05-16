@@ -277,17 +277,25 @@ class HyperNetXWrapper:
                                                                                  x['Kind'] == 'ClassIncidence')]
             return outbounds
 
-    def get_transitives(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
+    def get_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:
+        if visited is None:
+            visited = [edge_name]
         else:
-            transitives = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Transitive')]
-            return transitives
-
-    def get_transitives_by_edge_name(self, edge) -> pd.DataFrame:
-        transitives = self.get_transitives()[self.get_transitives().index.get_level_values('edges') == edge]
-        return transitives
+            visited.append(edge_name)
+        atom_names = []
+        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+            if self.is_attribute(node_name) or self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
+                atom_names.append(node_name)
+            elif self.is_generalization_phantom(node_name):
+                pass
+            # This should only be either a set or struct phantom
+            else:
+                assert self.is_phantom(node_name), f"Node '{node_name}' is expected to be a phantom"
+                next_edge = self.get_edge_by_phantom_name(node_name)
+                assert self.is_struct(next_edge) or self.is_set(next_edge), f"Edge '{next_edge}' is expected to be either a struct or a set"
+                assert next_edge not in visited, f"☠️ Cycle of edges detected: {visited}"
+                atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
+        return atom_names
 
     def get_inbound_firstLevel(self) -> pd.DataFrame:
         firstLevel_phantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
@@ -463,8 +471,8 @@ class HyperNetXWrapper:
     def is_generalization_phantom(self, name) -> bool:
         return name in self.get_phantom_generalizations().index
 
-    def is_hyperedge(self, name) -> bool:
-        return name in self.get_edges()["name"]
+    def is_edge(self, name) -> bool:
+        return name in self.get_edges().index
 
     def is_association(self, name) -> bool:
         return name in self.get_associations().index
@@ -477,6 +485,22 @@ class HyperNetXWrapper:
 
     def is_set(self, name) -> bool:
         return name in self.get_sets().index
+
+    def is_cyclic(self, edge_name, visited: list[str] = None) -> bool:
+        if visited is None:
+            visited = [edge_name]
+        else:
+            visited.append(edge_name)
+        cyclic = False
+        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+            if self.is_phantom(node_name):
+                next_edge = self.get_edge_by_phantom_name(node_name)
+                if self.is_struct(next_edge) or self.is_set(next_edge):
+                    if next_edge in visited:
+                        cyclic = True
+                    else:
+                        cyclic = cyclic or self.is_cyclic(next_edge, visited)
+        return cyclic
 
     def check_multiplicities_to_one(self, path) -> (bool, bool):
         """

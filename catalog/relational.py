@@ -340,7 +340,7 @@ class Relational(Catalog, ABC):
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
-                # TODO: Can we check here if two combinations differ in only one table whose difference is by generaliazation? Then, we can prioritize taking first the query using the table with the subclass.
+                # TODO: Can we check here if two combinations differ in only one table whose difference is by generalization? Then, we can prioritize taking first the query using the table with the subclass.
                 #       In general, this can be complex to check, because of the exponential number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
