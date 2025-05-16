@@ -138,7 +138,8 @@ class Relational(Catalog, ABC):
     def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         """
         Creates the tables according to the design.
-        :param migration_source: Name of the database schema to migrate the data from.
+        :param migration_source_sch: Name of the database schema to migrate the data from.
+        :param migration_source_kind: paradigm used in the database to migrate the data from (either 1NF or NF2_JSON).
         :param show_sql: Whether to print SQL statements or not.
         """
         logger.info("Creating schema")
@@ -179,7 +180,8 @@ class Relational(Catalog, ABC):
         """
         Generates insertions to migrate data from one schema to another one.
         Both must be in the same database for it to work.
-        :param migration_source: Database schema to migrate the data from.
+        :param migration_source_sch: Database schema to migrate the data from.
+        :param migration_source_kind: paradigm used in the database to migrate the data from (either 1NF or NF2_JSON).
         :return: List of statements generated to migrate the data (one per struct)
         """
         source = migration_source_kind(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source_sch)
@@ -188,7 +190,7 @@ class Relational(Catalog, ABC):
             raise ValueError(
                 f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
         if source.metadata.get("design", "") == self.metadata["design"] and source.metadata.get("paradigm", "") == self.metadata["paradigm"]:
-            warnings.warn("⚠️ Design and paradigm of source and target coincide in the migration")
+            warnings.warn("⚠️ Useless action (design and paradigm of source and target coincide in the migration)")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"🚨 The source {migration_source_sch} does not have tables to migrate (according to its metadata)")
         if not source.metadata.get("data_migrated", False):
@@ -339,7 +341,7 @@ class Relational(Catalog, ABC):
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 # TODO: Can we check here if two combinations differ in only one table whose difference is by generaliazation? Then, we can prioritize taking first the query using the table with the subclass.
-                #       In general, this can be complex to check, because of the exponencial number of mappings between classes in the two queries and
+                #       In general, this can be complex to check, because of the exponential number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 alias_table, proj_attr, location_attr = self.get_aliases(tables_combination)
@@ -374,10 +376,10 @@ class Relational(Catalog, ABC):
             generalization = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[superclass_phantom_name]
             subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
             subqueries = []
-            for subclass_phantom in subclasses.itertuples():
+            for subclass_phantom_name in subclasses.index:
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
-                new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom.Index) if elem == superclass_name else elem for elem in new_query["pattern"]]
+                new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom_name) if elem == superclass_name else elem for elem in new_query["pattern"]]
                 subqueries.append(self.generate_query_statement(new_query, explicit_schema))
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):

@@ -5,7 +5,7 @@ from IPython.display import display
 import networkx as nx
 
 from .relational import Relational
-from .tools import custom_warning, drop_duplicates, df_difference
+from .tools import custom_warning, drop_duplicates
 
 # Library initialization
 pd.set_option('display.max_columns', None)
@@ -94,18 +94,17 @@ class FirstNormalForm(Relational):
         :return: List of statements generated (one per table)
         """
         statements = []
-        firstlevels = self.get_inbound_firstLevel()
         # For each table
-        for table in firstlevels.itertuples():
-            logger.info("-- Creating table " + table.Index[0])
+        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
-            sentence = "CREATE TABLE " + table.Index[0] + " (\n"
+            sentence = "CREATE TABLE " + table_name + " (\n"
             # Get all the attributes in all the structs
             attr_paths = []
-            for struct_name in self.get_struct_names_inside_set_name(table.Index[0]):
+            for struct_name in self.get_struct_names_inside_set_name(table_name):
                 attr_paths.extend(self.get_struct_attributes(struct_name))
             attr_paths = drop_duplicates(attr_paths)
-            assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths])) == len(attr_paths), f"☠️ Table '{table.Index[0]}' has the same attribute defined twice: {attr_paths}"
+            assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths])) == len(attr_paths), f"☠️ Table '{table_name}' has the same attribute defined twice: {attr_paths}"
             # Add all the attributes to the CREATE TABLE sentence
             attribute_list = []
             for _, attr_path in attr_paths:
@@ -138,14 +137,13 @@ class FirstNormalForm(Relational):
         :return: List of statements generated (one per table)
         """
         statements = []
-        firstlevels = self.get_inbound_firstLevel()
         # For each table
-        for table in firstlevels.itertuples():
-            logger.info(f"-- Altering table {table.Index[0]} to add the PK")
-            sentence = "ALTER TABLE " + table.Index[0] + " ADD"
+        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            logger.info(f"-- Altering table {table_name} to add the PK")
+            sentence = "ALTER TABLE " + table_name + " ADD"
             # Create the PK
             # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-            struct_name = self.get_struct_names_inside_set_name(table.Index[0])[0]
+            struct_name = self.get_struct_names_inside_set_name(table_name)[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
                 if self.is_class_phantom(key):
@@ -153,7 +151,7 @@ class FirstNormalForm(Relational):
                 # If it is not a class, it is a loose end
                 else:
                     key_list.append(key)
-            assert key_list, f"☠️ Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
+            assert key_list, f"☠️ Table '{table_name}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
             sentence += " PRIMARY KEY (" + ", ".join(key_list) + ");"
             statements.append(sentence)
         return statements
@@ -166,12 +164,11 @@ class FirstNormalForm(Relational):
         :return: List of statements generated (one per table)
         """
         statements = []
-        firstlevels = self.get_inbound_firstLevel()
         # For each table
-        for table_referee in firstlevels.itertuples():
+        for table_referee_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
             # Get all the attributes in all the structs
             attribute_list = []
-            for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
+            for struct_name in self.get_struct_names_inside_set_name(table_referee_name):
                 attribute_list.extend(self.get_struct_attributes(struct_name))
             # Check all the attributes to see if they require an FK
             for dom_attr_name, attr_path in attribute_list:
@@ -185,31 +182,31 @@ class FirstNormalForm(Relational):
                     else:
                         # Get the classes in the struct that provide the ID
                         hierarchies = []
-                        for struct_name in self.get_struct_names_inside_set_name(table_referee.Index[0]):
+                        for struct_name in self.get_struct_names_inside_set_name(table_referee_name):
                             for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
                                 if self.is_class_phantom(elem):
                                     class_name = self.get_edge_by_phantom_name(elem)
                                     if dom_attr_name == self.get_class_id_by_name(class_name):
                                         hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name))
-                        assert len(hierarchies) > 0, f"☠️ The ID '{dom_attr_name}' we are looking for should be in some struct in '{table_referee}'"
+                        assert len(hierarchies) > 0, f"☠️ The ID '{dom_attr_name}' we are looking for should be in some struct in '{table_referee_name}'"
                         # Take the shorter hierarchy
                         hierarchy = sorted(hierarchies, key=len)[0]
                     # Follow the hierarchy bottom to top in order until a superclass is found to point to
                     found = False
                     for class_name in hierarchy:
-                        for table_referred in firstlevels.itertuples():
+                        for table_referred_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
                             # We can take any struct in the set, because all must share the anchor
-                            struct_name = self.get_struct_names_inside_set_name(table_referred.Index[0])[0]
+                            struct_name = self.get_struct_names_inside_set_name(table_referred_name)[0]
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                             assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
                             assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
                             attr_proj = self.generate_attr_projection_clause(attr_path)
                             if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
-                                    and (table_referee != table_referred or attr_proj != attr_correspondence)):
+                                    and (table_referee_name != table_referred_name or attr_proj != attr_correspondence)):
                                 found = True
-                                logger.info(f"-- Altering table {table_referee.Index[0]} to add the FK on '{attr_proj}'")
+                                logger.info(f"-- Altering table {table_referee_name} to add the FK on '{attr_proj}'")
                                 # Create the FK
-                                sentence = f"ALTER TABLE {table_referee.Index[0]} ADD FOREIGN KEY ({attr_proj}) REFERENCES {table_referred.Index[0]}({attr_correspondence});"
+                                sentence = f"ALTER TABLE {table_referee_name} ADD FOREIGN KEY ({attr_proj}) REFERENCES {table_referred_name}({attr_correspondence});"
 
                                 statements.append(sentence)
                         if found:

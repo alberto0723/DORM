@@ -65,12 +65,11 @@ class NonFirstNormalFormJSON(Relational):
         :return: List of statements generated (one per table)
         """
         statements = []
-        firstlevels = self.get_inbound_firstLevel()
         # For each table
-        for table in firstlevels.itertuples():
-            logger.info("-- Creating table " + table.Index[0])
+        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
-            sentence = "CREATE TABLE " + table.Index[0] + " (\n  key SERIAL PRIMARY KEY,\n  value JSONB\n  );"
+            sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL PRIMARY KEY,\n  value JSONB\n  );"
             statements.append(sentence)
         return statements
 
@@ -82,14 +81,13 @@ class NonFirstNormalFormJSON(Relational):
         :return: List of statements generated (one per table)
         """
         statements = []
-        firstlevels = self.get_inbound_firstLevel()
         # For each table
-        for table in firstlevels.itertuples():
-            logger.info(f"-- Altering table {table.Index[0]} to add the PK (actually just uniqueness)")
-            sentence = "CREATE UNIQUE INDEX pk_" + table.Index[0] + " ON " + table.Index[0]
+        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            logger.info(f"-- Altering table {table_name} to add the PK (actually just uniqueness)")
+            sentence = "CREATE UNIQUE INDEX pk_" + table_name + " ON " + table_name
             # Create the PK
             # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-            struct_name = self.get_struct_names_inside_set_name(table.Index[0])[0]
+            struct_name = self.get_struct_names_inside_set_name(table_name)[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
                 if self.is_class_phantom(key):
@@ -97,7 +95,7 @@ class NonFirstNormalFormJSON(Relational):
                 # If it is not a class, it is a loose end
                 else:
                     key_list.append(key)
-            assert key_list, f"☠️ Table '{table.Index[0]}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
+            assert key_list, f"☠️ Table '{table_name}' does not have a primary key (a.k.a. anchor in the corresponding struct) defined"
             # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
             sentence += "((" + "), (".join(["value->>'" + k + "'" for k in key_list]) + "));"
             statements.append(sentence)

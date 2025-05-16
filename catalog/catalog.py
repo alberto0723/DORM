@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import logging
 import warnings
 import json
@@ -320,7 +320,7 @@ class Catalog(HyperNetXWrapper):
         """
         This method checks all the integrity constrains of the catalog.
         It can be expensive, so just do it at the end, not for each operation.
-        :param design: Whether the catalog contains a desing, or just a domain (more or less ICs will be checked)
+        :param design: Whether the catalog contains a design, or just a domain (more or less ICs will be checked)
         :return: If the catalog is honors all integrity constraints
         """
         consistent = True
@@ -515,22 +515,22 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms13")
         matches2_13 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_13 = classes[~classes["name"].isin((matches2_13.reset_index(drop=False))["edges"])]
-        for row in possible_violations2_13.itertuples():
-            superclasses = self.get_superclasses_by_class_name(row.Index)
+        for class_name in possible_violations2_13.index:
+            superclasses = self.get_superclasses_by_class_name(class_name)
             if not superclasses:
                 consistent = False
-                print(f"🚨 IC-Atoms13 violation: There is some class '{row.Index}' without identifier (neither direct, nor inherited from a superclass)")
+                print(f"🚨 IC-Atoms13 violation: There is some class '{class_name}' without identifier (neither direct, nor inherited from a superclass)")
 
         # IC-Atoms14: Not two classes in a hierarchy can have ID
         logger.info("Checking IC-Atoms14")
         matches2_14 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_14 = classes[classes["name"].isin((matches2_14.reset_index(drop=False))["edges"])]
-        for row in possible_violations2_14.itertuples():
-            superclasses = self.get_superclasses_by_class_name(row.Index)
+        for class_name in possible_violations2_14.index:
+            superclasses = self.get_superclasses_by_class_name(class_name)
             identified_superclasses = [s for s in superclasses if s in possible_violations2_14.index]
             if identified_superclasses:
                 consistent = False
-                print(f"🚨 IC-Atoms14 violation: There is some class '{row.Index}' with identifier in a generalization hierarchy with also identifiers '{identified_superclasses}'")
+                print(f"🚨 IC-Atoms14 violation: There is some class '{class_name}' with identifier in a generalization hierarchy with also identifiers '{identified_superclasses}'")
 
         # IC-Atoms15: The top of every hierarchy has an ID
         logger.info("Checking IC-Atoms15")
@@ -738,7 +738,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets2: Sets are transitive on structs
             logger.info("Checking IC-Sets2 -> To be implemented")
-            #TODO: Check transitivity of sets
+            # TODO: Check transitivity of sets
 
             # IC-Sets3: Sets cannot directly contain classes
             logger.info("Checking IC-Sets3")
@@ -866,8 +866,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Design7: Any struct with a class with subclasses must contain the corresponding discriminants
             #             It is implementing as a warning, because it could be acceptable as soon as the class is not used in the queries
             logger.info("Checking IC-Design7 (produces just warnings)")
-            for struct in self.get_structs().itertuples():
-                struct_name = struct.Index
+            for struct_name in self.get_structs().index:
                 # Get all class names in the current struct
                 class_names = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)].index.get_level_values("edges")
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
@@ -883,12 +882,11 @@ class Catalog(HyperNetXWrapper):
             #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
             #             This is relaxed to be just a warning, as above, just because of generalizations.
             logger.info("Checking IC-Design8 (produces just warnings)")
-            for class_element in self.get_classes().itertuples():
-                class_name = class_element.Index
+            for class_name in self.get_classes().index:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
-                for set in self.get_inbound_firstLevel().itertuples():
-                    for struct_name in self.get_struct_names_inside_set_name(set.Index[0]):
+                for set_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+                    for struct_name in self.get_struct_names_inside_set_name(set_name):
                         # Check if the class is in this struct
                         if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
                             dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
