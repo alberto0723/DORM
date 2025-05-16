@@ -16,7 +16,8 @@ logger = logging.getLogger("NonFirstNormalFormJSON")
 
 class NonFirstNormalFormJSON(Relational):
     """
-    This is a subclass of Relational that implements the code generation as normalized in 1NF.
+    This is a subclass of Relational that implements the code generation as denormalized inside a JSON attribute.
+    An autoincrement key is also added to each table as PK for simplicity.
     """
     def __init__(self, *args, **kwargs):
         kwargs["paradigm_name"] = "Non First Normal Form with JSON"
