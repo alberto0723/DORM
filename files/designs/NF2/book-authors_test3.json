@@ -1,0 +1,16 @@
+{
+    "domain": "..\\..\\domains\\book-authors_1-1.json",
+    "hyperedges": [
+        {"kind": "Struct",
+         "name": "Writes_type",
+         "anchor": ["Writes"],
+         "elements": []},
+        {"kind": "Struct",
+         "name": "Books_type",
+         "anchor": ["Book"],
+         "elements": ["B_ID","B_title","B_publisher","Writes","Author","A_name","A_age","A_gender","A_address","Writes_type"]},
+        {"kind": "Set",
+         "name": "Books_table",
+         "elements": ["Books_type"]}
+    ]
+}

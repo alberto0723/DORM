@@ -486,7 +486,7 @@ class HyperNetXWrapper:
     def is_set(self, name) -> bool:
         return name in self.get_sets().index
 
-    def is_cyclic(self, edge_name, visited: list[str] = None) -> bool:
+    def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:
             visited = [edge_name]
         else:
@@ -499,7 +499,7 @@ class HyperNetXWrapper:
                     if next_edge in visited:
                         cyclic = True
                     else:
-                        cyclic = cyclic or self.is_cyclic(next_edge, visited)
+                        cyclic = cyclic or self.has_cycle(next_edge, visited)
         return cyclic
 
     def check_multiplicities_to_one(self, path) -> (bool, bool):
