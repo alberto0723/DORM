@@ -273,7 +273,6 @@ class Catalog(HyperNetXWrapper):
                  Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
                  The last element corresponds to the "domain_name" in the hypergraph for the attribute, which can be the same attribute or association end.
         """
-        # TODO: This needs to be generalized to nested structs and sets to support NF2
         # This cannot be a dictionary with the domain attribute name as key, because two loose ends over the same class would use the same entry
         # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
         attribute_list = []
@@ -281,7 +280,7 @@ class Catalog(HyperNetXWrapper):
         # For each element in the struct
         elem_names = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes")
         for elem_name in elem_names:
-            assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
+            assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
             if self.is_attribute(elem_name):
                 attribute_list.append((elem_name, [{"kind": "Attribute", "name": elem_name}]))
             elif self.is_class_phantom(elem_name):
@@ -293,6 +292,14 @@ class Catalog(HyperNetXWrapper):
                     if end.misc_properties["End_name"] in loose_ends:
                         attribute_list.append((end.misc_properties['End_name'],
                                                [{"kind": "AssociationEnd", "name": end.misc_properties['End_name'], "id": self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))}]))
+            elif self.is_struct_phantom(elem_name):
+                nested_struct_name = self.get_edge_by_phantom_name(elem_name)
+                for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
+                    attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
+            elif self.is_set_phantom(elem_name):
+                assert False, "☠️ Sets nested in structs not implemented, yet"
+                # TODO: This needs to consider nested sets to support NF2
+                #       Needs to make the union of attributes of all structs, and check they all have the same paths
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         # TODO: assert that attribute names are not repeated
@@ -565,7 +572,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs2: Every struct must be inside another struct or set
             logger.info("Checking IC-Structs2")
             matches3_2 = pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).reset_index("edges", drop=True).drop('misc_properties', axis=1)
-            violations3_2 = df_difference(self.get_inbound_structs().reset_index("edges", drop=True).drop('misc_properties', axis=1), matches3_2)
+            violations3_2 = df_difference(self.get_phantom_structs().drop(['misc_properties', 'name'], axis=1), matches3_2)
             if not violations3_2.empty:
                 consistent = False
                 print("🚨 IC-Structs2 violation: There are structs that do not belong to any other struct or set")
@@ -796,7 +803,7 @@ class Catalog(HyperNetXWrapper):
                 anchor_concepts = []
                 anchor_attributes = []
                 set_attributes = []
-                struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs(), on="nodes", how="inner").index
+                struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_phantom_structs(), on="nodes", how="inner").index
                 for struct_phantom in struct_phantom_list:
                     struct_name = self.get_edge_by_phantom_name(struct_phantom)
                     set_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
@@ -873,7 +880,7 @@ class Catalog(HyperNetXWrapper):
             for class_name in self.get_classes().index:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
-                for struct_name in self.get_inbound_structs().index.get_level_values("edges"):
+                for struct_name in self.get_structs().index:
                     # Check if the class is in this struct
                     if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
                         dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
