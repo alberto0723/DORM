@@ -87,7 +87,7 @@ class Relational(Catalog, ABC):
                     self.metadata = json.loads(row.comment)
                     if "paradigm" in self.metadata:
                         if self.metadata["paradigm"] != paradigm_name:
-                            raise ValueError(f"🚨 Expected paradigm in the existing design in the DBMS is {paradigm_name}, '{self.metadata["paradigm"]}' found instead")
+                            raise ValueError(f"🚨 Expected paradigm in the existing design in the DBMS is {paradigm_name}, '{self.metadata['paradigm']}' found instead")
                     else:
                         self.metadata["paradigm"] = paradigm_name
 
@@ -188,7 +188,7 @@ class Relational(Catalog, ABC):
         # Basic consistency checks between both source and target catalogs
         if source.metadata.get("domain", "") != self.metadata["domain"]:
             raise ValueError(
-                f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get("domain", "")} vs {self.metadata['domain']}")
+                f"🚨 Domain mismatch between source and target migration catalogs: {source.metadata.get('domain', '')} vs {self.metadata['domain']}")
         if source.metadata.get("design", "") == self.metadata["design"] and source.metadata.get("paradigm", "") == self.metadata["paradigm"]:
             warnings.warn("⚠️ Useless action (design and paradigm of source and target coincide in the migration)")
         if not source.metadata.get("tables_created", False):

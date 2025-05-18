@@ -3,6 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 import json
+import catalog.tools as tools
 
 import catalog.config as config
 from catalog.first_normal_form import FirstNormalForm
@@ -26,6 +27,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
+    base_parser.add_argument("--db_conf", type=str, help="Path to configuration file for DBMS connection", metavar="<db_conf>")
     base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
     base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
     base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
@@ -53,6 +55,7 @@ if __name__ == "__main__":
             logging.disable()
         logging.info("BEGIN")
         assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
+        tools.read_db_conf(args)
         if args.paradigm == "1NF":
             cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                   password=args.password, dbname=args.dbname, dbschema=args.dbschema)

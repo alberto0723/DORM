@@ -230,7 +230,7 @@ class Catalog(HyperNetXWrapper):
             self.load_domain(domain_path)
         # Check if the domain in the catalog and that of the design coincide
         if self.metadata.get("domain", "Non-existent") != domain_path:
-            raise ValueError(f"🚨 The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.metadata.get("domain", "Non-existent")}'")
+            raise ValueError(f"🚨 The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.metadata.get('domain', 'Non-existent')}'")
         self.metadata["design"] = str(file_path)
 
         # Create and fill the catalog
@@ -240,7 +240,7 @@ class Catalog(HyperNetXWrapper):
             elif h.get("kind") == "Set":
                 self.add_set(h.get("name"), h.get("elements"))
             else:
-                raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get("kind")}'")
+                raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get('kind')}'")
 
     @staticmethod
     def get_domain_attribute_from_path(attr_path: list[dict[str, str]]) -> str:
@@ -543,10 +543,10 @@ class Catalog(HyperNetXWrapper):
             else:
                 if end_properties.get("MultiplicityMax", None) is None:
                     consistent = False
-                    print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMax' defined")
+                    print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get('End_name')}' does not have 'MultiplicityMax' defined")
                 if end_properties.get("MultiplicityMin", None) is None:
                     consistent = False
-                    print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get("End_name")}' does not have 'MultiplicityMin' defined")
+                    print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get('End_name')}' does not have 'MultiplicityMin' defined")
                 # if end_properties.get("MultiplicityAvg", None) is None:
                 #     consistent = False
                 #     print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get("End_name")}' does not have MultiplicityAvg defined")

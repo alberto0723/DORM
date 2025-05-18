@@ -56,7 +56,7 @@ class NonFirstNormalFormJSON(Relational):
         assert all([attr in project for attr, _ in attr_paths]), f"Some attribute in the paths '{attr_paths}' of table '{table_name}' is not in the projection of the migration table {project}"
         # TODO: This needs to be properly implemented to consider nested elements
         formatted_pairs = ["'" + attr_path[-1].get("name") + "', " + dom_attr_name for dom_attr_name, attr_path in attr_paths]
-        return (f"INSERT INTO {table_name}(value)\n  SELECT jsonb_build_object({", ".join(formatted_pairs)})\n  FROM (\n    " +
+        return (f"INSERT INTO {table_name}(value)\n  SELECT jsonb_build_object({', '.join(formatted_pairs)})\n  FROM (\n    " +
                             source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
     def generate_create_table_statements(self) -> list[str]:
