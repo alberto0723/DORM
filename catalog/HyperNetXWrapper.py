@@ -289,6 +289,26 @@ class HyperNetXWrapper:
                                                                                  x['Kind'] == 'ClassIncidence')]
             return outbounds
 
+    def get_transitive_fitsLevels(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
+        if visited is None:
+            visited = edge_list
+        else:
+            visited = visited + edge_list
+        firstLevels = []
+        next_edge_list = []
+        hops = pd.merge(pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).reset_index(level="edges", drop=False), self.get_inbounds()[self.get_inbounds().index.get_level_values("edges").isin(edge_list)].reset_index(level="edges", drop=False), on='nodes', how='inner', suffixes=('_parent', '_child'))
+        for edge_name in edge_list:
+            parents = hops.query(f"edges_child == '{edge_name}'")["edges_parent"]
+            if parents.empty:
+                # It may happen that some classes are not actually present in the design (because of generalizations)
+                if self.is_set(edge_name):
+                    firstLevels.append(edge_name)
+            else:
+                next_edge_list.extend([edge for edge in parents.tolist() if edge not in visited])
+        if next_edge_list:
+            firstLevels.extend(self.get_transitive_fitsLevels(next_edge_list, visited))
+        return firstLevels
+
     def get_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:
         if visited is None:
             visited = [edge_name]

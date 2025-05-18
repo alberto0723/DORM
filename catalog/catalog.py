@@ -559,6 +559,46 @@ class Catalog(HyperNetXWrapper):
 
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
+            # ---------------------------------------------------------------------------------------------- ICs on sets
+            # IC-Sets1: Every set has one phantom
+            logger.info("Checking IC-Sets1")
+            matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
+            violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
+            if not violations4_1.empty:
+                consistent = False
+                print("🚨 IC-Sets1 violation: There are sets without phantom")
+                display(violations4_1)
+
+            # IC-Sets2: Sets cannot be empty
+            logger.info("Checking IC-Sets2")
+            matches5_2 = self.get_outbound_sets().reset_index(drop=False).set_index("edges", drop=False)["edges"]
+            violations5_2 = df_difference(sets["name"], matches5_2)
+            if not violations5_2.empty:
+                consistent = False
+                print("🚨 IC-Sets2 violation: There are sets that are empty")
+                display(violations5_2)
+
+            # IC-Sets3: Sets cannot directly contain classes
+            logger.info("Checking IC-Sets3")
+            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_inbound_classes(), on='nodes', suffixes=('_setOutbounds', '_classInbounds'),
+                                     how='inner')
+            if not violations4_3.empty:
+                consistent = False
+                print("🚨 IC-Sets3 violation: There are sets that contain classes")
+                display(violations4_3)
+
+            # IC-Sets4: Sets cannot directly contain other sets
+            logger.info("Checking IC-Sets4")
+            violations4_4 = pd.merge(self.get_outbound_sets(), self.get_inbound_sets(), on='nodes', suffixes=('_setOutbounds', '_setInbounds'), how='inner')
+            if not violations4_4.empty:
+                consistent = False
+                print("🚨 IC-Sets4 violation: There are sets that contain other sets")
+                display(violations4_4)
+
+            # IC-Sets5: Contents of sets are either one single attribute or many structs
+            logger.info("Checking IC-Sets5 -> To Be Implemented")
+            # TODO
+
             # ------------------------------------------------------------------------------------------- ICs on structs
             # IC-Structs1: Every struct has one phantom
             logger.info("Checking IC-Structs1")
@@ -721,41 +761,6 @@ class Catalog(HyperNetXWrapper):
                     consistent = False
                     print(f"🚨 IC-Structs-e violation: The struct '{struct_name}' is not connected")
                     restricted_struct.show_textual()
-
-            # ---------------------------------------------------------------------------------------------- ICs on sets
-            # IC-Sets1: Every set has one phantom
-            logger.info("Checking IC-Sets1")
-            matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-            violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
-            if not violations4_1.empty:
-                consistent = False
-                print("🚨 IC-Sets1 violation: There are sets without phantom")
-                display(violations4_1)
-
-            # IC-Sets2: Sets cannot be empty
-            logger.info("Checking IC-Sets2")
-            matches5_2 = self.get_outbound_sets().reset_index(drop=False).set_index("edges", drop=False)["edges"]
-            violations5_2 = df_difference(sets["name"], matches5_2)
-            if not violations5_2.empty:
-                consistent = False
-                print("🚨 IC-Sets2 violation: There are sets that are empty")
-                display(violations5_2)
-
-            # IC-Sets3: Sets cannot directly contain classes
-            logger.info("Checking IC-Sets3")
-            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_inbound_classes(), on='nodes', suffixes=('_setOutbounds', '_classInbounds'), how='inner')
-            if not violations4_3.empty:
-                consistent = False
-                print("🚨 IC-Sets3 violation: There are sets that contain classes")
-                display(violations4_3)
-
-            # IC-Sets4: Sets cannot directly contain other sets
-            logger.info("Checking IC-Sets4")
-            violations4_4 = pd.merge(self.get_outbound_sets(), self.get_inbound_sets(), on='nodes', suffixes=('_setOutbounds', '_setInbounds'), how='inner')
-            if not violations4_4.empty:
-                consistent = False
-                print("🚨 IC-Sets4 violation: There are sets that contain other sets")
-                display(violations4_4)
 
             # ----------------------------------------------------------------------------------------- ICs about design
             # IC-Design1: All the first levels must be sets
@@ -1009,16 +1014,9 @@ class Catalog(HyperNetXWrapper):
         classes = []
         associations = []
         for elem in pattern:
-            # Find the tables (aka fist level elements) where the element belongs
+            # Find the sets at fist level where the element belongs
             hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
-            hierarchy_phantoms = [self.get_phantom_of_edge_by_name(c) for c in hierarchy]
-            second_levels = self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values('nodes').isin(hierarchy_phantoms)]
-            inbounds = self.get_inbound_structs()
-            inbounds["nodes"] = inbounds.index.get_level_values('nodes')
-            second_level_phantoms = pd.merge(second_levels, inbounds, on="edges", how="inner")["nodes"]
-            # No need to check if they are at first level, because sets always are (no nested structures are allowed)
-            # TODO: Generalize this to NF2
-            first_levels = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('nodes').isin(second_level_phantoms)].index.get_level_values("edges").tolist()
+            first_levels = drop_duplicates(self.get_transitive_fitsLevels(hierarchy))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
             # Split join edges into classes and associations

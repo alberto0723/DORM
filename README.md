@@ -21,7 +21,8 @@ This is exemplified by offering two different implementation paradigms:
 - *First Normal Form* (``1NF``): This option maps every domain attribute into a table attribute.
 - *Non First Normal Form with JSON* (``NF2-JSON``): This option generates two attributes (namely an autoincrement integer *key* and a JSON *value*).
 All attributes in the domain are then stored inside the *value*. 
-By now, no nested documents or arrays are generated inside the *value*, but eventually they should.
+By now, nested documents can be generated inside the *value*, but not sets.
+Eventually they should be allowed.
 
 Regarding the errors, the system can produce three different kinds:
 - ⚠️ *Warning*: Some potential issue (e.g., a query can be translated in multiple ways), but the system is working fine (these can be disabled through the corresponding parameter ``hide_warnings``).
