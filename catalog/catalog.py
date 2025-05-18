@@ -273,7 +273,6 @@ class Catalog(HyperNetXWrapper):
                  Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
                  The last element corresponds to the "domain_name" in the hypergraph for the attribute, which can be the same attribute or association end.
         """
-        # TODO: This needs to be generalized to nested structs and sets to support NF2
         # This cannot be a dictionary with the domain attribute name as key, because two loose ends over the same class would use the same entry
         # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
         attribute_list = []
@@ -281,7 +280,7 @@ class Catalog(HyperNetXWrapper):
         # For each element in the struct
         elem_names = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes")
         for elem_name in elem_names:
-            assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
+            assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
             if self.is_attribute(elem_name):
                 attribute_list.append((elem_name, [{"kind": "Attribute", "name": elem_name}]))
             elif self.is_class_phantom(elem_name):
@@ -293,6 +292,14 @@ class Catalog(HyperNetXWrapper):
                     if end.misc_properties["End_name"] in loose_ends:
                         attribute_list.append((end.misc_properties['End_name'],
                                                [{"kind": "AssociationEnd", "name": end.misc_properties['End_name'], "id": self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))}]))
+            elif self.is_struct_phantom(elem_name):
+                nested_struct_name = self.get_edge_by_phantom_name(elem_name)
+                for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
+                    attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
+            elif self.is_set_phantom(elem_name):
+                assert False, "☠️ Sets nested in structs not implemented, yet"
+                # TODO: This needs to consider nested sets to support NF2
+                #       Needs to make the union of attributes of all structs, and check they all have the same paths
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         # TODO: assert that attribute names are not repeated
@@ -317,7 +324,6 @@ class Catalog(HyperNetXWrapper):
         structs = self.get_structs()
         sets = self.get_sets()
         inbounds = self.get_inbounds()
-        structInbounds = self.get_inbound_structs()
         outbounds = self.get_outbounds()
         structOutbounds = self.get_outbound_structs()
 
@@ -381,7 +387,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic7: A hyperedge cannot be cyclic
         logger.info("Checking IC-Generic7")
         matches1_7 = pd.concat([self.get_sets(), self.get_structs()])
-        violations1_7 = matches1_7[matches1_7.apply(lambda row: self.is_cyclic(row["name"]), axis=1)]
+        violations1_7 = matches1_7[matches1_7.apply(lambda row: self.has_cycle(row["name"]), axis=1)]
         if not violations1_7.empty:
             consistent = False
             print("🚨 IC-Generic7 violation: There are cyclic hyperedges")
@@ -563,7 +569,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Structs1 violation: There are structs without phantom")
                 display(violations3_1)
 
-            # IC-Structs2: Unused
+            # IC-Structs2: Every struct must be inside another struct or set
+            logger.info("Checking IC-Structs2")
+            matches3_2 = pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).reset_index("edges", drop=True).drop('misc_properties', axis=1)
+            violations3_2 = df_difference(self.get_phantom_structs().drop(['misc_properties', 'name'], axis=1), matches3_2)
+            if not violations3_2.empty:
+                consistent = False
+                print("🚨 IC-Structs2 violation: There are structs that do not belong to any other struct or set")
+                display(violations3_2)
 
             # IC-Structs3: Every struct has at least one anchor
             logger.info("Checking IC-Structs3")
@@ -670,12 +683,33 @@ class Catalog(HyperNetXWrapper):
                         print(f"🚨 IC-Structs-b violation: The struct '{struct_name}' has multiple paths '{paths}', which generates ambiguity in the meaning of some attribute")
 
             # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-c)
-            logger.info("Checking IC-Structs-c -> To be implemented (for nested structs)")
-            # TODO: Check Structs definition-c
+            #               Also need to check that max multiplicity is one (otherwise, it should be a set)
+            logger.info("Checking IC-Structs-c")
+            for external_struct_name in self.get_structs().index:
+                for elem_name in self.get_outbound_struct_by_name(external_struct_name).index.get_level_values("nodes"):
+                    if self.is_phantom(elem_name):
+                        edge_name = self.get_edge_by_phantom_name(elem_name)
+                        if self.is_struct(edge_name):
+                            internal_struct_name = edge_name
+                            restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
+                            bipartite = restricted_struct.H.bipartite()
+                            for internal_anchor in self.get_anchor_points_by_struct_name(internal_struct_name):
+                                found = False
+                                for external_anchor in self.get_anchor_points_by_struct_name(external_struct_name):
+                                    paths = list(nx.all_simple_paths(bipartite, source=external_anchor, target=internal_anchor))
+                                    if len(paths) > 0:
+                                        found = True
+                                        if len(paths) > 1:
+                                            print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is connected to '{external_anchor}' in its parent struct '{external_struct_name}' by more than one path: '{paths}'")
+                                        if not self.check_multiplicities_to_one(paths[0])[1]:
+                                            print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is connected to '{external_anchor}' in its parent struct '{external_struct_name}' by path '{paths[0]}' with max multiplicity greater than one")
+                                if not found:
+                                    consistent = False
+                                    print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is not connected to any anchor point of its parent struct '{external_struct_name}'")
 
             # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
             logger.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
-            # TODO: Check Structs definition-c
+            # TODO: Check Structs definition-d
 
             # IC-Structs-e: All associations inside a struct connect either a class or another struct (Definition 7-e)
             #               This needs to be relaxed to simply structs being connected
@@ -769,7 +803,7 @@ class Catalog(HyperNetXWrapper):
                 anchor_concepts = []
                 anchor_attributes = []
                 set_attributes = []
-                struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs(), on="nodes", how="inner").index
+                struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_phantom_structs(), on="nodes", how="inner").index
                 for struct_phantom in struct_phantom_list:
                     struct_name = self.get_edge_by_phantom_name(struct_phantom)
                     set_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
@@ -846,36 +880,34 @@ class Catalog(HyperNetXWrapper):
             for class_name in self.get_classes().index:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
-                for set_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
-                    for struct_name in self.get_struct_names_inside_set_name(set_name):
-                        # Check if the class is in this struct
-                        if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
-                            dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
-                            restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-                            bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
-                            anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-                            for anchor_point in anchor_points:
-                                if self.is_class_phantom(anchor_point):
-                                    paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
-                                    # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
-                                    for path in paths:
-                                        # First position in the tuple is the min multiplicity
-                                        found = self.check_multiplicities_to_one(path)[0]
-                                        if found:
-                                            # Check that the internal multiplicity of the anchor point in the anchor is also min to one with all other anchor points
-                                            # This means all dont_cross have min multiplicity one
-                                            restricted_anchor_struct = self.get_restricted_struct_hypergraph(struct_name, only_anchor=True)
-                                            bipartite_anchor = restricted_anchor_struct.H.bipartite()
-                                            for anchor_point2 in anchor_points:
-                                                anchor_paths = list(nx.all_simple_paths(bipartite_anchor, source=anchor_point, target=anchor_point2))
-                                                assert len(anchor_paths) > 0, f"☠️ No path found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
-                                                assert len(anchor_paths) < 2, f"☠️ Multiple paths '{anchor_paths}' found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
-                                                found = found and self.check_multiplicities_to_one(anchor_paths[0])[0]
-                                            # If the problem is in the anchor, we do not need to continue checking paths anyway (any other path to the same anchor point will have the same problem)
-                                            break
-                                    if found: break
-                            if found: break
-                    if found: break
+                for struct_name in self.get_structs().index:
+                    # Check if the class is in this struct
+                    if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                        dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
+                        restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                        bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
+                        anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+                        for anchor_point in anchor_points:
+                            if self.is_class_phantom(anchor_point):
+                                paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
+                                # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
+                                for path in paths:
+                                    # First position in the tuple is the min multiplicity
+                                    found = self.check_multiplicities_to_one(path)[0]
+                                    if found:
+                                        # Check that the internal multiplicity of the anchor point in the anchor is also min to one with all other anchor points
+                                        # This means all dont_cross have min multiplicity one
+                                        restricted_anchor_struct = self.get_restricted_struct_hypergraph(struct_name, only_anchor=True)
+                                        bipartite_anchor = restricted_anchor_struct.H.bipartite()
+                                        for anchor_point2 in anchor_points:
+                                            anchor_paths = list(nx.all_simple_paths(bipartite_anchor, source=anchor_point, target=anchor_point2))
+                                            assert len(anchor_paths) > 0, f"☠️ No path found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
+                                            assert len(anchor_paths) < 2, f"☠️ Multiple paths '{anchor_paths}' found in the anchor of struct '{struct_name}' between points '{anchor_point}' and '{anchor_point2}'"
+                                            found = found and self.check_multiplicities_to_one(anchor_paths[0])[0]
+                                        # If the problem is in the anchor, we do not need to continue checking paths anyway (any other path to the same anchor point will have the same problem)
+                                        break
+                                if found: break
+                        if found: break
                 if not found:
                     # consistent = False
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")

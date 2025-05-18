@@ -131,6 +131,18 @@ class HyperNetXWrapper:
                                                                   x['Subkind'] == 'Generalization')]
         return phantoms
 
+    def get_phantom_structs(self) -> pd.DataFrame:
+        nodes = self.get_nodes()
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
+                                                                  x['Subkind'] == 'Struct')]
+        return phantoms
+
+    def get_phantom_sets(self) -> pd.DataFrame:
+        nodes = self.get_nodes()
+        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
+                                                                  x['Subkind'] == 'Set')]
+        return phantoms
+
     def get_edge_by_phantom_name(self, phantom_name) -> str:
         return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
 
@@ -298,7 +310,7 @@ class HyperNetXWrapper:
         return atom_names
 
     def get_inbound_firstLevel(self) -> pd.DataFrame:
-        firstLevel_phantoms = df_difference(pd.concat([self.get_inbound_structs(), self.get_inbound_sets()], ignore_index=False).reset_index()[["nodes"]],
+        firstLevel_phantoms = df_difference(pd.concat([self.get_phantom_structs(), self.get_phantom_sets()], ignore_index=False).reset_index()[["nodes"]],
                                            self.get_outbounds().reset_index()[["nodes"]])
         firstLevel_incidences = self.get_inbounds().join(firstLevel_phantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevel_incidences
@@ -471,6 +483,12 @@ class HyperNetXWrapper:
     def is_generalization_phantom(self, name) -> bool:
         return name in self.get_phantom_generalizations().index
 
+    def is_struct_phantom(self, name) -> bool:
+        return name in self.get_phantom_structs().index
+
+    def is_set_phantom(self, name) -> bool:
+        return name in self.get_phantom_sets().index
+
     def is_edge(self, name) -> bool:
         return name in self.get_edges().index
 
@@ -486,7 +504,7 @@ class HyperNetXWrapper:
     def is_set(self, name) -> bool:
         return name in self.get_sets().index
 
-    def is_cyclic(self, edge_name, visited: list[str] = None) -> bool:
+    def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:
             visited = [edge_name]
         else:
@@ -499,7 +517,7 @@ class HyperNetXWrapper:
                     if next_edge in visited:
                         cyclic = True
                     else:
-                        cyclic = cyclic or self.is_cyclic(next_edge, visited)
+                        cyclic = cyclic or self.has_cycle(next_edge, visited)
         return cyclic
 
     def check_multiplicities_to_one(self, path) -> (bool, bool):

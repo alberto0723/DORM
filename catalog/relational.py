@@ -203,9 +203,14 @@ class Relational(Catalog, ABC):
             for struct_name in self.get_struct_names_inside_set_name(table_name):
                 project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
                 pattern = []
-                for node_name in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+                for node_name in node_list:
                     if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                         pattern.append(self.get_edge_by_phantom_name(node_name))
+                    if self.is_struct_phantom(node_name):
+                        node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").tolist())
+                    #if self.is_association_phantom(node_name):
+                        # TODO: Nested sets need to be considered here!
                 sentence = self.generate_insert_statement(table_name, project, pattern, source)
                 statements.append(sentence)
         return statements
