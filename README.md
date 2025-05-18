@@ -278,7 +278,7 @@ To grasp the idea of what the prototype is actually doing, you can follow the ne
 1. Create a database in PostgreSQL on your own.
 2. Create a schema in the database to contain some data (these will be migrated later to other versions of this schema).
 ```bash
-python catalogAction.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <sourcesch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test2
+python catalogAction.py --paradigm 1NF --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test2
 ```
 3. Insert some testing data.
 ```SQL
@@ -300,16 +300,16 @@ END $$
 ```
 5. Query the source schema.
 ```bash
-python queryExecutor.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <sourcesch> --show_sql --print_rows --query_file files/queries/book-authors.json
+python queryExecutor.py --paradigm 1NF --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
 6. Create another schema containing a different design and migrate the same data there.
 ```bash
-python catalogAction.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <newsch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
+python catalogAction.py --paradigm 1NF --db_conf db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
 ```
 7. Check the tables and contents of the new schema and compare against the source ones.
 8. Query the new schema.
 ```bash
-python queryExecutor.py --paradigm 1NF --user <username> --password <password> --dbname <db> --dbschema <newsch> --show_sql --print_rows --query_file files/queries/book-authors.json
+python queryExecutor.py --paradigm 1NF --db_conf db_conf.txt --dbschema <newsch> --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
 
 Notice that despite the source and the new schema being different, the query specification file we use is exactly the same, and the resulting tuples we get also coincide.
@@ -322,4 +322,4 @@ Steps 6 to 8 can be repeated for any design of domain [book-authors_1-1](files/d
 - [1NF/book-authors_test3](files/designs/1NF/book-authors_test3.json)
 
 Moreover, the four designs can also be instantiated using `NF2_JSON` as paradigm (still keeping the source paradigm for data migration as `1NF`).
-Actually, once created and having migrated data to it, any design can be used as source for the automatic migration of data to any other design, as soon as both share domain.
+Actually, once created and having migrated data to it, any design can be used as source for the automatic migration of data to any other design, as soon as both share the same domain.

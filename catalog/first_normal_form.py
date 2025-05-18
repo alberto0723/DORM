@@ -126,7 +126,7 @@ class FirstNormalForm(Relational):
         :param source: The source catalog to get the data from.
         :return: The SQL statement that moves the data from one schema to another.
         '''
-        return (f"INSERT INTO {table_name}({", ".join(project)})\n  SELECT {", ".join(project)}\n  FROM (\n    " +
+        return (f"INSERT INTO {table_name}({', '.join(project)})\n  SELECT {', '.join(project)}\n  FROM (\n    " +
                             source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
     def generate_add_pk_statements(self) -> list[str]:

@@ -3,6 +3,7 @@ import warnings
 import sys
 import argparse
 from pathlib import Path
+import catalog.tools as tools
 
 import catalog.config as config
 from catalog.first_normal_form import FirstNormalForm
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
     base_parser.add_argument("--hg_path", type=Path, default=default_hypergraphs_path, help="Path to hypergraphs folder", metavar="<path>")
     base_parser.add_argument("--hypergraph", type=str, default="input", help="File generated for the hypergraph with pickle", metavar="<hg>")
+    base_parser.add_argument("--db_conf", type=str, help="Path to configuration file for DBMS connection", metavar="<db_conf>")
     base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
     base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
     base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
@@ -82,6 +84,7 @@ if __name__ == "__main__":
             logging.disable()
         if args.create:
             consistent = False
+            tools.read_db_conf(args)
             if args.state == "domain":
                 # Any subclass can be used here (not Relational, because it is abstract and cannot be instantiated)
                 cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
@@ -107,6 +110,7 @@ if __name__ == "__main__":
                 else:
                     cat = NonFirstNormalFormJSON(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
             else:
+                tools.read_db_conf(args)
                 if args.paradigm == "1NF":
                     cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
                                           password=args.password, dbname=args.dbname, dbschema=args.dbschema)

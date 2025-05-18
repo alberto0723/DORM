@@ -39,53 +39,25 @@ class NonFirstNormalFormJSON(Relational):
         path += "->>'" + attr_path[-1].get("name") + "'"
         return path
 
-    def generate_jsonb_object_clause(self, attr_paths: list[tuple[str, list[dict[str, str]]]]) -> str:
-        """
-        This generates the correspondence between attribute names in a struct and their corresponding attribute.
-        It is necessary to do it to consider loose ends (i.e., associations without class), which generate foreign keys.
-        :param struct_name:
-        :param attr_paths: A list of tuples with pairs "attribute_name" and a list of elements.
-                 Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
-                 The last element corresponds to the "domain_name" in the hypergraph for the attribute, which can be the same attribute or association end.
-        :returns: A string containing a jsonb-encoded object
-        """
-        clause = "jsonb_build_object("
-        ignore_structs = []
-        formatted_elems = []
-        for dom_attr_name, path in attr_paths:
-            elem_name = path[0].get("name", None)
-            assert elem_name is not None, f"☠️ Path element without name in {path}"
-            if path[0].get("kind") == "Struct":
-                if elem_name not in ignore_structs:
-                    ignore_structs.append(elem_name)
-                    temp_attr_paths = [(a, p[1:]) for a, p in attr_paths if p[0].get("name") == elem_name]
-                    formatted_elems.append("'" + elem_name + "', " + self.generate_jsonb_object_clause(temp_attr_paths))
-            # elif paths[0].get("kind") == "Set":
-                # TODO: Implement the management of sets
-            else:
-                formatted_elems.append("'" + path[0].get("name") + "', " + dom_attr_name)
-        clause += ",\n".join(formatted_elems) + ")"
-        return clause
-
     def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
-        """
+        '''
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
         :param project: List of attributes to be loaded in that table.
         :param pattern: List of domain elements that determine the content of the table.
         :param source: The source catalog to get the data from.
         :return: The SQL statement that moves the data from one schema to another.
-        """
-        logger.info("-- Migrating table " + table_name)
+        '''
         attr_paths = []
         for struct_name in self.get_struct_names_inside_set_name(table_name):
             attr_paths.extend(self.get_struct_attributes(struct_name))
         attr_paths = drop_duplicates(attr_paths)
         assert len(attr_paths) == len(project), f"Mismatch in the number of attributes of the table {table_name} ({len(attr_paths)}) and those required for the migration ({len(project)})"
         assert all([attr in project for attr, _ in attr_paths]), f"Some attribute in the paths '{attr_paths}' of table '{table_name}' is not in the projection of the migration table {project}"
-        sentence = (f"INSERT INTO {table_name}(value)\n  SELECT {self.generate_jsonb_object_clause(attr_paths)}\n  FROM (\n    " +
-                    source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
-        return sentence
+        # TODO: This needs to be properly implemented to consider nested elements
+        formatted_pairs = ["'" + attr_path[-1].get("name") + "', " + dom_attr_name for dom_attr_name, attr_path in attr_paths]
+        return (f"INSERT INTO {table_name}(value)\n  SELECT jsonb_build_object({', '.join(formatted_pairs)})\n  FROM (\n    " +
+                            source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
     def generate_create_table_statements(self) -> list[str]:
         """
