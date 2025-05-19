@@ -312,3 +312,7 @@ Steps 6 to 8 can be repeated for any design of domain [book-authors_1-1](files/d
 
 Moreover, the four designs can also be instantiated using `NF2_JSON` as paradigm (still keeping the source paradigm for data migration as `1NF`).
 Actually, once created and having migrated data to it, any design can be used as source for the automatic migration of data to any other design, as soon as both share the same domain.
+Other designs of the same domain violating 1NF are also available:
+- [NF2/book-authors_test1](files/designs/NF2/book-authors_test1.json) 
+- [NF2/book-authors_test2](files/designs/NF2/book-authors_test2.json)
+- [NF2/book-authors_test3](files/designs/NF2/book-authors_test3.json)

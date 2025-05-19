@@ -28,6 +28,7 @@ class Catalog(HyperNetXWrapper):
     metadata = {}
 
     def __init__(self, *args, **kwargs):
+        logger.info("Creating a catalog")
         super().__init__(*args, **kwargs)
 
     def add_class(self, class_name, properties, att_list) -> None:
