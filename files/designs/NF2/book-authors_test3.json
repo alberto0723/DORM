@@ -1,0 +1,17 @@
+{
+    "domain": "..\\..\\domains\\book-authors_1-1.json",
+    "___commented_out___domain": "..\\..\\domains\\book-authors-topic.json",
+    "hyperedges": [
+        {"kind": "Struct",
+         "name": "Books_type",
+         "anchor": ["Book"],
+         "elements": ["B_ID","B_title","B_publisher"]},
+        {"kind": "Struct",
+         "name": "Authors_type",
+         "anchor": ["Author"],
+         "elements": ["A_ID","A_name","A_age","A_gender","A_address","Writes","Books_type"]},
+        {"kind": "Set",
+         "name": "Authors_table",
+         "elements": ["Authors_type"]}
+    ]
+}

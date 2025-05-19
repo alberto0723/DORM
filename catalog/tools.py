@@ -39,13 +39,15 @@ def combine_buckets(patterns_list):
 def df_difference(df1, df2):
     return pd.concat([df1, df2, df2], ignore_index=True).drop_duplicates(keep=False)
 
-def read_db_conf(args):
-    if args.db_conf is not None:
-        try:
-            # Read the database configuration from the provided txt file, line by line
-            with open(args.db_conf, 'r') as f:
-                lines = f.readlines()
-                for line in lines:
-                    args.__dict__[line.split('=', 1)[0]] = line.split('=', 1)[1].strip()
-        except:
-            raise Exception("Database configuration file not found or not proferly formatted (check db_conf.example.txt).")
+
+def read_db_conf(filename: str) -> dict[str, str]:
+    try:
+        parameters = {}
+        # Read the database configuration from the provided txt file, line by line
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                parameters[line.split('=', 1)[0]] = line.split('=', 1)[1].strip()
+    except:
+        raise Exception("Database configuration file not found or not properly formatted (check db_conf.example.txt).")
+    return parameters

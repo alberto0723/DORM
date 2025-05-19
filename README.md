@@ -179,41 +179,35 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
-                        [--create] [--supersede] [--hg_path <path>] [--hypergraph <hg>]
-                        [--dbms <dbms>] [--ip <ip>] [--port <port>] [--user <user>]
-                        [--password <psw>] [--dbname <dbname>] [--dbschema <sch>] [--check] [--text]
-                        [--graph]
+usage: catalogAction.py [--help] [--logging] [--show_sql] [--hide_warnings] [--create] [--supersede]
+                        [--hg_path <path>] [--hypergraph <hg>] [--dbconf_file <db_conf>]
+                        [--dbschema <sch>] [--check] [--text] [--graph]
                         {domain,design} ...
 
 ▶️ Perform basic actions to create and visualize a catalog
 
 positional arguments:
-  {domain,design}     Kind of catalog
-    domain            Uses a hypergraph with only atoms
-    design            Uses a hypergraph with a full design
+  {domain,design}       Kind of catalog
+    domain              Uses a hypergraph with only atoms
+    design              Uses a hypergraph with a full design
 
 options:
-  --help              Shows this help message and exit
-  --logging           Enables logging
-  --show_sql          Prints the generated SQL statements
-  --hide_warnings     Silences warnings
-  --paradigm <prdgm>  Implementation paradigm for the design (either 1NF or NF2_JSON)
-  --create            Creates the catalog (otherwise it would be loaded from either a file or DBMS)
-  --supersede         Overwrites the existing catalog during creation
-  --hg_path <path>    Path to hypergraphs folder
-  --hypergraph <hg>   File generated for the hypergraph with pickle
-  --dbms <dbms>       Kind of DBMS to connect to
-  --ip <ip>           IP address for the database connection
-  --port <port>       Port for the database connection
-  --user <user>       Username for the database connection
-  --password <psw>    Password for the database connection
-  --dbname <dbname>   Database name
-  --dbschema <sch>    Database schema
-  --check             Forces checking the consistency of the catalog when using files (when using a
-                      DBMS, the check is always performed)
-  --text              Shows the catalog in text format
-  --graph             Shows the catalog in graphical format
+  --help                Shows this help message and exit
+  --logging             Enables logging
+  --show_sql            Prints the generated SQL statements
+  --hide_warnings       Silences warnings
+  --create              Creates the catalog (otherwise it would be loaded from either a file or
+                        DBMS)
+  --supersede           Overwrites the existing catalog during creation
+  --hg_path <path>      Path to hypergraphs folder
+  --hypergraph <hg>     File generated for the hypergraph with pickle
+  --dbconf_file <db_conf>
+                        Filename of the configuration file for DBMS connection
+  --dbschema <sch>      Database schema
+  --check               Forces checking the consistency of the catalog when using files (when using
+                        a DBMS, the check is always performed)
+  --text                Shows the catalog in text format
+  --graph               Shows the catalog in graphical format
 ------------------------------------------------------------------------------------------
 usage: catalogAction.py domain [--dom_path <path>] [--dom_spec <domain>]
 
@@ -223,12 +217,13 @@ options:
   --dom_path <path>    Path to domains folder
   --dom_spec <domain>  Specification of the domain (only atomic elements) in a JSON file
 ------------------------------------------------------------------------------------------
-usage: catalogAction.py design [--dsg_path <path>] [--dsg_spec <design>] [--translate]
-                               [--src_sch <sch>] [--src_kind <prdgm>]
+usage: catalogAction.py design --paradigm <prdgm> [--dsg_path <path>] [--dsg_spec <design>]
+                               [--translate] [--src_sch <sch>] [--src_kind <prdgm>]
 
 ▶️ Acts on a catalog with both domain and design elements
 
 options:
+  --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2_JSON)
   --dsg_path <path>    Path to designs folder
   --dsg_spec <design>  Specification of the design in a JSON file
   --translate          Translates the design into the database schema (i.e., generates create
@@ -243,31 +238,25 @@ This is a flexible scripting tool that allows to generate queries and execute th
 
 ```
 usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
-                        [--dbms <dbms>] [--ip <ip>] [--port <port>] [--user <user>]
-                        [--password <psw>] [--dbname <dbname>] [--dbschema <sch>]
-                        [--query_file <path>] [--print_rows] [--print_counter] [--print_cost]
-                        [--print_time]
+                        [--dbconf_file <db_conf>] [--dbschema <sch>] [--query_file <path>]
+                        [--print_rows] [--print_counter] [--print_cost] [--print_time]
 
 🔍 Execute queries over a pre-existing catalog
 
 options:
-  --help               Shows this help message and exit
-  --logging            Enables logging
-  --show_sql           Prints the generated statements
-  --hide_warnings      Silences warnings
-  --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2_JSON)
-  --dbms <dbms>        Kind of DBMS to connect to
-  --ip <ip>            IP address for the database connection
-  --port <port>        Port for the database connection
-  --user <user>        Username for the database connection
-  --password <psw>     Password for the database connection
-  --dbname <dbname>    Database name
-  --dbschema <sch>     Database schema
-  --query_file <path>  Filename of the json file containing the queries
-  --print_rows         Prints the resulting rows
-  --print_counter      Prints the number of rows
-  --print_cost         Prints the unitless cost estimation of each query
-  --print_time         Prints the estimated time of each query (in milliseconds)
+  --help                Shows this help message and exit
+  --logging             Enables logging
+  --show_sql            Prints the generated statements
+  --hide_warnings       Silences warnings
+  --paradigm <prdgm>    Implementation paradigm for the design (either 1NF or NF2_JSON)
+  --dbconf_file <db_conf>
+                        Filename of the configuration file for DBMS connection
+  --dbschema <sch>      Database schema
+  --query_file <path>   Filename of the json file containing the queries
+  --print_rows          Prints the resulting rows
+  --print_counter       Prints the number of rows
+  --print_cost          Prints the unitless cost estimation of each query
+  --print_time          Prints the estimated time of each query (in milliseconds)
 ```
 
 ## Demo 💻
@@ -278,7 +267,7 @@ To grasp the idea of what the prototype is actually doing, you can follow the ne
 1. Create a database in PostgreSQL on your own.
 2. Create a schema in the database to contain some data (these will be migrated later to other versions of this schema).
 ```bash
-python catalogAction.py --paradigm 1NF --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test2
+python catalogAction.py --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test2
 ```
 3. Insert some testing data.
 ```SQL
@@ -300,16 +289,16 @@ END $$
 ```
 5. Query the source schema.
 ```bash
-python queryExecutor.py --paradigm 1NF --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --print_rows --query_file files/queries/book-authors.json
+python queryExecutor.py --db_conf db_conf.txt --dbschema <sourcesch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
-6. Create another schema containing a different design and migrate the same data there.
+6. Create a new schema containing a different design and migrate there the data contained in the source you just created before.
 ```bash
-python catalogAction.py --paradigm 1NF --db_conf db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
+python catalogAction.py --db_conf db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
 ```
 7. Check the tables and contents of the new schema and compare against the source ones.
 8. Query the new schema.
 ```bash
-python queryExecutor.py --paradigm 1NF --db_conf db_conf.txt --dbschema <newsch> --show_sql --print_rows --query_file files/queries/book-authors.json
+python queryExecutor.py --db_conf db_conf.txt --dbschema <newsch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
 
 Notice that despite the source and the new schema being different, the query specification file we use is exactly the same, and the resulting tuples we get also coincide.

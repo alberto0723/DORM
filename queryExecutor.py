@@ -27,13 +27,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
-    base_parser.add_argument("--db_conf", type=str, help="Path to configuration file for DBMS connection", metavar="<db_conf>")
-    base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
-    base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
-    base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
-    base_parser.add_argument("--user", type=str, help="Username for the database connection", metavar="<user>")
-    base_parser.add_argument("--password", type=str, help="Password for the database connection", metavar="<psw>")
-    base_parser.add_argument("--dbname", type=str, default="postgres", help="Database name", metavar="<dbname>")
+    base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<db_conf>")
     base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<sch>")
     base_parser.add_argument("--query_file", type=Path, help="Filename of the json file containing the queries", metavar="<path>")
     base_parser.add_argument("--print_rows", help="Prints the resulting rows", action="store_true")
@@ -55,13 +49,10 @@ if __name__ == "__main__":
             logging.disable()
         logging.info("BEGIN")
         assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
-        tools.read_db_conf(args)
         if args.paradigm == "1NF":
-            cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                  password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+            cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema)
         else:
-            cat = NonFirstNormalFormJSON(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                         password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+            cat = NonFirstNormalFormJSON(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema)
         logging.info("Executing batch queries")
         # Open and load the JSON file
         with open(args.query_file, 'r') as file:

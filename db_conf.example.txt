@@ -4,4 +4,3 @@ port=5432
 user=
 password
 dbname=postgres
-dbschema=dorm_default

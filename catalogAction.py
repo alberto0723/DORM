@@ -28,18 +28,11 @@ if __name__ == "__main__":
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated SQL statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
-    base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     base_parser.add_argument("--create", help="Creates the catalog (otherwise it would be loaded from either a file or DBMS)", action="store_true")
     base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
     base_parser.add_argument("--hg_path", type=Path, default=default_hypergraphs_path, help="Path to hypergraphs folder", metavar="<path>")
     base_parser.add_argument("--hypergraph", type=str, default="input", help="File generated for the hypergraph with pickle", metavar="<hg>")
-    base_parser.add_argument("--db_conf", type=str, help="Path to configuration file for DBMS connection", metavar="<db_conf>")
-    base_parser.add_argument("--dbms", type=str, default="postgresql", help="Kind of DBMS to connect to", metavar="<dbms>")
-    base_parser.add_argument("--ip", type=str, default="localhost", help="IP address for the database connection", metavar="<ip>")
-    base_parser.add_argument("--port", type=str, default="5432", help="Port for the database connection", metavar="<port>")
-    base_parser.add_argument("--user", type=str, help="Username for the database connection", metavar="<user>")
-    base_parser.add_argument("--password", type=str, help="Password for the database connection", metavar="<psw>")
-    base_parser.add_argument("--dbname", type=str, default="postgres", help="Database name", metavar="<dbname>")
+    base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<db_conf>")
     base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<sch>")
     base_parser.add_argument("--check", help="Forces checking the consistency of the catalog when using files (when using a DBMS, the check is always performed)", action="store_true")
     base_parser.add_argument("--text", help="Shows the catalog in text format", action="store_true")
@@ -60,6 +53,7 @@ if __name__ == "__main__":
     domain_parser.add_argument("--dom_spec", type=str, default="default_spec", help="Specification of the domain (only atomic elements) in a JSON file", metavar="<domain>")
     # ---------------------------------------------------------------------- Designs
     design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
+    design_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
     design_parser.add_argument("--dsg_spec", type=str, default="default_spec", help="Specification of the design in a JSON file", metavar="<design>")
     design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables) when files are used (when using a DBMS, the translation is always performed)", action="store_true")
@@ -84,57 +78,50 @@ if __name__ == "__main__":
             logging.disable()
         if args.create:
             consistent = False
-            tools.read_db_conf(args)
             if args.state == "domain":
                 # Any subclass can be used here (not Relational, because it is abstract and cannot be instantiated)
-                cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                      password=args.password, dbname=args.dbname, dbschema=args.dbschema, supersede=True)
+                cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=True)
                 cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
             elif args.state == "design":
                 assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
                 if args.paradigm == "1NF":
-                    cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                          password=args.password, dbname=args.dbname, dbschema=args.dbschema, supersede=args.supersede)
+                    cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=args.supersede)
                 else:
-                    cat = NonFirstNormalFormJSON(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema, supersede=args.supersede)
+                    cat = NonFirstNormalFormJSON(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=args.supersede)
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")
         else:
             consistent = True
             assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
-            if args.user is None or args.password is None:
+            if args.dbconf_file is None:
                 if args.paradigm == "1NF":
                     cat = FirstNormalForm(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
                 else:
                     cat = NonFirstNormalFormJSON(args.hg_path.joinpath(args.state).joinpath(args.hypergraph + ".HyperNetX"))
             else:
-                tools.read_db_conf(args)
                 if args.paradigm == "1NF":
-                    cat = FirstNormalForm(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                          password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                    cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema)
                 else:
-                    cat = NonFirstNormalFormJSON(dbms=args.dbms, ip=args.ip, port=args.port, user=args.user,
-                                                 password=args.password, dbname=args.dbname, dbschema=args.dbschema)
+                    cat = NonFirstNormalFormJSON(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema)
 
         if args.text:
             cat.show_textual()
-        if args.check and (args.user is None or args.password is None):
+        if args.check and (args.dbconf_file is None):
             if cat.is_consistent(design=(args.state == "design")):
                 consistent = True
                 print("The catalog is consistent!")
             else:
                 consistent = False
                 warnings.warn("⚠️ The catalog is not consistent!!!")
-        if consistent or (args.user is not None and args.password is not None):
+        if consistent or (args.dbconf_file is not None):
             if args.state == "domain":
-                if args.user is None or args.password is None:
+                if args.dbconf_file is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dom_spec + ".HyperNetX"))
                 else:
                     cat.save(show_sql=args.show_sql)
             elif args.state == "design":
-                if args.user is None or args.password is None:
+                if args.dbconf_file is None:
                     cat.save(file_path=args.hg_path.joinpath(args.state).joinpath(args.dsg_spec + ".HyperNetX"))
                     if args.translate:
                         # Translating without showing the SQL sentences does not make much sense when using file (show_sql should always be True in this case)

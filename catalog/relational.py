@@ -30,32 +30,23 @@ class Relational(Catalog, ABC):
     It uses SQLAlchemy (https://www.sqlalchemy.org)
     """
     # This contains the connection to the database to store the catalog
-    engine = None
-    dbms = None
-    ip = None
-    port = None
-    user = None
-    password = None
-    dbname = None
+    dbconf = None
     dbschema = None
+    engine = None
     TABLE_NODES = '__dorm_catalog_nodes'
     TABLE_EDGES = '__dorm_catalog_edges'
     TABLE_INCIDENCES = '__dorm_catalog_incidences'
 
-    def __init__(self, paradigm_name=None, file_path=None, dbms=None, ip=None, port=None, user=None, password=None, dbname=None, dbschema=None, supersede=False):
+    def __init__(self, paradigm_name=None, file_path=None, dbconf=None, dbschema=None, supersede=False):
         # This print is just to avoid silly mistakes while testing, can eventually be removed
         print(f"*********************** {paradigm_name} ***********************")
 
-        if user is None or password is None:
+        if dbconf is None:
             super().__init__(file_path=file_path)
             self.metadata["paradigm"] = paradigm_name
         else:
-            self.dbms = dbms
-            self.ip = ip
-            self.port = port
-            self.user = user
-            self.password = password
-            self.dbname = dbname
+            assert dbschema is not None, "☠️ Missing schema for the creation of the catalog"
+            self.dbconf = dbconf
             self.dbschema = dbschema
             self.engine = self.get_engine(dbschema)
             with self.engine.connect() as conn:
@@ -70,7 +61,7 @@ class Relational(Catalog, ABC):
                     self.metadata["paradigm"] = paradigm_name
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
-                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{dbschema}' of database '{dbname}'"
+                    assert all(table in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables), f"☠️ Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{self.dbschema}' at '{self.dbconf}'"
                     logger.info(f"Loading the catalog from the database connection")
                     df_nodes = pd.read_sql_table(self.TABLE_NODES, con=self.engine)
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
@@ -87,13 +78,14 @@ class Relational(Catalog, ABC):
                     self.metadata = json.loads(row.comment)
                     if "paradigm" in self.metadata:
                         if self.metadata["paradigm"] != paradigm_name:
-                            raise ValueError(f"🚨 Expected paradigm in the existing design in the DBMS is {paradigm_name}, '{self.metadata['paradigm']}' found instead")
+                            raise ValueError(f"🚨 Expected paradigm in the current design of the catalog is {paradigm_name}, '{self.metadata['paradigm']}' found instead in '{self.dbschema}' at '{self.dbconf}'")
                     else:
                         self.metadata["paradigm"] = paradigm_name
 
     def get_engine(self, dbschema) -> sqlalchemy.engine.Engine:
-        assert self.dbms is not None and self.ip is not None and self.port is not None and self.user is not None and self.password is not None and self.dbname is not None and dbschema is not None, "☠️ Missing required parameters to create connection: dbms, ip, port, user, password, dbname, dbschema"
-        url = f"{self.dbms}://{self.user}:{self.password}@{self.ip}:{self.port}/{self.dbname}"
+        assert self.dbconf is not None, "☠️ Missing connection information, the catalog must be properly initialized before creating the engine"
+        assert "dbms" in self.dbconf and "ip" in self.dbconf and "port" in self.dbconf and "user" in self.dbconf and "password" in self.dbconf and "dbname" in self.dbconf, f"☠️ Missing required parameters to create connection (namely dbms, ip, port, user, password, and dbname) in {self.dbconf}"
+        url = f"{self.dbconf["dbms"]}://{self.dbconf["user"]}:{self.dbconf["password"]}@{self.dbconf["ip"]}:{self.dbconf["port"]}/{self.dbconf["dbname"]}"
         logger.info(f"Creating database connection to '{dbschema}' at '{url}'")
         return sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={dbschema}"})
 
@@ -184,7 +176,7 @@ class Relational(Catalog, ABC):
         :param migration_source_kind: paradigm used in the database to migrate the data from (either 1NF or NF2_JSON).
         :return: List of statements generated to migrate the data (one per struct)
         """
-        source = migration_source_kind(dbms=self.dbms, ip=self.ip, port=self.port, user=self.user, password=self.password, dbname=self.dbname, dbschema=migration_source_sch)
+        source = migration_source_kind(dbconf=self.dbconf, dbschema=migration_source_sch)
         # Basic consistency checks between both source and target catalogs
         if source.metadata.get("domain", "") != self.metadata["domain"]:
             raise ValueError(
