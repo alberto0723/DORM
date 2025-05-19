@@ -264,7 +264,8 @@ options:
 Understanding the contribution of this project is tricky, since it must be seen in the DBMS itself (everything automatically happens behind scenes).
 To grasp the idea of what the prototype is actually doing, you can follow the next steps:
 
-1. Create a database in PostgreSQL on your own.
+1. Create a database in [PostgreSQL](https://www.postgresql.org) on your own and include in a configuration file (e.g., `db_conf.txt`) all the connection fields (namely `dbms`, `ip`, `port`, `user`, `password`, and `dbname`).
+You can find an example at [db_conf.example.txt](db_conf.example.txt)
 2. Create a schema in the database to contain some data (these will be migrated later to other versions of this schema).
 ```bash
 python catalogAction.py --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test2

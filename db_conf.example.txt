@@ -1,6 +1,6 @@
 dbms=postgresql
 ip=localhost
 port=5432
-user=
-password
-dbname=postgres
+user=<your_username>
+password=<your_password>
+dbname=<your_db_name>
