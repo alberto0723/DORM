@@ -1,6 +1,7 @@
+import os
+from pathlib import Path
 import pandas as pd
 from . import config
-import os
 
 
 def custom_warning(message, category, filename, lineno, file=None, line=None):
@@ -41,13 +42,16 @@ def df_difference(df1, df2):
 
 
 def read_db_conf(filename: str) -> dict[str, str]:
+    path = Path(filename)
+    if not path.is_file():
+        raise FileNotFoundError(f"🚨 Database configuration file '{path.absolute()}' not found")
     try:
         parameters = {}
         # Read the database configuration from the provided txt file, line by line
-        with open(filename, 'r') as f:
+        with open(path, 'r') as f:
             lines = f.readlines()
             for line in lines:
                 parameters[line.split('=', 1)[0]] = line.split('=', 1)[1].strip()
     except:
-        raise Exception("Database configuration file not found or not properly formatted (check db_conf.example.txt).")
+        raise ValueError(f"🚨 Database configuration file '{path.absolute()}' not properly formatted (check db_conf.example.txt).")
     return parameters
