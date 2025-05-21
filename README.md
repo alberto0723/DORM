@@ -233,7 +233,7 @@ options:
   --src_kind <prdgm>   Paradigm of the catalog to migrate the data from (either 1NF or NF2_JSON)
 ```
 
-Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.png](documents%2FDiagrams%2FCatalogAction.png).
+Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.png](documents/Diagrams/CatalogAction.png).
 
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
@@ -261,7 +261,7 @@ options:
   --print_time          Prints the estimated time of each query (in milliseconds)
 ```
 
-Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.png](documents%2FDiagrams%2FQueryExecutor.png).
+Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.png](documents/Diagrams/QueryExecutor.png).
 
 ## Demo 💻
 
@@ -321,3 +321,13 @@ Other designs of the same domain violating 1NF are also available:
 - [NF2/book-authors_test1](files/designs/NF2/book-authors_test1.json) 
 - [NF2/book-authors_test2](files/designs/NF2/book-authors_test2.json)
 - [NF2/book-authors_test3](files/designs/NF2/book-authors_test3.json)
+
+### Experiments 🔬
+
+Also, there are two batch files that run several combinations of designs and queries under folder `files`.
+```bash
+test_all_1NF.bat
+test_all_NF2.bat
+```
+
+Notice that, in order to migrate data, some of the tests in those batch files require the creation before-hand of the source schema in the demo above with name `source`.
