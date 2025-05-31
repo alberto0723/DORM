@@ -328,6 +328,7 @@ class Catalog(HyperNetXWrapper):
         inbounds = self.get_inbounds()
         outbounds = self.get_outbounds()
         structOutbounds = self.get_outbound_structs()
+        setOutbounds = self.get_outbound_sets()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
         # Pre-check emptiness
@@ -774,6 +775,55 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
             logger.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
             # TODO: Check Structs definition-d
+            sets_within_struct = self.get_outbound_structs().reset_index(drop=False).merge(self.get_inbound_sets(), left_on='nodes', right_on='nodes', suffixes=('_struct', '_set'), how='inner')
+            print("---------------- SETS WITHIN STRUCTS ----------------")
+            display(sets_within_struct)
+            print("---------------- SETS WITHIN STRUCTS ----------------")
+            for set_struct in sets_within_struct.itertuples():
+                external_struct_name = set_struct.edges
+                # The content of a set can be either one single attribute, or several structs
+                # In the case of several structs, all must share the same anchor, so anyway, taking the fist element is enough
+                internal_elem_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(set_struct.nodes)).index[0][1]
+                print("External name:", external_struct_name)
+                print("Internal name:", internal_elem_name)
+                restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
+                print(f"=================== {struct_name} ======================")
+                restricted_struct.show_textual()
+                print("=========================================================")
+                if self.is_attribute(internal_elem_name):
+                    print("  Is attribute!")
+                    # By IC-Atoms4 attributes can belong to at most one class
+                    class_name = self.get_class_outbounds_by_attribute_name(internal_elem_name).index[0][0]
+                    print("Class name:", class_name)
+                    if self.get_phantom_of_edge_by_name(class_name) not in restricted_struct.get_nodes().index:
+                        print(f"🚨 IC-Structs-d violation: Attribute '{internal_elem_name}' belonging to class '{class_name}' and included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
+                else:
+                    assert self.is_struct_phantom(internal_elem_name), f"☠️ The content of set '{set_struct.nodes}' should be a struct, but it is not"
+                    print("  Is struct!")
+
+
+            # for external_struct_name in self.get_structs().index:
+            #     for elem_name in self.get_outbound_struct_by_name(external_struct_name).index.get_level_values("nodes"):
+            #         if self.is_phantom(elem_name):
+            #             edge_name = self.get_edge_by_phantom_name(elem_name)
+            #             if self.is_struct(edge_name):
+            #                 internal_struct_name = edge_name
+            #                 restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
+            #                 bipartite = restricted_struct.H.bipartite()
+            #                 for internal_anchor in self.get_anchor_points_by_struct_name(internal_struct_name):
+            #                     found = False
+            #                     for external_anchor in self.get_anchor_points_by_struct_name(external_struct_name):
+            #                         paths = list(nx.all_simple_paths(bipartite, source=external_anchor, target=internal_anchor))
+            #                         if len(paths) > 0:
+            #                             found = True
+            #                             if len(paths) > 1:
+            #                                 print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is connected to '{external_anchor}' in its parent struct '{external_struct_name}' by more than one path: '{paths}'")
+            #                             if not self.check_multiplicities_to_one(paths[0])[1]:
+            #                                 print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is connected to '{external_anchor}' in its parent struct '{external_struct_name}' by path '{paths[0]}' with max multiplicity greater than one")
+            #                     if not found:
+            #                         consistent = False
+            #                         print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is not connected to any anchor point of its parent struct '{external_struct_name}'")
+
 
             # IC-Structs-e: All associations inside a struct connect either a class or another struct (Definition 7-e)
             #               This needs to be relaxed to simply structs being connected
@@ -809,14 +859,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Design2 violation: Atoms disconnected from the first level")
                 display(violations5_2)
 
-            # IC-Design3: All domain elements must appear in some struct
+            # IC-Design3: All domain elements must appear in some struct or set
             #             This is relaxed into just a warning, because of generalizations
             logger.info("Checking IC-Design3 (produces just warnings)")
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
-            violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
+            violations5_3 = atoms[~atoms.isin(pd.concat([structOutbounds, setOutbounds]).index.get_level_values("nodes"))]
             if not violations5_3.empty:
                 # consistent = False
-                warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct")
+                warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct or set")
                 if show_warnings:
                     display(violations5_3)
 

@@ -108,6 +108,9 @@ class HyperNetXWrapper:
         else:
             return class_id.index[0][1]
 
+    def get_class_outbounds_by_attribute_name(self, attribute_name) -> pd.DataFrame:
+        return self.get_outbound_classes().query('nodes == "' + attribute_name + '"')
+
     def get_phantoms(self) -> pd.DataFrame:
         nodes = self.get_nodes()
         phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
