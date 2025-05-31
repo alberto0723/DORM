@@ -261,9 +261,9 @@ class Catalog(HyperNetXWrapper):
         :param attr_path: List of element hops
         :return: Projection clause depending on the implementation
         """
-        assert len(attr_path) > 0, f"☠️ Incorrect length of attribute path '{attr_path}', which should be greater than one"
-        assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
-        assert "name" in attr_path[-1], f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
+        assert len(attr_path) > 0, f"☠️ Incorrect length of attribute path '{attr_path}', which cannot be zero"
+        assert all("name" in hop for hop in attr_path), f"☠️ Incorrect attribute path '{attr_path}', whose hops should have a name"
+        assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', whose last hop should be either an Attribute or AssociationEnd"
         return None
 
     def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
@@ -299,9 +299,11 @@ class Catalog(HyperNetXWrapper):
                 for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
                     attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
             elif self.is_set_phantom(elem_name):
-                assert False, "☠️ Sets nested in structs not implemented, yet"
-                # TODO: This needs to consider nested sets to support NF2
-                #       Needs to make the union of attributes of all structs, and check they all have the same paths
+                nested_set_name = self.get_edge_by_phantom_name(elem_name)
+                for nested_struct in self.get_outbound_set_by_name(nested_set_name).itertuples():
+                    nested_struct_name = self.get_edge_by_phantom_name(nested_struct.Index[1])
+                    for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
+                        attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         # TODO: assert that attribute names are not repeated
@@ -960,6 +962,11 @@ class Catalog(HyperNetXWrapper):
                 if not found:
                     # consistent = False
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
+
+            # IC-Design9: All attributes (also nested) in the structs in a set must have the same paths
+            logger.info("Checking IC-Design9 -> To be implemented")
+            # TODO:
+
         return consistent
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:

@@ -30,23 +30,38 @@ class NonFirstNormalFormJSON(Relational):
             pass
         return consistent
 
+    # def generate_attr_projection_clause(self, attr_path: list[dict[str, str]], position: int = 0, prefix_path: str = "value") -> str:
+    #     super().generate_attr_projection_clause(attr_path, position)
+    #     hop = attr_path[position]
+    #     if hop["kind"] == "Set":
+    #         path = self.generate_attr_projection_clause(attr_path, position+1, "jsonb_array_elements(" + prefix_path + "->'" + hop.get("name") + "')")
+    #     else:
+    #         if position < len(attr_path) - 1:
+    #             path = self.generate_attr_projection_clause(attr_path, position+1, prefix_path + "->'" + hop.get("name") + "'")
+    #         else:
+    #             path = prefix_path + "->>'" + attr_path[position].get("name") + "'"
+    #     return path
+
     def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
         super().generate_attr_projection_clause(attr_path)
         path = "value"
         for hop in attr_path[:-1]:
-            path += "->'" + hop.get("name") + "'"
+            if hop["kind"] == "Set":
+                path = "jsonb_array_elements(" + path + "->'" + hop.get("name") + "')"
+            else:
+                path += "->'" + hop.get("name") + "'"
         path += "->>'" + attr_path[-1].get("name") + "'"
         return path
 
     def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
-        '''
+        """
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
         :param project: List of attributes to be loaded in that table.
         :param pattern: List of domain elements that determine the content of the table.
         :param source: The source catalog to get the data from.
         :return: The SQL statement that moves the data from one schema to another.
-        '''
+        """
         attr_paths = []
         for struct_name in self.get_struct_names_inside_set_name(table_name):
             attr_paths.extend(self.get_struct_attributes(struct_name))
