@@ -2,7 +2,6 @@ import logging
 import warnings
 import pandas as pd
 from IPython.display import display
-import networkx as nx
 
 from .tools import drop_duplicates
 from .relational import Relational

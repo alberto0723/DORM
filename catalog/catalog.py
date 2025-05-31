@@ -255,7 +255,7 @@ class Catalog(HyperNetXWrapper):
             return final_hop.get("id")
 
     @abstractmethod
-    def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
+    def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> None:
         """
         This generates the projection clause for a given an attribute path as produced by 'get_struct_attributes'
         :param attr_path: List of element hops
@@ -264,6 +264,7 @@ class Catalog(HyperNetXWrapper):
         assert len(attr_path) > 0, f"☠️ Incorrect length of attribute path '{attr_path}', which should be greater than one"
         assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
         assert "name" in attr_path[-1], f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
+        return None
 
     def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
         """
@@ -1099,13 +1100,13 @@ class Catalog(HyperNetXWrapper):
         :param pattern_class_names: The set of classes in the pattern of the query.
         :return: List of discriminants necessary in the query.
         """
-        # TODO: Consider what happens with nested structures, when the same discriminant can come from more than one substructure
+        # TODO: Consider what happens with nested structs, when the same discriminant can come from more than one substruct
         discriminants = []
         # For every class in the pattern
         for pattern_class_name in pattern_class_names:
             pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name)
             if pattern_superclasses:
-                # For every firstlevel set required in the query
+                # For every first level set required in the query
                 for set_name in sets_combination:
                     for struct_name in self.get_struct_names_inside_set_name(set_name):
                         # Get all classes in the current struct of the current table
