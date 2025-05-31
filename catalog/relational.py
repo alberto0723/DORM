@@ -342,28 +342,30 @@ class Relational(Catalog, ABC):
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 alias_table, proj_attr, location_attr = self.get_aliases(tables_combination)
-                modified_filter_clauses = [filter_clause]+self.get_discriminants(tables_combination, class_names)
+                discriminants = self.get_discriminants(tables_combination, class_names)
+                if discriminants:
+                    filter_clause = " AND ".join(["(" + filter_clause + ")"]+discriminants)
+                    filter_attributes = drop_duplicates(self.parse_predicate(filter_clause))
                 # Simple case of only one table required by the query
                 if len(tables_combination) == 1:
                     # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes])
+                    sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes+filter_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM " + schema_name + tables_combination[0]
-                    # Replace the domain name by the name in the table in the WHERE clause
-                    for dom_attr_name, attr_proj in proj_attr.items():
-                        modified_filter_clauses = [s.replace(dom_attr_name, attr_proj) for s in modified_filter_clauses]
                 # Case with several tables that require joins
                 else:
                     # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([location_attr[a]+"."+proj_attr[a] for a in project_attributes])
+                    sentence = "SELECT " + ", ".join([location_attr[a]+"."+proj_attr[a] + " AS " + a for a in project_attributes+filter_attributes])
                     # Build the FROM clause
                     sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, proj_attr, schema_name)
-                    # Replace the domain name by the name in the table in the WHERE clause, and also add the alias since there is more than one table now
-                    for dom_attr_name, attr_proj in proj_attr.items():
-                        modified_filter_clauses = [s.replace(dom_attr_name, location_attr[dom_attr_name]+"."+attr_proj) for s in modified_filter_clauses]
-                # Build the WHERE clause
-                sentence += "\nWHERE " + " AND ".join(modified_filter_clauses)
-                sentences.append(sentence)
+                # Add the WHERE clause
+                if filter_clause == "TRUE":
+                    sentence_with_filter = sentence
+                else:
+                    sentence_with_filter = "SELECT " + ", ".join(project_attributes)
+                    sentence_with_filter += "\nFROM (\n" + sentence + "\n) _"
+                    sentence_with_filter += "\nWHERE " + filter_clause
+                sentences.append(sentence_with_filter)
         # If some classes are implicitly stored in the current design (i.e. stored only in their subclasses)
         else:
             # We need to recursively do it one by one, so we only take the first implicit superclass

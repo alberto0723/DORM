@@ -1044,7 +1044,7 @@ class Catalog(HyperNetXWrapper):
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
-        filter_attributes = self.parse_predicate(filter_clause)
+        filter_attributes = drop_duplicates(self.parse_predicate(filter_clause))
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 
@@ -1121,14 +1121,9 @@ class Catalog(HyperNetXWrapper):
                     location_attr[dom_attr_name] = alias_set[set_name]
                     proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
-                associations = self.get_inbound_associations()[
-                    self.get_inbound_associations().index.get_level_values("nodes").isin(
-                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
-                                 on="nodes", how="inner").index)]
-                classes = self.get_inbound_classes()[
-                    self.get_inbound_classes().index.get_level_values("nodes").isin(
-                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
-                                 on="nodes", how="inner").index)]
+                atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
+                associations = self.get_inbound_associations()[self.get_inbound_associations().index.get_level_values("nodes").isin(atoms)]
+                classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(atoms)]
                 association_ends = self.get_outbound_associations()[
                     (self.get_outbound_associations().index.get_level_values("edges").isin(
                         associations.index.get_level_values("edges"))) & (
