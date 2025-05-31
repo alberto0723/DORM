@@ -597,9 +597,31 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets4 violation: There are sets that contain other sets")
                 display(violations4_4)
 
-            # IC-Sets5: Contents of sets are either one single attribute or many structs
-            logger.info("Checking IC-Sets5 -> To Be Implemented")
-            # TODO
+            # IC-Sets5: Sets cannot directly contain associations
+            logger.info("Checking IC-Sets5")
+            violations4_5 = pd.merge(self.get_outbound_sets(), self.get_inbound_associations(), on='nodes', suffixes=('_setOutbounds', '_assocInbounds'), how='inner')
+            if not violations4_5.empty:
+                consistent = False
+                print("🚨 IC-Sets5 violation: There are sets that contain associations")
+                display(violations4_5)
+
+            # IC-Sets6: Sets cannot directly contain associations
+            logger.info("Checking IC-Sets6")
+            violations4_6 = pd.merge(self.get_outbound_sets(), self.get_inbound_generalizations(), on='nodes', suffixes=('_setOutbounds', '_generInbounds'), how='inner')
+            if not violations4_6.empty:
+                consistent = False
+                print("🚨 IC-Sets6 violation: There are sets that contain generalizations")
+                display(violations4_6)
+
+            # IC-Sets7: A set that contains an attribute, cannot contain anything else
+            logger.info("Checking IC-Sets7")
+            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_attributes(), left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
+            matches4_7 = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('edges').isin(sets_with_attributes['edges'])].groupby('edges').size()
+            violations4_7 = matches4_7[matches4_7 > 1]
+            if not violations4_7.empty:
+                consistent = False
+                print("🚨 IC-Sets5 violation: There are sets that contain an attribute, besides other elements")
+                display(violations4_7)
 
             # ------------------------------------------------------------------------------------------- ICs on structs
             # IC-Structs1: Every struct has one phantom
