@@ -306,7 +306,7 @@ class Catalog(HyperNetXWrapper):
                         attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
-        # TODO: assert that attribute names are not repeated
+        assert len(attribute_list) == len(set(drop_duplicates([t[0] for t in attribute_list]))), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
         return attribute_list
 
     def is_consistent(self, design=False) -> bool:
