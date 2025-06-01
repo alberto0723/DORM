@@ -301,10 +301,15 @@ class Catalog(HyperNetXWrapper):
                     attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
             elif self.is_set_phantom(elem_name):
                 nested_set_name = self.get_edge_by_phantom_name(elem_name)
-                for nested_struct in self.get_outbound_set_by_name(nested_set_name).itertuples():
-                    nested_struct_name = self.get_edge_by_phantom_name(nested_struct.Index[1])
-                    for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
-                        attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
+                for nested_element in self.get_outbound_set_by_name(nested_set_name).itertuples():
+                    if self.is_attribute(nested_element):
+                        attr_name = nested_element.Index[1]
+                        attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]))
+                    # If not an attribute, it must be a struct
+                    else:
+                        nested_struct_name = self.get_edge_by_phantom_name(nested_element.Index[1])
+                        for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
+                            attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         assert len(attribute_list) == len(set(drop_duplicates([t[0] for t in attribute_list]))), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"

@@ -216,6 +216,8 @@ class Relational(Catalog, ABC):
             logger.info(f"-- Generating data migration for table {table_name}")
             # For each struct in the table, we have to create a different extraction query
             for struct_name in self.get_struct_names_inside_set_name(table_name):
+                print(struct_name)
+                print(self.get_struct_attributes(struct_name))
                 project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
                 pattern = []
                 node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()

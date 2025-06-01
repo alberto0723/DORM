@@ -101,7 +101,8 @@ About sets:
 - Can contain structs inside, but not directly sets. 
 - All structs in a set must share the same anchor attributes. 
 However, some class must be different, and related by generalization.
-- Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL (this is just an implementation issue).
+- Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL (this is just an implementation issue). 
+First level sets can contain other sets, but these cannot nest others.
 
 About structs:
 - Every struct must be ultimately contained either in a set or another struct.

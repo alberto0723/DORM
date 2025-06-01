@@ -11,19 +11,19 @@
          "elements": ["Authors_type"]},
 
         {"kind": "Struct",
-         "name": "Books_type",
-         "anchor": ["Book"],
-         "elements": ["B_ID","B_title","B_publisher","Writes","Authors_list"]},
-        {"kind": "Set",
-         "name": "Books_list",
-         "elements": ["Books_type"]},
-
-        {"kind": "Struct",
          "name": "Topics_type",
          "anchor": ["Topic"],
-         "elements": ["T_ID", "T_description", "Touches", "Books_list"]},
+         "elements": ["T_ID", "T_description"]},
         {"kind": "Set",
-         "name": "Topics_table",
-         "elements": ["Topics_type"]}
+         "name": "Topics_list",
+         "elements": ["Topics_type"]},
+
+        {"kind": "Struct",
+         "name": "Books_type",
+         "anchor": ["Book"],
+         "elements": ["B_ID","B_title","B_publisher","Writes","Authors_list", "Touches", "Topics_list"]},
+        {"kind": "Set",
+         "name": "Books_table",
+         "elements": ["Books_type"]}
     ]
 }
