@@ -386,7 +386,16 @@ class HyperNetXWrapper:
         outbounds["nodes"] = outbounds.index.get_level_values("nodes")
         association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
-        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index)]
+        tight_ends = []
+        for elem_phantom_name in elements.index.get_level_values("nodes"):
+            if self.is_struct_phantom(elem_phantom_name):
+                tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(elem_phantom_name)))
+            if self.is_set_phantom(elem_phantom_name):
+                hop_elem_phantom_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(elem_phantom_name)).index.get_level_values("nodes").tolist()[0]
+                if self.is_struct_phantom(hop_elem_phantom_name):
+                    tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
+        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.tolist()+tight_ends)]
+
         if loose_ends.empty:
             return []
         else:
