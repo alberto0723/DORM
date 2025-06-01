@@ -302,7 +302,7 @@ class Catalog(HyperNetXWrapper):
             elif self.is_set_phantom(elem_name):
                 nested_set_name = self.get_edge_by_phantom_name(elem_name)
                 for nested_element in self.get_outbound_set_by_name(nested_set_name).itertuples():
-                    if self.is_attribute(nested_element):
+                    if self.is_attribute(nested_element.Index[1]):
                         attr_name = nested_element.Index[1]
                         attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]))
                     # If not an attribute, it must be a struct

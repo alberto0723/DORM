@@ -492,49 +492,49 @@ class HyperNetXWrapper:
             self.get_phantom_of_edge_by_name(class_name)].misc_properties.get("Constraint", None)
 
     def is_attribute(self, name) -> bool:
-        return name in self.get_attributes().index
+        return name in self.get_attributes().index.tolist()
 
     def is_association_end(self, name) -> bool:
-        return name in self.get_association_ends().index
+        return name in self.get_association_ends().index.tolist()
 
     def is_id(self, name) -> bool:
-        return name in self.get_ids().index
+        return name in self.get_ids().index.tolist()
 
     def is_class(self, name) -> bool:
-        return name in self.get_classes().index
+        return name in self.get_classes().index.tolist()
 
     def is_phantom(self, name) -> bool:
-        return name in self.get_phantoms().index
+        return name in self.get_phantoms().index.tolist()
 
     def is_class_phantom(self, name) -> bool:
-        return name in self.get_phantom_classes().index
+        return name in self.get_phantom_classes().index.tolist()
 
     def is_association_phantom(self, name) -> bool:
-        return name in self.get_phantom_associations().index
+        return name in self.get_phantom_associations().index.tolist()
 
     def is_generalization_phantom(self, name) -> bool:
-        return name in self.get_phantom_generalizations().index
+        return name in self.get_phantom_generalizations().index.tolist()
 
     def is_struct_phantom(self, name) -> bool:
-        return name in self.get_phantom_structs().index
+        return name in self.get_phantom_structs().index.tolist()
 
     def is_set_phantom(self, name) -> bool:
-        return name in self.get_phantom_sets().index
+        return name in self.get_phantom_sets().index.tolist()
 
     def is_edge(self, name) -> bool:
-        return name in self.get_edges().index
+        return name in self.get_edges().index.tolist()
 
     def is_association(self, name) -> bool:
-        return name in self.get_associations().index
+        return name in self.get_associations().index.tolist()
 
     def is_generalization(self, name) -> bool:
-        return name in self.get_generalizations().index
+        return name in self.get_generalizations().index.tolist()
 
     def is_struct(self, name) -> bool:
-        return name in self.get_structs().index
+        return name in self.get_structs().index.tolist()
 
     def is_set(self, name) -> bool:
-        return name in self.get_sets().index
+        return name in self.get_sets().index.tolist()
 
     def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:
