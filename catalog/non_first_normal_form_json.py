@@ -41,23 +41,31 @@ class NonFirstNormalFormJSON(Relational):
         path += "->>'" + attr_path[-1].get("name") + "'"
         return path
 
-    def build_jsonb_object(self, attr_paths: list[tuple[str, list[dict[str, str]]]]) -> str:
-        # TODO: This needs to be properly implemented to consider inserting elements in a list all at once
-        print(attr_paths)
+    def build_jsonb_object(self, attr_paths: list[tuple[str, list[dict[str, str]]]]) -> [str, list[str]]:
         formatted_pairs = []
         pending_attributes = {}
+        tmp_grouping = []
+        final_grouping = []
         for dom_attr_name, attr_path in attr_paths:
             current_name = attr_path[0].get("name")
             if len(attr_path) == 1:
                 formatted_pairs.append("'" + current_name + "', " + dom_attr_name)
+                tmp_grouping.append(dom_attr_name)
             else:
                 if current_name in pending_attributes:
                     pending_attributes[current_name] = pending_attributes[current_name]+[(dom_attr_name, attr_path[1:])]
                 else:
                     pending_attributes[current_name] = [(dom_attr_name, attr_path[1:])]
         for key, paths in pending_attributes.items():
-            formatted_pairs.append("'" + key + "', " + self.build_jsonb_object(paths))
-        return f"jsonb_build_object({', '.join(formatted_pairs)})"
+            assert self.is_struct(key) or self.is_set(key), f"☠️ On creating a nested attribute in a JSONB object, '{key}' should be either a struct or a set"
+            if self.is_struct(key):
+                formatted_pairs.append("'" + key + "', " + self.build_jsonb_object(paths))
+            else:
+                nested_object, nested_grouping = self.build_jsonb_object(paths)
+                assert not nested_grouping, f"☠️ There is a limitation of PostgreSQL that does not allow to nest 'jsonb_agg', hence, nested sets are not allowed as in '{key}'"
+                formatted_pairs.append("'" + key + "', jsonb_agg(" + nested_object + ")")
+                final_grouping = tmp_grouping
+        return f"jsonb_build_object({', '.join(formatted_pairs)})", final_grouping
 
     def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
         """
@@ -74,10 +82,14 @@ class NonFirstNormalFormJSON(Relational):
         attr_paths = drop_duplicates(attr_paths)
         assert len(attr_paths) == len(project), f"Mismatch in the number of attributes of the table {table_name} ({len(attr_paths)}) and those required for the migration ({len(project)})"
         assert all([attr in project for attr, _ in attr_paths]), f"Some attribute in the paths '{attr_paths}' of table '{table_name}' is not in the projection of the migration table {project}"
-        obj = self.build_jsonb_object(attr_paths)
-        print(obj)
-        return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
-                            source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
+        obj, grouping = self.build_jsonb_object(attr_paths)
+        if grouping:
+            return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
+                                    source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo" +
+                                    "\nGROUP BY " + ", ".join(grouping) + ";")
+        else:
+            return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
+                                    source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
     def generate_create_table_statements(self) -> list[str]:
         """

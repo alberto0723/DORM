@@ -118,12 +118,35 @@ class Relational(Catalog, ABC):
         else:
            raise ValueError("🚨 No connection to the database or file provided")
 
+    def contains_set_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> bool:
+        if visited is None:
+            visited = [edge_name]
+        else:
+            visited.append(edge_name)
+        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+            if self.is_phantom(node_name):
+                next_edge = self.get_edge_by_phantom_name(node_name)
+                assert next_edge not in visited, f"☠️ Cycle of edges detected: {visited}"
+                if self.is_set(next_edge):
+                    return True
+                elif self.is_struct(next_edge):
+                    return self.contains_set_including_transitivity_by_edge_name(next_edge, visited)
+        return False
+
     def is_consistent(self, design=False) -> bool:
         consistent = super().is_consistent(design)
         # Only needs to run further checks if the basic one succeeded
         if consistent:
-            # --------------------------------------------------------------------- ICs about being a relational catalog
-            pass
+            # --------------------------------------------------------------------- ICs about being a relational catalog in PostgreSQL
+
+            # IC-Relational1:
+            logger.info("Checking IC-Relational1")
+            matches6_1 = self.get_inbound_firstLevel().index.get_level_values("edges")
+            violations6_1 = self.get_sets()[self.get_sets().apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
+            if not violations6_1.empty:
+                consistent = False
+                print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL")
+                display(violations6_1)
 
         return consistent
 
