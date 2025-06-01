@@ -30,18 +30,6 @@ class NonFirstNormalFormJSON(Relational):
             pass
         return consistent
 
-    # def generate_attr_projection_clause(self, attr_path: list[dict[str, str]], position: int = 0, prefix_path: str = "value") -> str:
-    #     super().generate_attr_projection_clause(attr_path, position)
-    #     hop = attr_path[position]
-    #     if hop["kind"] == "Set":
-    #         path = self.generate_attr_projection_clause(attr_path, position+1, "jsonb_array_elements(" + prefix_path + "->'" + hop.get("name") + "')")
-    #     else:
-    #         if position < len(attr_path) - 1:
-    #             path = self.generate_attr_projection_clause(attr_path, position+1, prefix_path + "->'" + hop.get("name") + "'")
-    #         else:
-    #             path = prefix_path + "->>'" + attr_path[position].get("name") + "'"
-    #     return path
-
     def generate_attr_projection_clause(self, attr_path: list[dict[str, str]]) -> str:
         super().generate_attr_projection_clause(attr_path)
         path = "value"

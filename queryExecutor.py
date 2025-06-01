@@ -18,7 +18,7 @@ if __name__ == "__main__":
     #                                configure argparse begin                      #
     # ---------------------------------------------------------------------------- #
     base_parser = argparse.ArgumentParser(
-        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100),
+        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=160),
         add_help=False,
         description="🔍 Execute queries over a pre-existing catalog"
     )
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
-    base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<db_conf>")
+    base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<conf>")
     base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<sch>")
     base_parser.add_argument("--query_file", type=Path, help="Filename of the json file containing the queries", metavar="<path>")
     base_parser.add_argument("--print_rows", help="Prints the resulting rows", action="store_true")

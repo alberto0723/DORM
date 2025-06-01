@@ -196,13 +196,14 @@ class Relational(Catalog, ABC):
                 project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
                 pattern = []
                 node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+                # The node_list is extended inside the loop itself (kind of a recursive call)
                 for node_name in node_list:
                     if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                         pattern.append(self.get_edge_by_phantom_name(node_name))
                     if self.is_struct_phantom(node_name):
                         node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").tolist())
-                    #if self.is_association_phantom(node_name):
-                        # TODO: Nested sets need to be considered here!
+                    if self.is_set_phantom(node_name):
+                        node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").tolist())
                 sentence = self.generate_insert_statement(table_name, project, pattern, source)
                 statements.append(sentence)
         return statements
