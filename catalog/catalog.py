@@ -270,6 +270,7 @@ class Catalog(HyperNetXWrapper):
         """
         This generates the correspondence between attribute names in a struct and their corresponding attribute.
         It is necessary to do it to consider loose ends (i.e., associations without class), which generate foreign keys.
+        It includes the attributes in nested structs and sets.
         :param struct_name:
         :return: A list of tuples with pairs "attribute_name" and a list of elements.
                  Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
@@ -963,7 +964,8 @@ class Catalog(HyperNetXWrapper):
                     # consistent = False
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
 
-            # IC-Design9: All attributes (also nested) in the structs in a set must have the same paths
+            # IC-Design9: All attributes in the structs in a set must have the same paths
+            # TODO: Consider also attribues in nested structures and sets
             logger.info("Checking IC-Design9")
             for set_name in self.get_sets().index:
                 inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")

@@ -41,6 +41,24 @@ class NonFirstNormalFormJSON(Relational):
         path += "->>'" + attr_path[-1].get("name") + "'"
         return path
 
+    def build_jsonb_object(self, attr_paths: list[tuple[str, list[dict[str, str]]]]) -> str:
+        # TODO: This needs to be properly implemented to consider inserting elements in a list all at once
+        print(attr_paths)
+        formatted_pairs = []
+        pending_attributes = {}
+        for dom_attr_name, attr_path in attr_paths:
+            current_name = attr_path[0].get("name")
+            if len(attr_path) == 1:
+                formatted_pairs.append("'" + current_name + "', " + dom_attr_name)
+            else:
+                if current_name in pending_attributes:
+                    pending_attributes[current_name] = pending_attributes[current_name]+[(dom_attr_name, attr_path[1:])]
+                else:
+                    pending_attributes[current_name] = [(dom_attr_name, attr_path[1:])]
+        for key, paths in pending_attributes.items():
+            formatted_pairs.append("'" + key + "', " + self.build_jsonb_object(paths))
+        return f"jsonb_build_object({', '.join(formatted_pairs)})"
+
     def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
         """
         Generates insert statements to migrate data from a database to another.
@@ -56,9 +74,9 @@ class NonFirstNormalFormJSON(Relational):
         attr_paths = drop_duplicates(attr_paths)
         assert len(attr_paths) == len(project), f"Mismatch in the number of attributes of the table {table_name} ({len(attr_paths)}) and those required for the migration ({len(project)})"
         assert all([attr in project for attr, _ in attr_paths]), f"Some attribute in the paths '{attr_paths}' of table '{table_name}' is not in the projection of the migration table {project}"
-        # TODO: This needs to be properly implemented to consider nested elements
-        formatted_pairs = ["'" + attr_path[-1].get("name") + "', " + dom_attr_name for dom_attr_name, attr_path in attr_paths]
-        return (f"INSERT INTO {table_name}(value)\n  SELECT jsonb_build_object({', '.join(formatted_pairs)})\n  FROM (\n    " +
+        obj = self.build_jsonb_object(attr_paths)
+        print(obj)
+        return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
                             source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
     def generate_create_table_statements(self) -> list[str]:
@@ -102,7 +120,8 @@ class NonFirstNormalFormJSON(Relational):
             # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
             sentence += "((" + "), (".join(["value->>'" + k + "'" for k in key_list]) + "));"
             statements.append(sentence)
-        return statements
+# TODO:       return statements
+        return []
 
     def generate_add_fk_statements(self) -> list[str]:
         """
