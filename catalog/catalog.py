@@ -875,12 +875,12 @@ class Catalog(HyperNetXWrapper):
                 # Check IC-Design4
                 if len(drop_duplicates(anchor_attributes)) > 1:
                     consistent = False
-                    print("🚨 IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
+                    print(f"🚨 IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
                 # Check IC-Design5
                 # Not really necessary to check if they are generalization, because attributes already coincide
                 elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
                     consistent = False
-                    print("🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
+                    print(f"🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
                 # Check IC-Design6
                 else:
                     # For every pair of structs in the set
@@ -905,7 +905,7 @@ class Catalog(HyperNetXWrapper):
                                                     found = found and attribute_name in set_attributes
                                                 if not found:
                                                     consistent = False
-                                                    print("🚨 IC-Design6 violation: Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
+                                                    print(f"🚨 IC-Design6 violation: Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
                                     # Now we need to do the comparison the other way round
                                     a, b = j, i
 
@@ -964,8 +964,20 @@ class Catalog(HyperNetXWrapper):
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
 
             # IC-Design9: All attributes (also nested) in the structs in a set must have the same paths
-            logger.info("Checking IC-Design9 -> To be implemented")
-            # TODO:
+            logger.info("Checking IC-Design9")
+            for set_name in self.get_sets().index:
+                inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")
+                if len(inner_structs_phantom_names) > 1:
+                    attribute_paths = []
+                    for phantom_name in inner_structs_phantom_names:
+                        attribute_paths.append(self.get_struct_attributes(self.get_edge_by_phantom_name(phantom_name)))
+                    for i in range(len(attribute_paths)):
+                        for j in range(i+1, len(attribute_paths)):
+                            for pair_i in attribute_paths[i]:
+                                for pair_j in attribute_paths[j]:
+                                    if pair_i[0] == pair_j[0] and pair_i[1] != pair_j[1]:
+                                        consistent = False
+                                        print(f"🚨 IC-Design9 violation: Attribute '{pair_i[0]}' has a different path depending on the struct inside '{set_name}': {pair_i[1]} vs {pair_j[1]}")
 
         return consistent
 
