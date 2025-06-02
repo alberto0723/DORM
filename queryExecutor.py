@@ -58,7 +58,7 @@ if __name__ == "__main__":
         with open(args.query_file, 'r') as file:
             query_specs = json.load(file).get("queries")
         for i, spec in enumerate(query_specs):
-            if i == 9: #True:
+            if True:
                 print(f"-- Running query specification {i}")
                 queries = cat.generate_query_statement(spec, explicit_schema=False)
                 if args.show_sql:

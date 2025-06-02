@@ -42,6 +42,8 @@ class NonFirstNormalFormJSON(Relational):
         return path
 
     def build_jsonb_object(self, attr_paths: list[tuple[str, list[dict[str, str]]]]) -> [str, list[str]]:
+        # TODO: Generalize this to any number of nested sets
+        #       The limitation is the multiple grouping sets and nested 'jsonb_agg', which PostgreSQL that does not allow
         formatted_pairs = []
         pending_attributes = {}
         tmp_grouping = []
@@ -58,10 +60,11 @@ class NonFirstNormalFormJSON(Relational):
                     pending_attributes[current_name] = [(dom_attr_name, attr_path[1:])]
         for key, paths in pending_attributes.items():
             assert self.is_struct(key) or self.is_set(key), f"☠️ On creating a nested attribute in a JSONB object, '{key}' should be either a struct or a set"
+            nested_object, nested_grouping = self.build_jsonb_object(paths)
             if self.is_struct(key):
-                formatted_pairs.append("'" + key + "', " + self.build_jsonb_object(paths))
+                formatted_pairs.append("'" + key + "', " + nested_object)
+                final_grouping = nested_grouping
             else:
-                nested_object, nested_grouping = self.build_jsonb_object(paths)
                 assert not nested_grouping, f"☠️ There is a limitation of PostgreSQL that does not allow to nest 'jsonb_agg', hence, nested sets are not allowed as in '{key}'"
                 formatted_pairs.append("'" + key + "', jsonb_agg(DISTINCT " + nested_object + ")")
                 final_grouping = tmp_grouping
@@ -132,8 +135,7 @@ class NonFirstNormalFormJSON(Relational):
             # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
             sentence += "((" + "), (".join(["value->>'" + k + "'" for k in key_list]) + "));"
             statements.append(sentence)
-# TODO:       return statements
-        return []
+        return statements
 
     def generate_add_fk_statements(self) -> list[str]:
         """
