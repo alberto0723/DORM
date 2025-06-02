@@ -37,6 +37,14 @@
     {
       "project": ["A_ID", "A_name", "A_gender", "A_age", "A_address"],
       "pattern": ["Author"]
+    },
+    {
+      "project": ["A_ID", "B_ID", "T_ID"],
+      "pattern": ["Book", "Writes", "Author", "Touches", "Topic"]
+    },
+    {
+      "project": ["A_ID", "A_name", "B_ID", "B_title","T_ID", "T_description"],
+      "pattern": ["Book", "Writes", "Author", "Touches", "Topic"]
     }
   ]
 }
