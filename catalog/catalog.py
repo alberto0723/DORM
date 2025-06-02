@@ -1027,7 +1027,7 @@ class Catalog(HyperNetXWrapper):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the query is not covered by the elements in the pattern: {missing_attributes.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some attributes {missing_attributes.values.tolist()} in the query are not covered by the elements in the pattern {pattern_edges}")
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
