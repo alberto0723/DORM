@@ -195,12 +195,12 @@ class Catalog(HyperNetXWrapper):
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(set_name, self.config.prepend_phantom+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
-            if self.is_attribute(elem):
-                incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            if self.is_class(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
             elif self.is_association(elem) or self.is_struct(elem):
                 incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-            elif self.is_class(elem):
-                raise ValueError(f"🚨 Sets cannot contain classes (adding '{elem}' into '{set_name}')")
+            elif self.is_attribute(elem):
+                raise ValueError(f"🚨 Sets cannot contain attributes (adding '{elem}' into '{set_name}')")
             elif self.is_set(elem):
                 raise ValueError(f"🚨 Sets cannot contain sets (adding '{elem}' into '{set_name}')")
             else:
@@ -302,13 +302,14 @@ class Catalog(HyperNetXWrapper):
             elif self.is_set_phantom(elem_name):
                 nested_set_name = self.get_edge_by_phantom_name(elem_name)
                 for nested_element in self.get_outbound_set_by_name(nested_set_name).itertuples():
-                    if self.is_attribute(nested_element.Index[1]):
-                        attr_name = nested_element.Index[1]
+                    assert self.is_class_phantom(nested_element.Index[1]) or self.is_struct_phantom(nested_element.Index[1]), f"☠️ Set '{nested_set_name}' contains '{nested_element.Index[1]}', which is neither a class nor a struct"
+                    nested_element_name = self.get_edge_by_phantom_name(nested_element.Index[1])
+                    if self.is_class(nested_element_name):
+                        attr_name = self.get_class_id_by_name(nested_element_name)
                         attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]))
-                    # If not an attribute, it must be a struct
+                    # If not a class, it must be a struct
                     else:
-                        nested_struct_name = self.get_edge_by_phantom_name(nested_element.Index[1])
-                        for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
+                        for attr_name, attr_path in self.get_struct_attributes(nested_element_name):
                             attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
@@ -589,13 +590,13 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets2 violation: There are sets that are empty")
                 display(violations5_2)
 
-            # IC-Sets3: Sets cannot directly contain classes
+            # IC-Sets3: Sets cannot directly contain attributes
             logger.info("Checking IC-Sets3")
-            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_inbound_classes(), on='nodes', suffixes=('_setOutbounds', '_classInbounds'),
+            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_attributes(), on='nodes', suffixes=('_setOutbounds', '_attributes'),
                                      how='inner')
             if not violations4_3.empty:
                 consistent = False
-                print("🚨 IC-Sets3 violation: There are sets that contain classes")
+                print("🚨 IC-Sets3 violation: There are sets that contain attributes")
                 display(violations4_3)
 
             # IC-Sets4: Sets cannot directly contain other sets
@@ -614,7 +615,7 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets5 violation: There are sets that contain associations")
                 display(violations4_5)
 
-            # IC-Sets6: Sets cannot directly contain associations
+            # IC-Sets6: Sets cannot directly contain generalizations
             logger.info("Checking IC-Sets6")
             violations4_6 = pd.merge(self.get_outbound_sets(), self.get_inbound_generalizations(), on='nodes', suffixes=('_setOutbounds', '_generInbounds'), how='inner')
             if not violations4_6.empty:
@@ -622,14 +623,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets6 violation: There are sets that contain generalizations")
                 display(violations4_6)
 
-            # IC-Sets7: A set that contains an attribute, cannot contain anything else
+            # IC-Sets7: A set that contains a class, cannot contain anything else
             logger.info("Checking IC-Sets7")
-            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_attributes(), left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
+            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_inbound_classes(), left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
             matches4_7 = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('edges').isin(sets_with_attributes['edges'])].groupby('edges').size()
             violations4_7 = matches4_7[matches4_7 > 1]
             if not violations4_7.empty:
                 consistent = False
-                print("🚨 IC-Sets5 violation: There are sets that contain an attribute, besides other elements")
+                print("🚨 IC-Sets5 violation: There are sets that contain a class, besides other elements")
                 display(violations4_7)
 
             # ------------------------------------------------------------------------------------------- ICs on structs
@@ -780,24 +781,23 @@ class Catalog(HyperNetXWrapper):
                                     consistent = False
                                     print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is not connected to any anchor point of its parent struct '{external_struct_name}'")
 
-            # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
-            #               Actually, this just check that the parent struct has either the class or an association to either the attribute or every element in the achor
+            # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the class or anchor of the struct inside the set (Definition 7-d)
+            #               Actually, this just check that the parent struct has an association to either the class or every element in the anchor
             logger.info("Checking IC-Structs-d")
             sets_within_struct = self.get_outbound_structs().reset_index(drop=False).merge(self.get_inbound_sets(), left_on='nodes', right_on='nodes', suffixes=('_struct', '_set'), how='inner')
             for set_struct in sets_within_struct.itertuples():
                 external_struct_name = set_struct.edges
-                # The content of a set can be either one single attribute, or several structs
+                # The content of a set can be either one single class, or several structs
                 # In the case of several structs, all must share the same anchor, so anyway, taking the fist element is enough
                 internal_elem_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(set_struct.nodes)).index[0][1]
                 restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
-                if self.is_attribute(internal_elem_name):
-                    # By IC-Atoms4 attributes can belong to at most one class
-                    class_name = self.get_class_outbounds_by_attribute_name(internal_elem_name).index[0][0]
-                    if self.get_phantom_of_edge_by_name(class_name) not in restricted_struct.get_nodes().index:
+                if self.is_class_phantom(internal_elem_name):
+                    # By IC-Sets7 a set can have at most one class
+                    if internal_elem_name not in restricted_struct.get_association_ends()["nodes"].values:
                         consistent = False
-                        print(f"🚨 IC-Structs-d violation: Attribute '{internal_elem_name}' belonging to class '{class_name}' and included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
+                        print(f"🚨 IC-Structs-d violation: Class '{internal_elem_name}' included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
                 else:
-                    assert self.is_struct_phantom(internal_elem_name), f"☠️ The content of set '{set_struct.nodes}', which is not an attribute, should be a struct, but it is not"
+                    assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not an attribute, should be a struct, but it is not"
                     for anchor_point in self.get_anchor_points_by_struct_name(internal_elem_name):
                         if self.get_phantom_of_edge_by_name(anchor_point) not in restricted_struct.get_nodes().index:
                             consistent = False
@@ -970,7 +970,7 @@ class Catalog(HyperNetXWrapper):
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
 
             # IC-Design9: All attributes in the structs in a set must have the same paths
-            # TODO: Consider also attribues in nested structures and sets
+            # TODO: Consider also attributes in nested structures and sets
             logger.info("Checking IC-Design9")
             for set_name in self.get_sets().index:
                 inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")

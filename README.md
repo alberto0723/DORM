@@ -98,7 +98,7 @@ General:
 - All elements in the domain must be inside some struct (except superclasses).
 
 About sets:
-- Can contain structs inside, but not directly sets. 
+- Can contain one class or several structs inside, but not directly sets. 
 - All structs in a set must share the same anchor attributes. 
 However, some class must be different, and related by generalization.
 - Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL (this is just an implementation issue). 

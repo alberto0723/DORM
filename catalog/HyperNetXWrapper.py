@@ -392,8 +392,11 @@ class HyperNetXWrapper:
                 tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(elem_phantom_name)))
             if self.is_set_phantom(elem_phantom_name):
                 hop_elem_phantom_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(elem_phantom_name)).index.get_level_values("nodes").tolist()[0]
+                assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{elem_phantom_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
                 if self.is_struct_phantom(hop_elem_phantom_name):
                     tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
+                else:
+                    tight_ends.append(self.get_edge_by_phantom_name(hop_elem_phantom_name))
         loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.tolist()+tight_ends)]
 
         if loose_ends.empty:
