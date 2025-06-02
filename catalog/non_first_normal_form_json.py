@@ -63,7 +63,7 @@ class NonFirstNormalFormJSON(Relational):
             else:
                 nested_object, nested_grouping = self.build_jsonb_object(paths)
                 assert not nested_grouping, f"☠️ There is a limitation of PostgreSQL that does not allow to nest 'jsonb_agg', hence, nested sets are not allowed as in '{key}'"
-                formatted_pairs.append("'" + key + "', jsonb_agg(" + nested_object + ")")
+                formatted_pairs.append("'" + key + "', jsonb_agg(DISTINCT " + nested_object + ")")
                 final_grouping = tmp_grouping
         return f"jsonb_build_object({', '.join(formatted_pairs)})", final_grouping
 
