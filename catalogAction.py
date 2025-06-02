@@ -76,6 +76,7 @@ if __name__ == "__main__":
             logging.basicConfig(level=logging.INFO)
         else:
             logging.disable()
+        # Create a new catalog
         if args.create:
             consistent = False
             if args.state == "domain":
@@ -91,6 +92,7 @@ if __name__ == "__main__":
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")
+        # Load pre-existing catalog
         else:
             consistent = True
             assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"

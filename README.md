@@ -231,7 +231,7 @@ options:
   --src_kind <prdgm>   Paradigm of the catalog to migrate the data from (either 1NF or NF2_JSON)
 ```
 
-Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.png](documents/Diagrams/CatalogAction.png).
+Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.pdf](documents/Diagrams/CatalogAction.pdf).
 
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
@@ -257,7 +257,7 @@ options:
   --print_time          Prints the estimated time of each query (in milliseconds)
 ```
 
-Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.png](documents/Diagrams/QueryExecutor.png).
+Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.pdf](documents/Diagrams/QueryExecutor.pdf).
 
 ## Demo 💻
 
