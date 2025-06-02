@@ -63,7 +63,7 @@ class FirstNormalForm(Relational):
             for set_name in firstlevel_names:
                 for struct_phantom in self.get_outbound_set_by_name(set_name).index.get_level_values("nodes"):
                     struct_name = self.get_edge_by_phantom_name(struct_phantom)
-                    members = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+                    members = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                     dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
                     restricted_struct = self.get_restricted_struct_hypergraph(struct_name)

@@ -218,15 +218,15 @@ class Relational(Catalog, ABC):
             for struct_name in self.get_struct_names_inside_set_name(table_name):
                 project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
                 pattern = []
-                node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+                node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
                 # The node_list is extended inside the loop itself (kind of a recursive call)
                 for node_name in node_list:
                     if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                         pattern.append(self.get_edge_by_phantom_name(node_name))
                     if self.is_struct_phantom(node_name):
-                        node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").tolist())
+                        node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
                     if self.is_set_phantom(node_name):
-                        node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").tolist())
+                        node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
                 sentence = self.generate_insert_statement(table_name, project, pattern, source)
                 statements.append(sentence)
         return statements
@@ -247,7 +247,7 @@ class Relational(Catalog, ABC):
         """
         pass
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, proj_attr, schema_name: str = "", visited: dict[str, str] = None) -> str:
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, join_attr, schema_name: str = "", visited: dict[str, str] = None) -> str:
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -261,7 +261,7 @@ class Relational(Catalog, ABC):
         :param query_classes: List of classes to be provided by the query (can be empty)
         :param query_associations: List of associations to be provided by the query (can be empty)
         :param alias_table: Dictionary with the alias of every table in the query
-        :param proj_attr: Dictionary indicating where the domain attribute can be found in the table
+        :param join_attr: Dictionary indicating where the domain attribute can be found in the table
         :param visited: Dictionary with all visited classes and from which table they are taken
         :param schema_name: Schema name to be concatenated in front of every table in the FROM clause
         :return: String containing the join clause of the tables received as parameter
@@ -285,9 +285,16 @@ class Relational(Catalog, ABC):
             # Get potential attributes to plug the current table
             plugs = []  # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
             # For every struct in the table
-            for struct_name in self.get_struct_names_inside_set_name(current_table):
-                for node_name in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
-                    if self.is_class_phantom(node_name):
+            struct_name_list = self.get_struct_names_inside_set_name(current_table)
+            for struct_name in struct_name_list:
+                node_name_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                for node_name in node_name_list:
+                    if self.is_struct_phantom(node_name):
+                        struct_name_list.append(self.get_edge_by_phantom_name(node_name))
+                    elif self.is_set_phantom(node_name):
+                        for hop_node_name in self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list():
+                            node_name_list.append(hop_node_name)
+                    elif self.is_class_phantom(node_name):
                         class_name = self.get_edge_by_phantom_name(node_name)
                         if class_name in query_superclasses:
                             # Any class in the query is a potential connection point per se
@@ -308,9 +315,22 @@ class Relational(Catalog, ABC):
                                         plugs.append((end_name, ass2.misc_properties["End_name"]))
             # Check if the other ends of any of the connection points has been visited before
             joins = []
+            laterals = ""
             for plug in plugs:
                 if plug[1] in visited:
-                    joins.append(alias_table[visited[plug[1]]]+"."+proj_attr[plug[1]]+"="+alias_table[current_table]+"."+proj_attr[plug[0]])
+                    if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
+                        # The split is assuming that there is a single parenthesis
+                        laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + alias_table[visited[plug[1]]] + "_" + plug[1] + " ON TRUE\n"
+                        lhs = alias_table[visited[plug[1]]] + "_" + plug[1] + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
+                    else:
+                        lhs = alias_table[visited[plug[1]]]+"."+join_attr[plug[1]+"@"+visited[plug[1]]]
+                    if 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
+                        # The split is assuming that there is a single parenthesis
+                        laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + alias_table[current_table] + "_" + plug[1] + " ON TRUE\n"
+                        rhs = alias_table[current_table] + "_" + plug[1] + join_attr[plug[1]+"@"+current_table].split(")")[1]
+                    else:
+                        rhs = alias_table[current_table]+"."+join_attr[plug[0]+"@"+current_table]
+                    joins.append(lhs + "=" + rhs)
             if not first_table and not joins:
                 unjoinable.append(current_table)
             else:
@@ -327,11 +347,11 @@ class Relational(Catalog, ABC):
         if not first_table:
             if unjoinable:
                 raise ValueError(f"🚨 Tables '{unjoinable}' are not joinable in the query")
-            join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)
+            join_clause = laterals + "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, proj_attr, schema_name, visited)
+            return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited)
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
@@ -365,10 +385,10 @@ class Relational(Catalog, ABC):
                 #       In general, this can be complex to check, because of the exponential number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
-                alias_table, proj_attr, location_attr = self.get_aliases(tables_combination)
+                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
                 conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
-                # Thus, the internal query unwinds everything, and the external check the conditions on these attribures
+                # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
                 conditions_internal = []
                 conditions_external = []
                 for condition in conditions:
@@ -385,7 +405,7 @@ class Relational(Catalog, ABC):
                 # Case with several tables that require joins
                 else:
                     # Build the FROM clause
-                    from_clause = "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, proj_attr, schema_name)
+                    from_clause = "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
                     # Add the alias to all attributes, since there is more than one table now
                     for dom_attr_name, attr_proj in proj_attr.items():
                         if 'jsonb_array_elements' in attr_proj:

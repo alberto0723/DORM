@@ -992,17 +992,17 @@ class Catalog(HyperNetXWrapper):
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
 
         # Check if the hypergraph contains all the filter attributes
         non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
 
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if not non_existing_associations.empty:
-            raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.to_list()[0]}")
 
         superclasses = []
         for e in pattern_edges:
@@ -1027,7 +1027,7 @@ class Catalog(HyperNetXWrapper):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attributes {missing_attributes.values.tolist()} in the query are not covered by the elements in the pattern {pattern_edges}")
+            raise ValueError(f"🚨 Some attributes {missing_attributes.values.to_list()} in the query are not covered by the elements in the pattern {pattern_edges}")
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
@@ -1100,7 +1100,7 @@ class Catalog(HyperNetXWrapper):
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
                 for class_name in hierarchy:
-                    current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').tolist())
+                    current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').to_list())
                 if self.get_class_id_by_name(elem) not in current_attributes:
                     current_attributes.append(self.get_class_id_by_name(elem))
                 # If it is a class, it may be vertically partitioned
@@ -1117,16 +1117,18 @@ class Catalog(HyperNetXWrapper):
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
-    def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param sets_combination: The set of tables in the FROM clause of a query.
         :return: Dictionary of aliases of tables.
         :return: Dictionary of projections of domain attributes.
+        :return: Dictionary of joins of domain attributes.
         :return: Dictionary of table locations of domain attributes.
         """
         alias_set = {}
         proj_attr = {}
+        join_attr = {}
         location_attr = {}
         # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
         for index, set_name in enumerate(reversed(sets_combination)):
@@ -1139,6 +1141,8 @@ class Catalog(HyperNetXWrapper):
                     assert dom_attr_name not in location_attr or location_attr[dom_attr_name] != alias_set[set_name] or self.generate_attr_projection_clause(attr_path) == proj_attr[dom_attr_name], f"☠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)"
                     location_attr[dom_attr_name] = alias_set[set_name]
                     proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
+                    # TODO: create a function to generate join paths
+                    join_attr[dom_attr_name + "@" + set_name] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
                 associations = self.get_inbound_associations()[self.get_inbound_associations().index.get_level_values("nodes").isin(atoms)]
@@ -1152,9 +1156,10 @@ class Catalog(HyperNetXWrapper):
                 for end in association_ends.itertuples():
                     location_attr[end.misc_properties["End_name"]] = alias_set[set_name]
                     dom_attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
-                    assert dom_attr_name in proj_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
+                    assert dom_attr_name in proj_attr and dom_attr_name + "@" + set_name in join_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
                     proj_attr[end.misc_properties["End_name"]] = proj_attr[dom_attr_name]
-        return alias_set, proj_attr, location_attr
+                    join_attr[end.misc_properties["End_name"] + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
+        return alias_set, proj_attr, join_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
         """
