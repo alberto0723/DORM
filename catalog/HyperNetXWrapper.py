@@ -396,7 +396,7 @@ class HyperNetXWrapper:
                 if self.is_struct_phantom(hop_elem_phantom_name):
                     tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
                 else:
-                    tight_ends.append(self.get_edge_by_phantom_name(hop_elem_phantom_name))
+                    tight_ends.append(hop_elem_phantom_name)
         loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.tolist()+tight_ends)]
 
         if loose_ends.empty:
