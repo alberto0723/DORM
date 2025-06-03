@@ -195,12 +195,12 @@ class Catalog(HyperNetXWrapper):
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(set_name, self.config.prepend_phantom+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
-            if self.is_attribute(elem):
-                incidences.append((set_name, elem, {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            if self.is_class(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
             elif self.is_association(elem) or self.is_struct(elem):
                 incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-            elif self.is_class(elem):
-                raise ValueError(f"🚨 Sets cannot contain classes (adding '{elem}' into '{set_name}')")
+            elif self.is_attribute(elem):
+                raise ValueError(f"🚨 Sets cannot contain attributes (adding '{elem}' into '{set_name}')")
             elif self.is_set(elem):
                 raise ValueError(f"🚨 Sets cannot contain sets (adding '{elem}' into '{set_name}')")
             else:
@@ -261,15 +261,16 @@ class Catalog(HyperNetXWrapper):
         :param attr_path: List of element hops
         :return: Projection clause depending on the implementation
         """
-        assert len(attr_path) > 0, f"☠️ Incorrect length of attribute path '{attr_path}', which should be greater than one"
-        assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', which should end with either an Attribute or AssociationEnd"
-        assert "name" in attr_path[-1], f"☠️ Incorrect attribute path '{attr_path}', whose final entry should have a name"
+        assert len(attr_path) > 0, f"☠️ Incorrect length of attribute path '{attr_path}', which cannot be zero"
+        assert all("name" in hop for hop in attr_path), f"☠️ Incorrect attribute path '{attr_path}', whose hops should have a name"
+        assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', whose last hop should be either an Attribute or AssociationEnd"
         return None
 
     def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
         """
         This generates the correspondence between attribute names in a struct and their corresponding attribute.
         It is necessary to do it to consider loose ends (i.e., associations without class), which generate foreign keys.
+        It includes the attributes in nested structs and sets.
         :param struct_name:
         :return: A list of tuples with pairs "attribute_name" and a list of elements.
                  Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
@@ -299,12 +300,20 @@ class Catalog(HyperNetXWrapper):
                 for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
                     attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
             elif self.is_set_phantom(elem_name):
-                assert False, "☠️ Sets nested in structs not implemented, yet"
-                # TODO: This needs to consider nested sets to support NF2
-                #       Needs to make the union of attributes of all structs, and check they all have the same paths
+                nested_set_name = self.get_edge_by_phantom_name(elem_name)
+                for nested_element in self.get_outbound_set_by_name(nested_set_name).itertuples():
+                    assert self.is_class_phantom(nested_element.Index[1]) or self.is_struct_phantom(nested_element.Index[1]), f"☠️ Set '{nested_set_name}' contains '{nested_element.Index[1]}', which is neither a class nor a struct"
+                    nested_element_name = self.get_edge_by_phantom_name(nested_element.Index[1])
+                    if self.is_class(nested_element_name):
+                        attr_name = self.get_class_id_by_name(nested_element_name)
+                        attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]))
+                    # If not a class, it must be a struct
+                    else:
+                        for attr_name, attr_path in self.get_struct_attributes(nested_element_name):
+                            attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
-        # TODO: assert that attribute names are not repeated
+        assert len(attribute_list) == len(set(drop_duplicates([t[0] for t in attribute_list]))), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
         return attribute_list
 
     def is_consistent(self, design=False) -> bool:
@@ -328,6 +337,7 @@ class Catalog(HyperNetXWrapper):
         inbounds = self.get_inbounds()
         outbounds = self.get_outbounds()
         structOutbounds = self.get_outbound_structs()
+        setOutbounds = self.get_outbound_sets()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
         # Pre-check emptiness
@@ -580,13 +590,13 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets2 violation: There are sets that are empty")
                 display(violations5_2)
 
-            # IC-Sets3: Sets cannot directly contain classes
+            # IC-Sets3: Sets cannot directly contain attributes
             logger.info("Checking IC-Sets3")
-            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_inbound_classes(), on='nodes', suffixes=('_setOutbounds', '_classInbounds'),
+            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_attributes(), on='nodes', suffixes=('_setOutbounds', '_attributes'),
                                      how='inner')
             if not violations4_3.empty:
                 consistent = False
-                print("🚨 IC-Sets3 violation: There are sets that contain classes")
+                print("🚨 IC-Sets3 violation: There are sets that contain attributes")
                 display(violations4_3)
 
             # IC-Sets4: Sets cannot directly contain other sets
@@ -605,7 +615,7 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets5 violation: There are sets that contain associations")
                 display(violations4_5)
 
-            # IC-Sets6: Sets cannot directly contain associations
+            # IC-Sets6: Sets cannot directly contain generalizations
             logger.info("Checking IC-Sets6")
             violations4_6 = pd.merge(self.get_outbound_sets(), self.get_inbound_generalizations(), on='nodes', suffixes=('_setOutbounds', '_generInbounds'), how='inner')
             if not violations4_6.empty:
@@ -613,14 +623,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Sets6 violation: There are sets that contain generalizations")
                 display(violations4_6)
 
-            # IC-Sets7: A set that contains an attribute, cannot contain anything else
+            # IC-Sets7: A set that contains a class, cannot contain anything else
             logger.info("Checking IC-Sets7")
-            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_attributes(), left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
+            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_inbound_classes(), left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
             matches4_7 = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('edges').isin(sets_with_attributes['edges'])].groupby('edges').size()
             violations4_7 = matches4_7[matches4_7 > 1]
             if not violations4_7.empty:
                 consistent = False
-                print("🚨 IC-Sets5 violation: There are sets that contain an attribute, besides other elements")
+                print("🚨 IC-Sets5 violation: There are sets that contain a class, besides other elements")
                 display(violations4_7)
 
             # ------------------------------------------------------------------------------------------- ICs on structs
@@ -771,9 +781,27 @@ class Catalog(HyperNetXWrapper):
                                     consistent = False
                                     print(f"🚨 IC-Structs-c violation: The anchor point '{internal_anchor}' of struct '{internal_struct_name}' is not connected to any anchor point of its parent struct '{external_struct_name}'")
 
-            # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the attribute or anchor of the struct inside the set (Definition 7-d)
-            logger.info("Checking IC-Structs-d -> To be implemented (for nested sets)")
-            # TODO: Check Structs definition-d
+            # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the class or anchor of the struct inside the set (Definition 7-d)
+            #               Actually, this just check that the parent struct has an association to either the class or every element in the anchor
+            logger.info("Checking IC-Structs-d")
+            sets_within_struct = self.get_outbound_structs().reset_index(drop=False).merge(self.get_inbound_sets(), left_on='nodes', right_on='nodes', suffixes=('_struct', '_set'), how='inner')
+            for set_struct in sets_within_struct.itertuples():
+                external_struct_name = set_struct.edges
+                # The content of a set can be either one single class, or several structs
+                # In the case of several structs, all must share the same anchor, so anyway, taking the fist element is enough
+                internal_elem_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(set_struct.nodes)).index[0][1]
+                restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
+                if self.is_class_phantom(internal_elem_name):
+                    # By IC-Sets7 a set can have at most one class
+                    if internal_elem_name not in restricted_struct.get_association_ends()["nodes"].values:
+                        consistent = False
+                        print(f"🚨 IC-Structs-d violation: Class '{internal_elem_name}' included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
+                else:
+                    assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not an attribute, should be a struct, but it is not"
+                    for anchor_point in self.get_anchor_points_by_struct_name(internal_elem_name):
+                        if self.get_phantom_of_edge_by_name(anchor_point) not in restricted_struct.get_nodes().index:
+                            consistent = False
+                            print(f"🚨 IC-Structs-d violation: Anchor point '{anchor_point}' of struct '{internal_elem_name}' and included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
 
             # IC-Structs-e: All associations inside a struct connect either a class or another struct (Definition 7-e)
             #               This needs to be relaxed to simply structs being connected
@@ -809,14 +837,14 @@ class Catalog(HyperNetXWrapper):
                 print("🚨 IC-Design2 violation: Atoms disconnected from the first level")
                 display(violations5_2)
 
-            # IC-Design3: All domain elements must appear in some struct
+            # IC-Design3: All domain elements must appear in some struct or set
             #             This is relaxed into just a warning, because of generalizations
             logger.info("Checking IC-Design3 (produces just warnings)")
             atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
-            violations5_3 = atoms[~atoms.isin(structOutbounds.index.get_level_values("nodes"))]
+            violations5_3 = atoms[~atoms.isin(pd.concat([structOutbounds, setOutbounds]).index.get_level_values("nodes"))]
             if not violations5_3.empty:
                 # consistent = False
-                warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct")
+                warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct or set")
                 if show_warnings:
                     display(violations5_3)
 
@@ -853,12 +881,12 @@ class Catalog(HyperNetXWrapper):
                 # Check IC-Design4
                 if len(drop_duplicates(anchor_attributes)) > 1:
                     consistent = False
-                    print("🚨 IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
+                    print(f"🚨 IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
                 # Check IC-Design5
                 # Not really necessary to check if they are generalization, because attributes already coincide
                 elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
                     consistent = False
-                    print("🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
+                    print(f"🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
                 # Check IC-Design6
                 else:
                     # For every pair of structs in the set
@@ -883,7 +911,7 @@ class Catalog(HyperNetXWrapper):
                                                     found = found and attribute_name in set_attributes
                                                 if not found:
                                                     consistent = False
-                                                    print("🚨 IC-Design6 violation: Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
+                                                    print(f"🚨 IC-Design6 violation: Some discriminant attribute missing in set '{set_name}' required for '{class_name}'")
                                     # Now we need to do the comparison the other way round
                                     a, b = j, i
 
@@ -940,23 +968,41 @@ class Catalog(HyperNetXWrapper):
                 if not found:
                     # consistent = False
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
+
+            # IC-Design9: All attributes in the structs in a set must have the same paths
+            # TODO: Consider also attributes in nested structures and sets
+            logger.info("Checking IC-Design9")
+            for set_name in self.get_sets().index:
+                inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")
+                if len(inner_structs_phantom_names) > 1:
+                    attribute_paths = []
+                    for phantom_name in inner_structs_phantom_names:
+                        attribute_paths.append(self.get_struct_attributes(self.get_edge_by_phantom_name(phantom_name)))
+                    for i in range(len(attribute_paths)):
+                        for j in range(i+1, len(attribute_paths)):
+                            for pair_i in attribute_paths[i]:
+                                for pair_j in attribute_paths[j]:
+                                    if pair_i[0] == pair_j[0] and pair_i[1] != pair_j[1]:
+                                        consistent = False
+                                        print(f"🚨 IC-Design9 violation: Attribute '{pair_i[0]}' has a different path depending on the struct inside '{set_name}': {pair_i[1]} vs {pair_j[1]}")
+
         return consistent
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
 
         # Check if the hypergraph contains all the filter attributes
         non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
 
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if not non_existing_associations.empty:
-            raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.to_list()[0]}")
 
         superclasses = []
         for e in pattern_edges:
@@ -981,7 +1027,7 @@ class Catalog(HyperNetXWrapper):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the query is not covered by the elements in the pattern: {missing_attributes.values.tolist()[0]}")
+            raise ValueError(f"🚨 Some attributes {missing_attributes.values.to_list()} in the query are not covered by the elements in the pattern {pattern_edges}")
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
@@ -1017,7 +1063,7 @@ class Catalog(HyperNetXWrapper):
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
-        filter_attributes = self.parse_predicate(filter_clause)
+        filter_attributes = drop_duplicates(self.parse_predicate(filter_clause))
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 
@@ -1054,7 +1100,7 @@ class Catalog(HyperNetXWrapper):
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
                 for class_name in hierarchy:
-                    current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').tolist())
+                    current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').to_list())
                 if self.get_class_id_by_name(elem) not in current_attributes:
                     current_attributes.append(self.get_class_id_by_name(elem))
                 # If it is a class, it may be vertically partitioned
@@ -1071,16 +1117,18 @@ class Catalog(HyperNetXWrapper):
         # Generate combinations of the buckets of each element to get the combinations that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
-    def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param sets_combination: The set of tables in the FROM clause of a query.
         :return: Dictionary of aliases of tables.
         :return: Dictionary of projections of domain attributes.
+        :return: Dictionary of joins of domain attributes.
         :return: Dictionary of table locations of domain attributes.
         """
         alias_set = {}
         proj_attr = {}
+        join_attr = {}
         location_attr = {}
         # The list of tables is reversed, so that the first appearance of an attribute prevails (seems more logical)
         for index, set_name in enumerate(reversed(sets_combination)):
@@ -1093,15 +1141,12 @@ class Catalog(HyperNetXWrapper):
                     assert dom_attr_name not in location_attr or location_attr[dom_attr_name] != alias_set[set_name] or self.generate_attr_projection_clause(attr_path) == proj_attr[dom_attr_name], f"☠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)"
                     location_attr[dom_attr_name] = alias_set[set_name]
                     proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
+                    # TODO: create a function to generate join paths
+                    join_attr[dom_attr_name + "@" + set_name] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
-                associations = self.get_inbound_associations()[
-                    self.get_inbound_associations().index.get_level_values("nodes").isin(
-                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_associations(),
-                                 on="nodes", how="inner").index)]
-                classes = self.get_inbound_classes()[
-                    self.get_inbound_classes().index.get_level_values("nodes").isin(
-                        pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(),
-                                 on="nodes", how="inner").index)]
+                atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
+                associations = self.get_inbound_associations()[self.get_inbound_associations().index.get_level_values("nodes").isin(atoms)]
+                classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(atoms)]
                 association_ends = self.get_outbound_associations()[
                     (self.get_outbound_associations().index.get_level_values("edges").isin(
                         associations.index.get_level_values("edges"))) & (
@@ -1111,9 +1156,10 @@ class Catalog(HyperNetXWrapper):
                 for end in association_ends.itertuples():
                     location_attr[end.misc_properties["End_name"]] = alias_set[set_name]
                     dom_attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
-                    assert dom_attr_name in proj_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
+                    assert dom_attr_name in proj_attr and dom_attr_name + "@" + set_name in join_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
                     proj_attr[end.misc_properties["End_name"]] = proj_attr[dom_attr_name]
-        return alias_set, proj_attr, location_attr
+                    join_attr[end.misc_properties["End_name"] + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
+        return alias_set, proj_attr, join_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
         """

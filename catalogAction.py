@@ -20,7 +20,7 @@ if __name__ == "__main__":
     #                                configure argparse begin                      #
     # ---------------------------------------------------------------------------- #
     base_parser = argparse.ArgumentParser(
-        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=False,
+        formatter_class=lambda prog: argparse.HelpFormatter(prog, width=120), add_help=False,
         description="▶️ Perform basic actions to create and visualize a catalog"
     )
     subparsers = base_parser.add_subparsers(help="Kind of catalog", dest="command")
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
     base_parser.add_argument("--hg_path", type=Path, default=default_hypergraphs_path, help="Path to hypergraphs folder", metavar="<path>")
     base_parser.add_argument("--hypergraph", type=str, default="input", help="File generated for the hypergraph with pickle", metavar="<hg>")
-    base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<db_conf>")
+    base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<conf>")
     base_parser.add_argument("--dbschema", type=str, default="dorm_default", help="Database schema", metavar="<sch>")
     base_parser.add_argument("--check", help="Forces checking the consistency of the catalog when using files (when using a DBMS, the check is always performed)", action="store_true")
     base_parser.add_argument("--text", help="Shows the catalog in text format", action="store_true")
@@ -42,10 +42,10 @@ if __name__ == "__main__":
     #                                   Subparsers                                   #
     # ------------------------------------------------------------------------------ #
     domain_parser = subparsers.add_parser("domain", help="Uses a hypergraph with only atoms",
-                                          formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=False,
+                                          formatter_class=lambda prog: argparse.HelpFormatter(prog, width=120), add_help=False,
                                           description="▶️ Acts on a catalog with only domain elements")
     design_parser = subparsers.add_parser("design", help="Uses a hypergraph with a full design",
-                                          formatter_class=lambda prog: argparse.HelpFormatter(prog, width=100), add_help=False,
+                                          formatter_class=lambda prog: argparse.HelpFormatter(prog, width=120), add_help=False,
                                           description="▶️ Acts on a catalog with both domain and design elements")
     # ---------------------------------------------------------------------- Schemas
     domain_parser.set_defaults(state="domain")  # This is the subfolder where hypergraphs are stored
@@ -76,6 +76,7 @@ if __name__ == "__main__":
             logging.basicConfig(level=logging.INFO)
         else:
             logging.disable()
+        # Create a new catalog
         if args.create:
             consistent = False
             if args.state == "domain":
@@ -91,6 +92,7 @@ if __name__ == "__main__":
                 cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
             else:
                 raise Exception("Unknown catalog type to be created")
+        # Load pre-existing catalog
         else:
             consistent = True
             assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"

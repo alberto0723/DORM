@@ -98,9 +98,11 @@ General:
 - All elements in the domain must be inside some struct (except superclasses).
 
 About sets:
-- Can contain structs inside, but not directly sets. 
+- Can contain one class or several structs inside, but not directly sets. 
 - All structs in a set must share the same anchor attributes. 
 However, some class must be different, and related by generalization.
+- Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL (this is just an implementation issue). 
+First level sets can contain other sets, but these cannot nest others.
 
 About structs:
 - Every struct must be ultimately contained either in a set or another struct.
@@ -179,9 +181,8 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [--help] [--logging] [--show_sql] [--hide_warnings] [--create] [--supersede]
-                        [--hg_path <path>] [--hypergraph <hg>] [--dbconf_file <db_conf>]
-                        [--dbschema <sch>] [--check] [--text] [--graph]
+usage: catalogAction.py [--help] [--logging] [--show_sql] [--hide_warnings] [--create] [--supersede] [--hg_path <path>]
+                        [--hypergraph <hg>] [--dbconf_file <conf>] [--dbschema <sch>] [--check] [--text] [--graph]
                         {domain,design} ...
 
 ▶️ Perform basic actions to create and visualize a catalog
@@ -196,16 +197,14 @@ options:
   --logging             Enables logging
   --show_sql            Prints the generated SQL statements
   --hide_warnings       Silences warnings
-  --create              Creates the catalog (otherwise it would be loaded from either a file or
-                        DBMS)
+  --create              Creates the catalog (otherwise it would be loaded from either a file or DBMS)
   --supersede           Overwrites the existing catalog during creation
   --hg_path <path>      Path to hypergraphs folder
   --hypergraph <hg>     File generated for the hypergraph with pickle
-  --dbconf_file <db_conf>
-                        Filename of the configuration file for DBMS connection
+  --dbconf_file <conf>  Filename of the configuration file for DBMS connection
   --dbschema <sch>      Database schema
-  --check               Forces checking the consistency of the catalog when using files (when using
-                        a DBMS, the check is always performed)
+  --check               Forces checking the consistency of the catalog when using files (when using a DBMS, the check is
+                        always performed)
   --text                Shows the catalog in text format
   --graph               Shows the catalog in graphical format
 ------------------------------------------------------------------------------------------
@@ -217,8 +216,8 @@ options:
   --dom_path <path>    Path to domains folder
   --dom_spec <domain>  Specification of the domain (only atomic elements) in a JSON file
 ------------------------------------------------------------------------------------------
-usage: catalogAction.py design --paradigm <prdgm> [--dsg_path <path>] [--dsg_spec <design>]
-                               [--translate] [--src_sch <sch>] [--src_kind <prdgm>]
+usage: catalogAction.py design --paradigm <prdgm> [--dsg_path <path>] [--dsg_spec <design>] [--translate]
+                               [--src_sch <sch>] [--src_kind <prdgm>]
 
 ▶️ Acts on a catalog with both domain and design elements
 
@@ -226,21 +225,19 @@ options:
   --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2_JSON)
   --dsg_path <path>    Path to designs folder
   --dsg_spec <design>  Specification of the design in a JSON file
-  --translate          Translates the design into the database schema (i.e., generates create
-                       tables) when files are used (when using a DBMS, the translation is always
-                       performed)
+  --translate          Translates the design into the database schema (i.e., generates create tables) when files are
+                       used (when using a DBMS, the translation is always performed)
   --src_sch <sch>      Database schema to migrate the data from
   --src_kind <prdgm>   Paradigm of the catalog to migrate the data from (either 1NF or NF2_JSON)
 ```
 
-Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.png](documents/Diagrams/CatalogAction.png).
+Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.pdf](documents/Diagrams/CatalogAction.pdf).
 
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```
-usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm>
-                        [--dbconf_file <db_conf>] [--dbschema <sch>] [--query_file <path>]
+usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>] [--query_file <path>]
                         [--print_rows] [--print_counter] [--print_cost] [--print_time]
 
 🔍 Execute queries over a pre-existing catalog
@@ -251,8 +248,7 @@ options:
   --show_sql            Prints the generated statements
   --hide_warnings       Silences warnings
   --paradigm <prdgm>    Implementation paradigm for the design (either 1NF or NF2_JSON)
-  --dbconf_file <db_conf>
-                        Filename of the configuration file for DBMS connection
+  --dbconf_file <conf>  Filename of the configuration file for DBMS connection
   --dbschema <sch>      Database schema
   --query_file <path>   Filename of the json file containing the queries
   --print_rows          Prints the resulting rows
@@ -261,7 +257,7 @@ options:
   --print_time          Prints the estimated time of each query (in milliseconds)
 ```
 
-Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.png](documents/Diagrams/QueryExecutor.png).
+Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.pdf](documents/Diagrams/QueryExecutor.pdf).
 
 ## Demo 💻
 
@@ -330,4 +326,5 @@ test_all_1NF.bat
 test_all_NF2.bat
 ```
 
-Notice that, in order to migrate data, some of the tests in those batch files require the creation before-hand of the source schema in the demo above with name `source`.
+Notice that, in order to migrate data, some of the tests in those batch files require the creation beforehand of the source schema in the demo above with name `source`.
+Also, a second source schema called `source2` should be created following the same steps as above, but the design [1NF/book-authors-topic](files/designs/1NF/book-authors-topic.json) and the corresponding data in [book-authors-topic](files/data/book-authors-topic.sql)

@@ -56,7 +56,7 @@ class HyperNetXWrapper:
         return edges
 
     def get_struct_names_inside_set_name(self, set_name) -> list[str]:
-        return pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs().reset_index("edges", drop=False), on="nodes", how="inner")["edges"].tolist()
+        return pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs().reset_index("edges", drop=False), on="nodes", how="inner")["edges"].to_list()
 
     def get_incidences(self) -> pd.DataFrame:
         incidences = self.H.incidences.dataframe
@@ -107,6 +107,9 @@ class HyperNetXWrapper:
             return None
         else:
             return class_id.index[0][1]
+
+    def get_class_outbounds_by_attribute_name(self, attribute_name) -> pd.DataFrame:
+        return self.get_outbound_classes().query('nodes == "' + attribute_name + '"')
 
     def get_phantoms(self) -> pd.DataFrame:
         nodes = self.get_nodes()
@@ -304,7 +307,7 @@ class HyperNetXWrapper:
                 if self.is_set(edge_name):
                     firstLevels.append(edge_name)
             else:
-                next_edge_list.extend([edge for edge in parents.tolist() if edge not in visited])
+                next_edge_list.extend([edge for edge in parents.to_list() if edge not in visited])
         if next_edge_list:
             firstLevels.extend(self.get_transitive_fitsLevels(next_edge_list, visited))
         return firstLevels
@@ -340,7 +343,7 @@ class HyperNetXWrapper:
         anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
-        anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].tolist()
+        anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].to_list()
         return anchor_associations
 
     def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
@@ -352,8 +355,8 @@ class HyperNetXWrapper:
         associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
         outbounds = self.get_outbound_associations()
         outbounds["nodes"] = outbounds.index.get_level_values("nodes")
-        loose_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].tolist()
-        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.tolist()
+        loose_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].to_list()
+        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.to_list()
         anchor_points = drop_duplicates(loose_ends+classes)
         return anchor_points
 
@@ -369,10 +372,10 @@ class HyperNetXWrapper:
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
         loose_ends = association_ends[~association_ends["nodes"].isin(classes.index)]
         if loose_ends.empty:
-            return classes.index.tolist()
+            return classes.index.to_list()
         else:
-            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).tolist()
-            return classes.index.tolist()+end_names
+            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).to_list()
+            return classes.index.to_list()+end_names
 
     def get_loose_association_end_names_by_struct_name(self, struct_name) -> list[str]:
         elements = self.get_outbound_struct_by_name(struct_name)
@@ -383,11 +386,23 @@ class HyperNetXWrapper:
         outbounds["nodes"] = outbounds.index.get_level_values("nodes")
         association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
-        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index)]
+        tight_ends = []
+        for elem_phantom_name in elements.index.get_level_values("nodes"):
+            if self.is_struct_phantom(elem_phantom_name):
+                tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(elem_phantom_name)))
+            if self.is_set_phantom(elem_phantom_name):
+                hop_elem_phantom_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(elem_phantom_name)).index.get_level_values("nodes").to_list()[0]
+                assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{elem_phantom_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
+                if self.is_struct_phantom(hop_elem_phantom_name):
+                    tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
+                else:
+                    tight_ends.append(hop_elem_phantom_name)
+        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.to_list()+tight_ends)]
+
         if loose_ends.empty:
             return []
         else:
-            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).tolist()
+            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).to_list()
             return end_names
 
     def get_restricted_struct_hypergraph(self, struct_name, only_anchor=False) -> Self:
@@ -395,7 +410,7 @@ class HyperNetXWrapper:
         if only_anchor:
             outbounds = [self.get_phantom_of_edge_by_name(ass) for ass in self.get_anchor_associations_by_struct_name(struct_name)]
         else:
-            outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+            outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
         edge_names = []
         for elem in drop_duplicates(outbounds + anchor_points):
             if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):
@@ -413,7 +428,7 @@ class HyperNetXWrapper:
         return result
 
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
-        return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.tolist()
+        return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.to_list()
 
     def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """
@@ -480,49 +495,49 @@ class HyperNetXWrapper:
             self.get_phantom_of_edge_by_name(class_name)].misc_properties.get("Constraint", None)
 
     def is_attribute(self, name) -> bool:
-        return name in self.get_attributes().index
+        return name in self.get_attributes().index.to_list()
 
     def is_association_end(self, name) -> bool:
-        return name in self.get_association_ends().index
+        return name in self.get_association_ends().index.to_list()
 
     def is_id(self, name) -> bool:
-        return name in self.get_ids().index
+        return name in self.get_ids().index.to_list()
 
     def is_class(self, name) -> bool:
-        return name in self.get_classes().index
+        return name in self.get_classes().index.to_list()
 
     def is_phantom(self, name) -> bool:
-        return name in self.get_phantoms().index
+        return name in self.get_phantoms().index.to_list()
 
     def is_class_phantom(self, name) -> bool:
-        return name in self.get_phantom_classes().index
+        return name in self.get_phantom_classes().index.to_list()
 
     def is_association_phantom(self, name) -> bool:
-        return name in self.get_phantom_associations().index
+        return name in self.get_phantom_associations().index.to_list()
 
     def is_generalization_phantom(self, name) -> bool:
-        return name in self.get_phantom_generalizations().index
+        return name in self.get_phantom_generalizations().index.to_list()
 
     def is_struct_phantom(self, name) -> bool:
-        return name in self.get_phantom_structs().index
+        return name in self.get_phantom_structs().index.to_list()
 
     def is_set_phantom(self, name) -> bool:
-        return name in self.get_phantom_sets().index
+        return name in self.get_phantom_sets().index.to_list()
 
     def is_edge(self, name) -> bool:
-        return name in self.get_edges().index
+        return name in self.get_edges().index.to_list()
 
     def is_association(self, name) -> bool:
-        return name in self.get_associations().index
+        return name in self.get_associations().index.to_list()
 
     def is_generalization(self, name) -> bool:
-        return name in self.get_generalizations().index
+        return name in self.get_generalizations().index.to_list()
 
     def is_struct(self, name) -> bool:
-        return name in self.get_structs().index
+        return name in self.get_structs().index.to_list()
 
     def is_set(self, name) -> bool:
-        return name in self.get_sets().index
+        return name in self.get_sets().index.to_list()
 
     def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:

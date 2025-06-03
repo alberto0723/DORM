@@ -118,12 +118,35 @@ class Relational(Catalog, ABC):
         else:
            raise ValueError("🚨 No connection to the database or file provided")
 
+    def contains_set_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> bool:
+        if visited is None:
+            visited = [edge_name]
+        else:
+            visited.append(edge_name)
+        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+            if self.is_phantom(node_name):
+                next_edge = self.get_edge_by_phantom_name(node_name)
+                assert next_edge not in visited, f"☠️ Cycle of edges detected: {visited}"
+                if self.is_set(next_edge):
+                    return True
+                elif self.is_struct(next_edge):
+                    return self.contains_set_including_transitivity_by_edge_name(next_edge, visited)
+        return False
+
     def is_consistent(self, design=False) -> bool:
         consistent = super().is_consistent(design)
         # Only needs to run further checks if the basic one succeeded
         if consistent:
-            # --------------------------------------------------------------------- ICs about being a relational catalog
-            pass
+            # --------------------------------------------------------------------- ICs about being a relational catalog in PostgreSQL
+
+            # IC-Relational1:
+            logger.info("Checking IC-Relational1")
+            matches6_1 = self.get_inbound_firstLevel().index.get_level_values("edges")
+            violations6_1 = self.get_sets()[self.get_sets().apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
+            if not violations6_1.empty:
+                consistent = False
+                print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL")
+                display(violations6_1)
 
         return consistent
 
@@ -195,14 +218,15 @@ class Relational(Catalog, ABC):
             for struct_name in self.get_struct_names_inside_set_name(table_name):
                 project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
                 pattern = []
-                node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").tolist()
+                node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                # The node_list is extended inside the loop itself (kind of a recursive call)
                 for node_name in node_list:
                     if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                         pattern.append(self.get_edge_by_phantom_name(node_name))
                     if self.is_struct_phantom(node_name):
-                        node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").tolist())
-                    #if self.is_association_phantom(node_name):
-                        # TODO: Nested sets need to be considered here!
+                        node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
+                    if self.is_set_phantom(node_name):
+                        node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
                 sentence = self.generate_insert_statement(table_name, project, pattern, source)
                 statements.append(sentence)
         return statements
@@ -223,7 +247,7 @@ class Relational(Catalog, ABC):
         """
         pass
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, proj_attr, schema_name: str = "", visited: dict[str, str] = None) -> str:
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, join_attr, schema_name: str = "", visited: dict[str, str] = None) -> str:
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -237,7 +261,7 @@ class Relational(Catalog, ABC):
         :param query_classes: List of classes to be provided by the query (can be empty)
         :param query_associations: List of associations to be provided by the query (can be empty)
         :param alias_table: Dictionary with the alias of every table in the query
-        :param proj_attr: Dictionary indicating where the domain attribute can be found in the table
+        :param join_attr: Dictionary indicating where the domain attribute can be found in the table
         :param visited: Dictionary with all visited classes and from which table they are taken
         :param schema_name: Schema name to be concatenated in front of every table in the FROM clause
         :return: String containing the join clause of the tables received as parameter
@@ -261,9 +285,16 @@ class Relational(Catalog, ABC):
             # Get potential attributes to plug the current table
             plugs = []  # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
             # For every struct in the table
-            for struct_name in self.get_struct_names_inside_set_name(current_table):
-                for node_name in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
-                    if self.is_class_phantom(node_name):
+            struct_name_list = self.get_struct_names_inside_set_name(current_table)
+            for struct_name in struct_name_list:
+                node_name_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                for node_name in node_name_list:
+                    if self.is_struct_phantom(node_name):
+                        struct_name_list.append(self.get_edge_by_phantom_name(node_name))
+                    elif self.is_set_phantom(node_name):
+                        for hop_node_name in self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list():
+                            node_name_list.append(hop_node_name)
+                    elif self.is_class_phantom(node_name):
                         class_name = self.get_edge_by_phantom_name(node_name)
                         if class_name in query_superclasses:
                             # Any class in the query is a potential connection point per se
@@ -284,9 +315,22 @@ class Relational(Catalog, ABC):
                                         plugs.append((end_name, ass2.misc_properties["End_name"]))
             # Check if the other ends of any of the connection points has been visited before
             joins = []
+            laterals = ""
             for plug in plugs:
                 if plug[1] in visited:
-                    joins.append(alias_table[visited[plug[1]]]+"."+proj_attr[plug[1]]+"="+alias_table[current_table]+"."+proj_attr[plug[0]])
+                    if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
+                        # The split is assuming that there is a single parenthesis
+                        laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + alias_table[visited[plug[1]]] + "_" + plug[1] + " ON TRUE\n"
+                        lhs = alias_table[visited[plug[1]]] + "_" + plug[1] + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
+                    else:
+                        lhs = alias_table[visited[plug[1]]]+"."+join_attr[plug[1]+"@"+visited[plug[1]]]
+                    if 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
+                        # The split is assuming that there is a single parenthesis
+                        laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + alias_table[current_table] + "_" + plug[1] + " ON TRUE\n"
+                        rhs = alias_table[current_table] + "_" + plug[1] + join_attr[plug[1]+"@"+current_table].split(")")[1]
+                    else:
+                        rhs = alias_table[current_table]+"."+join_attr[plug[0]+"@"+current_table]
+                    joins.append(lhs + "=" + rhs)
             if not first_table and not joins:
                 unjoinable.append(current_table)
             else:
@@ -303,11 +347,11 @@ class Relational(Catalog, ABC):
         if not first_table:
             if unjoinable:
                 raise ValueError(f"🚨 Tables '{unjoinable}' are not joinable in the query")
-            join_clause = "  JOIN "+join_clause+" ON "+" AND ".join(joins)
+            join_clause = laterals + "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n '+self.generate_joins(tables, query_classes, query_associations, alias_table, proj_attr, schema_name, visited)
+            return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited)
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
@@ -329,10 +373,10 @@ class Relational(Catalog, ABC):
         # For each combination of tables, generate an SQL query
         sentences = []
         # Check if all classes in the pattern are in some struct
-        # Some classes may be stored implicitly by their subclasses
+        # Some classes may be stored implicitly in their subclasses
         classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
-        # If all classes in the pattern are in some struct
+        # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_classes.empty:
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
@@ -341,29 +385,48 @@ class Relational(Catalog, ABC):
                 #       In general, this can be complex to check, because of the exponential number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
-                alias_table, proj_attr, location_attr = self.get_aliases(tables_combination)
-                modified_filter_clauses = [filter_clause]+self.get_discriminants(tables_combination, class_names)
+                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
+                conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
+                # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
+                # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
+                conditions_internal = []
+                conditions_external = []
+                for condition in conditions:
+                    condition_attributes = self.parse_predicate(condition)
+                    if any('jsonb_array_elements' in proj_attr[a] for a in condition_attributes):
+                        conditions_external.append(condition)
+                    else:
+                        conditions_internal.append(condition)
+                filter_attributes_external = drop_duplicates(self.parse_predicate(" AND ".join(conditions_external)))
                 # Simple case of only one table required by the query
                 if len(tables_combination) == 1:
-                    # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes])
                     # Build the FROM clause
-                    sentence += "\nFROM " + schema_name + tables_combination[0]
-                    # Replace the domain name by the name in the table in the WHERE clause
-                    for dom_attr_name, attr_proj in proj_attr.items():
-                        modified_filter_clauses = [s.replace(dom_attr_name, attr_proj) for s in modified_filter_clauses]
+                    from_clause = "\nFROM " + schema_name + tables_combination[0]
                 # Case with several tables that require joins
                 else:
-                    # Build the SELECT clause
-                    sentence = "SELECT " + ", ".join([location_attr[a]+"."+proj_attr[a] for a in project_attributes])
                     # Build the FROM clause
-                    sentence += "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, proj_attr, schema_name)
-                    # Replace the domain name by the name in the table in the WHERE clause, and also add the alias since there is more than one table now
+                    from_clause = "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
+                    # Add the alias to all attributes, since there is more than one table now
                     for dom_attr_name, attr_proj in proj_attr.items():
-                        modified_filter_clauses = [s.replace(dom_attr_name, location_attr[dom_attr_name]+"."+attr_proj) for s in modified_filter_clauses]
-                # Build the WHERE clause
-                sentence += "\nWHERE " + " AND ".join(modified_filter_clauses)
-                sentences.append(sentence)
+                        if 'jsonb_array_elements' in attr_proj:
+                            proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
+                        else:
+                            proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
+                # Build the SELECT clause
+                sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes + filter_attributes_external]) + from_clause
+                # Add the WHERE clause
+                if conditions_internal != [] and conditions_internal != ["TRUE"]:
+                    # Replace the domain name by the name in the table in the WHERE clause
+                    for dom_attr_name, attr_proj in proj_attr.items():
+                        conditions_internal = [s.replace(dom_attr_name, attr_proj) for s in conditions_internal]
+                    sentence += "\nWHERE " + " AND ".join(f"({cond})" for cond in conditions_internal)
+                if conditions_external:
+                    sentence_with_filter = "SELECT " + ", ".join(project_attributes)
+                    sentence_with_filter += "\nFROM (\n" + sentence + "\n) _"
+                    sentence_with_filter += "\nWHERE " + " AND ".join(f"({cond})" for cond in conditions_external)
+                else:
+                    sentence_with_filter = sentence
+                sentences.append(sentence_with_filter)
         # If some classes are implicitly stored in the current design (i.e. stored only in their subclasses)
         else:
             # We need to recursively do it one by one, so we only take the first implicit superclass
