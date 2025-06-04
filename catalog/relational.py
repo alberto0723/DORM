@@ -318,6 +318,7 @@ class Relational(Catalog, ABC):
             laterals = ""
             for plug in plugs:
                 if plug[1] in visited:
+                    # TODO: Two identical lateral joins will be created if the same content of a set is used twice in joins
                     if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
                         # The split is assuming that there is a single parenthesis
                         laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + alias_table[visited[plug[1]]] + "_" + plug[1] + " ON TRUE\n"

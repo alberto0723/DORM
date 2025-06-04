@@ -301,9 +301,9 @@ class Catalog(HyperNetXWrapper):
                     attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
             elif self.is_set_phantom(elem_name):
                 nested_set_name = self.get_edge_by_phantom_name(elem_name)
-                for nested_element in self.get_outbound_set_by_name(nested_set_name).itertuples():
-                    assert self.is_class_phantom(nested_element.Index[1]) or self.is_struct_phantom(nested_element.Index[1]), f"☠️ Set '{nested_set_name}' contains '{nested_element.Index[1]}', which is neither a class nor a struct"
-                    nested_element_name = self.get_edge_by_phantom_name(nested_element.Index[1])
+                for nested_element_phantom_name in self.get_outbound_set_by_name(nested_set_name).index.get_level_values("nodes"):
+                    assert self.is_class_phantom(nested_element_phantom_name) or self.is_struct_phantom(nested_element_phantom_name), f"☠️ Set '{nested_set_name}' contains '{nested_element_phantom_name}', which is neither a class nor a struct"
+                    nested_element_name = self.get_edge_by_phantom_name(nested_element_phantom_name)
                     if self.is_class(nested_element_name):
                         attr_name = self.get_class_id_by_name(nested_element_name)
                         attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]))
@@ -970,7 +970,7 @@ class Catalog(HyperNetXWrapper):
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
 
             # IC-Design9: All attributes in the structs in a set must have the same paths
-            # TODO: Consider also attributes in nested structures and sets
+            #             In already considers nested structs and sets, because get_struct_attributes already does
             logger.info("Checking IC-Design9")
             for set_name in self.get_sets().index:
                 inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")
@@ -1141,7 +1141,6 @@ class Catalog(HyperNetXWrapper):
                     assert dom_attr_name not in location_attr or location_attr[dom_attr_name] != alias_set[set_name] or self.generate_attr_projection_clause(attr_path) == proj_attr[dom_attr_name], f"☠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)"
                     location_attr[dom_attr_name] = alias_set[set_name]
                     proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
-                    # TODO: create a function to generate join paths
                     join_attr[dom_attr_name + "@" + set_name] = self.generate_attr_projection_clause(attr_path)
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
