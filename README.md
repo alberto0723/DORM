@@ -268,7 +268,7 @@ To grasp the idea of what the prototype is actually doing, you can follow the ne
 You can find an example at [db_conf.example.txt](db_conf.example.txt)
 2. Create a schema in the database to contain some data (these will be migrated later to other versions of this schema).
 ```bash
-python catalogAction.py --db_conf db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test2
+python catalogAction.py --dbconf_file db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test2
 ```
 3. Insert some testing data.
 ```SQL
@@ -290,16 +290,16 @@ END $$
 ```
 5. Query the source schema.
 ```bash
-python queryExecutor.py --db_conf db_conf.txt --dbschema <sourcesch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
+python queryExecutor.py --dbconf_file db_conf.txt --dbschema <sourcesch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
 6. Create a new schema containing a different design and migrate there the data contained in the source you just created before.
 ```bash
-python catalogAction.py --db_conf db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
+python catalogAction.py --dbconf_file db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
 ```
 7. Check the tables and contents of the new schema and compare against the source ones.
 8. Query the new schema.
 ```bash
-python queryExecutor.py --db_conf db_conf.txt --dbschema <newsch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
+python queryExecutor.py --dbconf_file db_conf.txt --dbschema <newsch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
 
 Notice that despite the source and the new schema being different, the query specification file we use is exactly the same, and the resulting tuples we get also coincide.
