@@ -51,7 +51,7 @@ class Relational(Catalog, ABC):
                 raise ValueError(f"🚨 Missing schema for the creation of the catalog in the DBMS")
             self.dbconf = dbconf
             self.dbschema = dbschema
-            url = f"{self.dbconf["dbms"]}://{self.dbconf["user"]}:{self.dbconf["password"]}@{self.dbconf["ip"]}:{self.dbconf["port"]}/{self.dbconf["dbname"]}"
+            url = f"{self.dbconf['dbms']}://{self.dbconf['user']}:{self.dbconf['password']}@{self.dbconf['ip']}:{self.dbconf['port']}/{self.dbconf['dbname']}"
             logger.info(f"Creating database connection to '{self.dbschema}' at '{url}'")
             self.engine = sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={self.dbschema}"})
             with self.engine.connect() as conn:
