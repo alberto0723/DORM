@@ -62,27 +62,27 @@ echo .......................................................................... 
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/students-workers.json
 echo ========================================================================== 1NF/book-authors-topic
 echo -------------------------------------------------------------------------- Table creation
-python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic
+python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic --src_sch source2 --src_kind 1NF
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/book-authors-topic.json
 echo ========================================================================== 1NF/book-authors-topic_test1
 echo -------------------------------------------------------------------------- Table creation
-python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic_test1
+python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic_test1 --src_sch source2 --src_kind 1NF
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/book-authors-topic.json
 echo ========================================================================== 1NF/book-authors-topic_partitioned
-python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic_partitioned
+python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic_partitioned --src_sch source2 --src_kind 1NF
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/book-authors-topic.json
 echo ========================================================================== NF2/book-authors-topic_test1
-python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec NF2/book-authors-topic_test1
+python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec NF2/book-authors-topic_test1 --src_sch source2 --src_kind 1NF
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/book-authors-topic.json
 echo ========================================================================== NF2/book-authors-topic_test2
-python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec NF2/book-authors-topic_test2
+python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec NF2/book-authors-topic_test2 --src_sch source2 --src_kind 1NF
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/book-authors-topic.json
 echo ========================================================================== NF2/book-authors-topic_test3
-python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec NF2/book-authors-topic_test3
+python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec NF2/book-authors-topic_test3 --src_sch source2 --src_kind 1NF
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm NF2_JSON --query_file files/queries/book-authors-topic.json
