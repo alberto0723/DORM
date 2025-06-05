@@ -1,7 +1,7 @@
 INSERT INTO source2.books_table VALUES (1, 'The Lord of the Rings', 'HarperCollins');
 INSERT INTO source2.books_table VALUES (2, 'The Goods Themselves', 'Galaxy');
 INSERT INTO source2.books_table VALUES (3, 'Data Warehouse Systems', 'Springer');
-INSERT INTO source2.books_table VALUES (4, 'Data Warehouse Design', 'Mc Grau Hill');
+INSERT INTO source2.books_table VALUES (4, 'Data Warehouse Design', 'McGraw Hill');
 INSERT INTO source2.books_table VALUES (5, 'Database Systems', 'Pearson');
 
 INSERT INTO source2.authors_table VALUES (101, 'J.R.R. Tolkien', 133, 'M', 'U.K.');
