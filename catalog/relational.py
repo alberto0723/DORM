@@ -180,7 +180,7 @@ class Relational(Catalog, ABC):
         pass
 
     @abstractmethod
-    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Type[RelationalType]) -> str:
+    def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Type[RelationalType]) -> str:
         '''
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
@@ -227,7 +227,7 @@ class Relational(Catalog, ABC):
                         node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
                     if self.is_set_phantom(node_name):
                         node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
-                sentence = self.generate_insert_statement(table_name, project, pattern, source)
+                sentence = self.generate_migration_insert_statement(table_name, project, pattern, source)
                 statements.append(sentence)
         return statements
 
@@ -445,6 +445,77 @@ class Relational(Catalog, ABC):
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
                 sentences.append("\nUNION\n".join(combination))
+        return sentences
+
+    def generate_insert_statement(self, spec) -> list[str]:
+        """
+        Generates SQL statements corresponding to the given insertion.
+        :param spec: A JSON containing the pattern and data to be inserted.
+        :return: A list with all possible SQL statements.
+        """
+        logger.info("Resolving insert")
+        if not self.metadata.get("tables_created", False):
+            warnings.warn(f"⚠️ There are no tables in the schema '{self.dbschema}' to be receive the insertions")
+        data_values, pattern_edges = self.parse_insert(spec)
+        print(data_values)
+        print(pattern_edges)
+        # For each combination of tables, generate an SQL query
+        sentences = []
+        # # Check if all classes in the pattern are in some struct
+        # # Some classes may be stored implicitly in their subclasses
+        # classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
+        # implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
+        # # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
+        # if implicit_classes.empty:
+        #     query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
+        #     if len(query_alternatives) > 1:
+        #         warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
+        #         # TODO: Can we check here if two combinations differ in only one table whose difference is by generalization? Then, we can prioritize taking first the query using the table with the subclass.
+        #         #       In general, this can be complex to check, because of the exponential number of mappings between classes in the two queries and
+        #         query_alternatives = sorted(query_alternatives, key=len)
+        #     for tables_combination in query_alternatives:
+        #         alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
+        #         conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
+        #         # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
+        #         # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
+        #         conditions_internal = []
+        #         conditions_external = []
+        #         for condition in conditions:
+        #             condition_attributes = self.parse_predicate(condition)
+        #             if any('jsonb_array_elements' in proj_attr[a] for a in condition_attributes):
+        #                 conditions_external.append(condition)
+        #             else:
+        #                 conditions_internal.append(condition)
+        #         filter_attributes_external = drop_duplicates(self.parse_predicate(" AND ".join(conditions_external)))
+        #         # Simple case of only one table required by the query
+        #         if len(tables_combination) == 1:
+        #             # Build the FROM clause
+        #             from_clause = "\nFROM " + schema_name + tables_combination[0]
+        #         # Case with several tables that require joins
+        #         else:
+        #             # Build the FROM clause
+        #             from_clause = "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
+        #             # Add the alias to all attributes, since there is more than one table now
+        #             for dom_attr_name, attr_proj in proj_attr.items():
+        #                 if 'jsonb_array_elements' in attr_proj:
+        #                     proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
+        #                 else:
+        #                     proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
+        #         # Build the SELECT clause
+        #         sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes + filter_attributes_external]) + from_clause
+        #         # Add the WHERE clause
+        #         if conditions_internal != [] and conditions_internal != ["TRUE"]:
+        #             # Replace the domain name by the name in the table in the WHERE clause
+        #             for dom_attr_name, attr_proj in proj_attr.items():
+        #                 conditions_internal = [s.replace(dom_attr_name, attr_proj) for s in conditions_internal]
+        #             sentence += "\nWHERE " + " AND ".join(f"({cond})" for cond in conditions_internal)
+        #         if conditions_external:
+        #             sentence_with_filter = "SELECT " + ", ".join(project_attributes)
+        #             sentence_with_filter += "\nFROM (\n" + sentence + "\n) _"
+        #             sentence_with_filter += "\nWHERE " + " AND ".join(f"({cond})" for cond in conditions_external)
+        #         else:
+        #             sentence_with_filter = sentence
+        #         sentences.append(sentence_with_filter)
         return sentences
 
     def check_execution(self) -> None:

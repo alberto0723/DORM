@@ -70,7 +70,7 @@ class NonFirstNormalFormJSON(Relational):
                 final_grouping = tmp_grouping
         return f"jsonb_build_object({', '.join(formatted_pairs)})", final_grouping
 
-    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
+    def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
         """
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.

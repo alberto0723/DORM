@@ -988,21 +988,11 @@ class Catalog(HyperNetXWrapper):
 
         return consistent
 
-    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
-        # Check if the hypergraph contains all the projected attributes
-        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
-
-        # Check if the hypergraph contains all the filter attributes
-        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
-
+    def check_basic_request_structure(self, pattern_edges, required_attributes) -> None:
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if not non_existing_associations.empty:
-            raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.to_list()[0]}")
+            raise ValueError(f"🚨 Some class or association in the pattern does not belong to the catalog: {non_existing_associations.values.to_list()[0]}")
 
         superclasses = []
         for e in pattern_edges:
@@ -1012,7 +1002,7 @@ class Catalog(HyperNetXWrapper):
         restricted_domain = self.H.restrict_to_edges(pattern_edges+superclasses)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
-            raise ValueError(f"🚨 Some query elements (i.e., attributes, classes and associations) are not connected")
+            raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes and association ends
         attributes = pd.merge(restricted_domain.nodes.dataframe, self.get_attributes(), left_index=True, right_index=True, how="inner")["name"]
@@ -1027,7 +1017,19 @@ class Catalog(HyperNetXWrapper):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attributes {missing_attributes.values.to_list()} in the query are not covered by the elements in the pattern {pattern_edges}")
+            raise ValueError(f"🚨 Some attributes {missing_attributes.values.to_list()} in the request are not covered by the elements in the pattern {pattern_edges}")
+
+    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
+        # Check if the hypergraph contains all the projected attributes
+        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
+        if not non_existing_attributes.empty:
+            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
+
+        # Check if the hypergraph contains all the filter attributes
+        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
+        if not non_existing_attributes.empty:
+            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
+        self.check_basic_request_structure(pattern_edges, required_attributes)
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
@@ -1059,7 +1061,7 @@ class Catalog(HyperNetXWrapper):
         identifiers = []
         for e in pattern_edges:
             if not (self.is_class(e) or self.is_association(e)):
-                raise ValueError(f"🚨 Chosen edge '{e}' is neither a class nor a association")
+                raise ValueError(f"🚨 Chosen edge '{e}' is neither a class nor an association")
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
@@ -1069,6 +1071,21 @@ class Catalog(HyperNetXWrapper):
 
         self.check_query_structure(project_attributes, filter_attributes, pattern_edges, required_attributes)
         return project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause
+
+    def parse_insert(self, insert) -> tuple[dict[str, str], list[str]]:
+        # Get the query and parse it
+        data = insert.get("data", {})
+        if not data:
+            raise ValueError("🚨 Empty data is not allowed in an insertion")
+        for a in data.keys():
+            if not (self.is_attribute(a) or self.is_association_end(a)):
+                raise ValueError(f"🚨 Projected '{a}' is neither an attribute nor an association end")
+        pattern_edges = insert.get("pattern", [])
+        if not pattern_edges:
+            raise ValueError("🚨 Empty pattern is not allowed in the insertion")
+
+        self.check_basic_request_structure(pattern_edges, data.keys())
+        return data, pattern_edges
 
     def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
         """

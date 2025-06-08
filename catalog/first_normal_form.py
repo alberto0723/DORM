@@ -117,7 +117,7 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
+    def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
         '''
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
