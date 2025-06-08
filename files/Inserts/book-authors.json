@@ -12,6 +12,19 @@
         "A_address": "'U.K.'"
       },
       "pattern": ["Author", "Book", "Writes"]
+    },
+    {
+      "data": {
+        "B_ID": "2",
+        "B_title": "'The Goods Themselves'",
+        "B_publisher": "'Galaxy'",
+        "A_ID": "102",
+        "A_name": "'Isaac Asimov'",
+        "A_age" : "105",
+        "A_gender": "'M'",
+        "A_address": "'New York City, U.S.A.'"
+      },
+      "pattern": ["Author", "Book", "Writes"]
     }
   ]
 }

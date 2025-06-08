@@ -56,7 +56,7 @@ if __name__ == "__main__":
             insert_specs = json.load(file).get("insertions")
         for i, spec in enumerate(insert_specs):
             if True:
-                print(f"-- Running query specification {i}")
+                print(f"-- Running insert specification {i}")
                 inserts = cat.generate_insert_statement(spec)
                 if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
@@ -65,7 +65,7 @@ if __name__ == "__main__":
                         print("First one is:")
                     print(inserts[0]+";")
                     print("--//////////////////////////////////////////")
-                # result = cat.execute(inserts[0])
-                # if args.print_result:
-                #     print(result)
+                result = cat.execute(inserts[0])
+                if args.print_result:
+                    print(result)
         logging.info("END")
