@@ -62,10 +62,12 @@ if __name__ == "__main__":
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
                     if len(inserts) > 1:
                         print(f"Number of insertions generated: {len(inserts)}")
-                        print("First one is:")
-                    print(inserts[0]+";")
+                for statement in inserts:
+                    if args.show_sql:
+                        print(statement + ";")
+                    _ = cat.execute(statement)
+                if args.show_sql:
                     print("--//////////////////////////////////////////")
-                result = cat.execute(inserts[0])
                 if args.print_result:
-                    print(result)
+                    print(f"Inserted {len(inserts)} rows")
         logging.info("END")

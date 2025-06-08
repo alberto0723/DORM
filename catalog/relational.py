@@ -448,9 +448,11 @@ class Relational(Catalog, ABC):
         return sentences
 
     @abstractmethod
-    def generate_values_clause(self, data_values) -> str:
+    def generate_values_clause(self, table_name: str, data_values: dict[str, str]) -> str:
         """
         Values generation depends on the concrete implementation strategy.
+        :param table_name: Name of the table
+        :param data_values: Dictionary with pairs attribute name and value
         :return: String representation of the values to be inserted
         """
         pass
@@ -483,7 +485,7 @@ class Relational(Catalog, ABC):
                 table_name = alternative[0]
                 # TODO: Check if the anchor is provided
                 # TODO: Check if all mandatory information is provided
-                sentences.append("INSERT INTO " + table_name + self.generate_values_clause(data_values))
+                sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
         else:
             # TODO: Implement insertions in the presence of implicit classes
             assert False, "☠️ Insertions in implicit classes has not been implemented"
@@ -504,12 +506,13 @@ class Relational(Catalog, ABC):
         self.check_execution()
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(statement))
-        if statement.startswith("INSERT "):
-            return 1
-        elif statement.startswith("SELECT "):
-            return result.fetchall()
-        else:
-            assert False, "☠️ Unknown statement to be executed"
+            if statement.startswith("INSERT "):
+                conn.commit()
+                return 1
+            elif statement.startswith("SELECT "):
+                return result.fetchall()
+            else:
+                assert False, "☠️ Unknown statement to be executed"
 
     def get_cost(self, query) -> float:
         """
