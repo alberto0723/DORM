@@ -46,5 +46,5 @@ BEGIN
     FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
     WHERE n.nspname = 'source2';
 
-    EXECUTE format('COMMENT ON SCHEMA source2 IS %L', metadata || '{"data_migrated": true}');
+    EXECUTE format('COMMENT ON SCHEMA source2 IS %L', metadata || '{"has_data": true}');
 END $$

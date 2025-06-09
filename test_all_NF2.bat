@@ -13,7 +13,7 @@ echo ========================================================================== 
 echo -------------------------------------------------------------------------- Table creation at source schema
 python catalogAction.py --dbconf_file db_conf.txt --dbschema source --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors_test2
 echo .......................................................................... Insert execution
-python insertionExecutor.py --dbconf_file db_conf.txt --dbschema source --paradigm NF2_JSON --insert_file files/inserts/book-authors.json
+python insertExecutor.py --dbconf_file db_conf.txt --dbschema source --paradigm NF2_JSON --insert_file files/inserts/book-authors.json
 echo ========================================================================== 1NF/book-authors
 echo -------------------------------------------------------------------------- Table creation
 python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors --src_sch source --src_kind NF2_JSON
@@ -69,7 +69,7 @@ echo ========================================================================== 
 echo -------------------------------------------------------------------------- Table creation at source2 schema
 python catalogAction.py --dbconf_file db_conf.txt --dbschema source2 --check --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors-topic
 echo .......................................................................... Insert execution
-python insertionExecutor.py --dbconf_file db_conf.txt --dbschema source2 --paradigm 1NF --insert_file files/inserts/book-authors-topic.json
+python insertExecutor.py --dbconf_file db_conf.txt --dbschema source2 --paradigm 1NF --insert_file files/inserts/book-authors-topic.json
 echo ========================================================================== 1NF/book-authors-topic
 echo -------------------------------------------------------------------------- Table creation
 python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm NF2_JSON --dsg_spec 1NF/book-authors-topic --src_sch source2 --src_kind 1NF

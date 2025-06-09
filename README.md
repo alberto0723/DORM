@@ -174,7 +174,7 @@ pip freeze > requirements.txt
 There is an annoying bug in HyperNetX that constantly generates a warning. It can be avoided as explained in [BugFixForHyperNetX.txt](BugFixForHyperNetX.txt).
 
 ## Launching 🚀
-There are two tools available to facilitate usage and testing.
+There are three tools available to facilitate usage and testing.
 
 ### catalogAction ▶️
 This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into CREATE TABLE statements.
@@ -233,6 +233,29 @@ options:
 
 Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.pdf](documents/Diagrams/CatalogAction.pdf).
 
+### insertExecutor ➕
+This is a flexible scripting tool that allows to generate insertions and execute them in a DBMS.
+
+```
+usage: insertExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>] [--insert_file <path>]
+                         [--print_result]
+
+➕ Execute insertions over a pre-existing catalog
+
+options:
+  --help                Shows this help message and exit
+  --logging             Enables logging
+  --show_sql            Prints the generated statements
+  --hide_warnings       Silences warnings
+  --paradigm <prdgm>    Implementation paradigm for the design (either 1NF or NF2_JSON)
+  --dbconf_file <conf>  Filename of the configuration file for DBMS connection
+  --dbschema <sch>      Database schema
+  --insert_file <path>  Filename of the json file containing the queries
+  --print_result        Prints the resulting rows
+```
+
+Its [automatically generated](https://diagram-generator.com) flow chart is in [InsertExecutor.pdf](documents/Diagrams/InsertExecutor.pdf).
+
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
@@ -270,34 +293,20 @@ You can find an example at [db_conf.example.txt](db_conf.example.txt)
 ```bash
 python catalogAction.py --dbconf_file db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test2
 ```
-3. Insert some testing data.
-```SQL
-INSERT INTO <sourcesch>.books_table VALUES (1, 'The Lord of the Rings', 'HarperCollins', 101, 'J.R.R. Tolkien', 133, 'M', 'U.K.');
-INSERT INTO <sourcesch>.books_table VALUES (2, 'The Goods Themselves', 'Galaxy', 102, 'Isaac Asimov', 105, 'M', 'New York City, U.S.A.');
+3. Insert some testing data (alternative the equivalent [SQL script](files/data/book-authors.sql) can be used).
+```bash
+python insertExecutor.py --dbconf_file db_conf.txt --dbschema <sourcesch> --paradigm 1NF --insert_file files/inserts/book-authors.json
 ```
-4. Indicate that the schema contains data by annotating it.
-```SQL
-DO $$
-DECLARE
-    metadata JSONB;
-BEGIN
-    SELECT d.description::JSONB INTO metadata
-    FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
-    WHERE n.nspname = '<sourcesch>';
-
-    EXECUTE format('COMMENT ON SCHEMA <sourcesch> IS %L', metadata || '{"data_migrated": true}');
-END $$
-```
-5. Query the source schema.
+4. Query the source schema.
 ```bash
 python queryExecutor.py --dbconf_file db_conf.txt --dbschema <sourcesch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
-6. Create a new schema containing a different design and migrate there the data contained in the source you just created before.
+5. Create a new schema containing a different design and migrate there the data contained in the source you just created before.
 ```bash
 python catalogAction.py --dbconf_file db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
 ```
-7. Check the tables and contents of the new schema and compare against the source ones.
-8. Query the new schema.
+6. Check the tables and contents of the new schema and compare against the source ones.
+7. Query the new schema.
 ```bash
 python queryExecutor.py --dbconf_file db_conf.txt --dbschema <newsch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
@@ -305,7 +314,7 @@ python queryExecutor.py --dbconf_file db_conf.txt --dbschema <newsch> --paradigm
 Notice that despite the source and the new schema being different, the query specification file we use is exactly the same, and the resulting tuples we get also coincide.
 Nevertheless, the SQL queries being generated are different.
 
-Steps 6 to 8 can be repeated for any design of domain [book-authors_1-1](files/domains/book-authors_1-1.json): 
+Steps 5 to 7 can be repeated for any design of domain [book-authors_1-1](files/domains/book-authors_1-1.json): 
 - [1NF/book-authors_test](files/designs/1NF/book-authors.json)
 - [1NF/book-authors_test1](files/designs/1NF/book-authors_test1.json) 
 - [1NF/book-authors_test2](files/designs/1NF/book-authors_test2.json)

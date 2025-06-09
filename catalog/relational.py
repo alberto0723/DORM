@@ -108,7 +108,7 @@ class Relational(Catalog, ABC):
                 self.create_schema(migration_source_sch=migration_source_sch, migration_source_kind=migration_source_kind, show_sql=show_sql)
                 self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source_sch is not None and migration_source_kind is not None:
-                    self.metadata["data_migrated"] = True
+                    self.metadata["has_data"] = True
                 with (self.engine.connect() as conn):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
                     conn.execute(sqlalchemy.text(statement))
@@ -208,7 +208,7 @@ class Relational(Catalog, ABC):
             warnings.warn("⚠️ Useless action (design and paradigm of source and target coincide in the migration)")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"🚨 The source {migration_source_sch} does not have tables to migrate (according to its metadata)")
-        if not source.metadata.get("data_migrated", False):
+        if not source.metadata.get("has_data", False):
             warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
         statements = []
         # For each table
@@ -500,19 +500,23 @@ class Relational(Catalog, ABC):
     def execute(self, statement) -> sqlalchemy.Sequence[sqlalchemy.Row] | int:
         """
         Executes a statement in the engine associated to the catalog.
-        :param query: SQL query to be executed.
-        :return: Set of rows resulting from the query execution.
+        :param statement: SQL statement to be executed (has to be either INSERT or UPDATE).
+        :return: Set of rows resulting from the query execution or 1 (if it was an insertion).
         """
         self.check_execution()
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(statement))
             if statement.startswith("INSERT "):
+                if not self.metadata.get("has_data", False):
+                    self.metadata["has_data"] = True
+                    statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
+                    conn.execute(sqlalchemy.text(statement))
                 conn.commit()
                 return 1
             elif statement.startswith("SELECT "):
                 return result.fetchall()
             else:
-                assert False, "☠️ Unknown statement to be executed"
+                assert False, f"☠️ Unknown kind of statement (neither SELECT nor INSERT) to be executed: '{statement}'"
 
     def get_cost(self, query) -> float:
         """
