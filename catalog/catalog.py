@@ -1039,6 +1039,10 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
         self.check_basic_request_structure(pattern_edges, required_attributes)
 
+        # Check if the query pattern is connected
+        if not self.H.restrict_to_edges(pattern_edges).is_connected(s=1):
+            raise ValueError(f"🚨 Query pattern {pattern_edges} must be connected")
+
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
         where_clause = "WHERE "+predicate
@@ -1227,7 +1231,8 @@ class Catalog(HyperNetXWrapper):
         :param provided_attributes: List of attribute names provided for the insertion.
         :return:
         """
-        # TODO: Check that the pattern is connected
+        if not self.H.restrict_to_edges(pattern_edges).is_connected(s=1):
+            raise ValueError(f"🚨 Insertion pattern {pattern_edges} must be connected")
         insert_points, _, _ = self.create_bucket_combinations(pattern_edges, provided_attributes)
         if len(insert_points) > 1:
             warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different combinations of tables: {insert_points}")
@@ -1248,7 +1253,7 @@ class Catalog(HyperNetXWrapper):
                 else:
                     anchor_attributes.append(key)
             if any(attribute not in provided_attributes for attribute in anchor_attributes):
-                raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{set_name}' is not provided in the insertion")
+                raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{set_name}' is not provided in the insertion with pattern {pattern_edges}")
             # Check if all mandatory information is provided
             for struct_name in struct_name_list:
                 # Create a restricted struct to search for paths that do not cross the anchor
