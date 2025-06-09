@@ -149,6 +149,33 @@ In this case, the corresponding association end should be used.
 Still, there are some queries that cannot be properly translated:
 - If the result of the query would have twice the same table in the FROM clause, it will only appear once.
 However, the links would still be generated twice.
+  
+### 4- Insertions ➕
+Data can be provided in terms of the domain concepts.
+You can find some [insert examples](files/inserts/book-authors.json) over the same domain.
+
+The content of the insert files is just a list of insertions, whose structure is as follows:
+1. ``data`` contains a dictionary of attributes in the domain and the corresponding balue, which cannot be empty.
+2. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
+
+#### Semantics 🧠
+- The pattern may not contain any association.
+- The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
+
+#### Constraints ⛓️
+- All elements in the two parts of a query must be connected (potentially by generalization).
+- Generalizations cannot be explicit in the insertion.
+- The pattern can not contain two classes (directly or transitively) related by generalization.
+
+#### Limitations ⛔
+The implementation follows the approach of most DBMS regarding the limitation of updating through views. 
+Thus, insertion is only possible if it:
+- Affects exactly one set.
+- The values corresponding to the anchor of the set are provided.
+- All mandatory attributes for any struct inside the set are provided.
+
+Clearly, the satisfaction of these conditions does not depend only on the insertion, but also on the design.
+Thus, guards can be declared in the domain, as in [book-authors_1-1_guarded.json](files/domains/book-authors_1-1_guarded.json), so that design violating them are prevented.
 
 ## Setup ⚙️
 It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 

@@ -996,7 +996,12 @@ class Catalog(HyperNetXWrapper):
 
         return consistent
 
-    def check_basic_request_structure(self, pattern_edges, required_attributes) -> None:
+    def check_basic_request_structure(self, pattern_edges: list[str], required_attributes: list[str]) -> None:
+        """
+        Checks if the pattern is connected and contains all the required attributes.
+        :param pattern_edges:
+        :param required_attributes:
+        """
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if not non_existing_associations.empty:
@@ -1037,11 +1042,8 @@ class Catalog(HyperNetXWrapper):
         non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
-        self.check_basic_request_structure(pattern_edges, required_attributes)
 
-        # Check if the query pattern is connected
-        if not self.H.restrict_to_edges(pattern_edges).is_connected(s=1):
-            raise ValueError(f"🚨 Query pattern {pattern_edges} must be connected")
+        self.check_basic_request_structure(pattern_edges, required_attributes)
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
@@ -1231,8 +1233,6 @@ class Catalog(HyperNetXWrapper):
         :param provided_attributes: List of attribute names provided for the insertion.
         :return:
         """
-        if not self.H.restrict_to_edges(pattern_edges).is_connected(s=1):
-            raise ValueError(f"🚨 Insertion pattern {pattern_edges} must be connected")
         insert_points, _, _ = self.create_bucket_combinations(pattern_edges, provided_attributes)
         if len(insert_points) > 1:
             warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different combinations of tables: {insert_points}")
