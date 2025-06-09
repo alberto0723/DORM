@@ -161,6 +161,8 @@ The content of the insert files is just a list of insertions, whose structure is
 #### Semantics 🧠
 - The pattern may not contain any association.
 - The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
+- When using generalizations, insertions can be expressed both [in each of the classes](files/inserts/students-workers_OneInsertPerClass.json) or [only in the subclasses](files/inserts/students-workers_OneInsertInTheSubclass.json).
+However, due to the limitations below, each of them is tightly coupled to some database schemas.
 
 #### Constraints ⛓️
 - All elements in the two parts of a query must be connected (potentially by generalization).
@@ -169,13 +171,14 @@ The content of the insert files is just a list of insertions, whose structure is
 
 #### Limitations ⛔
 The implementation follows the approach of most DBMS regarding the limitation of updating through views. 
-Thus, insertion is only possible if it:
+Thus, an insertion is only possible if it:
 - Affects exactly one set.
 - The values corresponding to the anchor of the set are provided.
 - All mandatory attributes for any struct inside the set are provided.
 
 Clearly, the satisfaction of these conditions does not depend only on the insertion, but also on the design.
 Thus, guards can be declared in the domain, as in [book-authors_1-1_guarded.json](files/domains/book-authors_1-1_guarded.json), so that design violating them are prevented.
+Such guards simply execute the checks of the corresponding insertion without actually inserting the data in the database.
 
 ## Setup ⚙️
 It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 

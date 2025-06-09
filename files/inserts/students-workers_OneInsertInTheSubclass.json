@@ -1,0 +1,12 @@
+{
+  "insertions": [
+    {
+      "pattern": ["Students"],
+      "data": {"P_ID": "1", "P_name": "'Name1'", "P_occupation": "'Student'", "S_university": "'University'"}
+    },
+    {
+      "pattern": ["Workers"],
+      "data": {"P_ID": "2", "P_name": "'Name2'", "P_occupation": "'Worker'", "W_company": "'Company'"}
+    }
+  ]
+}

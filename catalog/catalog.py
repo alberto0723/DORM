@@ -1233,14 +1233,14 @@ class Catalog(HyperNetXWrapper):
         :param provided_attributes: List of attribute names provided for the insertion.
         :return:
         """
-        insert_points, _, _ = self.create_bucket_combinations(pattern_edges, provided_attributes)
+        set_combinations, _, _ = self.create_bucket_combinations(pattern_edges, provided_attributes)
+        # Check that the insertion has exactly one table name inside (otherwise, insertions are not allowed)
+        insert_points = [combination[0] for combination in set_combinations if len(combination) == 1]
+        if len(insert_points) == 0:
+            raise ValueError(f"🚨 Insertions cannot be executed if the pattern {pattern_edges} does not appear in any set or requires accessing many sets")
         if len(insert_points) > 1:
-            warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different combinations of tables: {insert_points}")
-        for insertion in insert_points:
-            # Check that the insertion has exactly one table name inside (otherwise, insertions are not allowed)
-            if len(insertion) > 1:
-                raise ValueError(f"🚨 Insertions cannot be executed if they affect more than one table: '{insertion}'")
-            set_name = insertion[0]
+            warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different tables: {insert_points}")
+        for set_name in insert_points:
             struct_name_list = self.get_struct_names_inside_set_name(set_name)
             # Check that all anchor points are provided
             # Get the anchor attributes of the set
@@ -1270,4 +1270,4 @@ class Catalog(HyperNetXWrapper):
                             # First position in the tuple of multiplicities is the min multiplicity at least one
                             if self.check_multiplicities_to_one(paths[0])[0] and table_attribute not in provided_attributes:
                                 raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{set_name}' is not provided in the insertion")
-        return [insertion[0] for insertion in insert_points]
+        return insert_points

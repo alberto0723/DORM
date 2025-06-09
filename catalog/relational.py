@@ -478,12 +478,14 @@ class Relational(Catalog, ABC):
         classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
-        if implicit_classes.empty:
-            for table_name in self.get_insertion_alternatives(pattern_edges, data_values.keys()):
-                sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
-        else:
-            # TODO: Implement insertions in the presence of implicit classes
-            assert False, "☠️ Insertions in implicit classes has not been implemented"
+        for table_name in self.get_insertion_alternatives(pattern_edges, list(data_values.keys())):
+            sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
+        # if implicit_classes.empty:
+        #     for table_name in self.get_insertion_alternatives(pattern_edges, list(data_values.keys())):
+        #         sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
+        # else:
+        #     # TODO: Implement insertions in the presence of implicit classes
+        #     assert False, "☠️ Insertions in implicit classes has not been implemented"
         return sentences
 
     def check_execution(self) -> None:
