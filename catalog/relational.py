@@ -483,7 +483,22 @@ class Relational(Catalog, ABC):
             for alternative in insert_alternatives:
                 # We know each alternative has exactly one table name inside
                 table_name = alternative[0]
-                # TODO: Check if the anchor is provided
+                # Get all the attributes of the set
+                table_attributes = []
+                for struct_name in self.get_struct_names_inside_set_name(table_name):
+                    table_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
+                table_attributes = drop_duplicates(table_attributes)
+                # Get the anchor attributes of the set
+                anchor_attributes = []
+                # Just need to take any struct, because all share the same anchor
+                for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                    if self.is_class_phantom(key):
+                        anchor_attributes.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                    # If it is not a class, it is a loose end
+                    else:
+                        anchor_attributes.append(key)
+                if any(attribute not in data_values.keys() for attribute in anchor_attributes):
+                    raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{table_name}' is not provided in the insertion")
                 # TODO: Check if all mandatory information is provided
                 sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
         else:
