@@ -471,21 +471,14 @@ class Relational(Catalog, ABC):
             # This is just a warning, because we are just generating the statement, not trying to execute it
             warnings.warn(f"⚠️ There are no tables in the schema '{self.dbschema}' to receive the insertions")
         data_values, pattern_edges = self.parse_insert(spec)
-        # For each combination of tables, generate an SQL query
+        # For each table, generate an insert statement
         sentences = []
-        # Check if all classes in the pattern are in some struct
-        # Some classes may be stored implicitly in their subclasses
-        classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
-        implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
-        # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
-        for table_name in self.get_insertion_alternatives(pattern_edges, list(data_values.keys())):
-            sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
-        # if implicit_classes.empty:
-        #     for table_name in self.get_insertion_alternatives(pattern_edges, list(data_values.keys())):
-        #         sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
-        # else:
-        #     # TODO: Implement insertions in the presence of implicit classes
-        #     assert False, "☠️ Insertions in implicit classes has not been implemented"
+        for table_name, replacements in self.get_insertion_alternatives(pattern_edges, list(data_values.keys())):
+            tmp_data_values = data_values.copy()
+            # Association ends may require replacements
+            for k, v in replacements.items():
+                tmp_data_values[v] = tmp_data_values.pop(k)
+            sentences.append("INSERT INTO " + self.generate_values_clause(table_name, tmp_data_values))
         return sentences
 
     def check_execution(self) -> None:

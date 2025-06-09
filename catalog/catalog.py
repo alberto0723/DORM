@@ -1005,7 +1005,7 @@ class Catalog(HyperNetXWrapper):
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if not non_existing_associations.empty:
-            raise ValueError(f"🚨 Some class or association in the pattern does not belong to the catalog: {non_existing_associations.values.to_list()[0]}")
+            raise ValueError(f"🚨 Some class or association in the pattern does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
         superclasses = []
         for e in pattern_edges:
@@ -1030,18 +1030,18 @@ class Catalog(HyperNetXWrapper):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attributes {missing_attributes.values.to_list()} in the request are not covered by the elements in the pattern {pattern_edges}")
+            raise ValueError(f"🚨 Some attributes {missing_attributes.values.tolist()} in the request are not covered by the elements in the pattern {pattern_edges}")
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
+            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         # Check if the hypergraph contains all the filter attributes
         non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
+            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
 
         self.check_basic_request_structure(pattern_edges, required_attributes)
 
@@ -1226,7 +1226,7 @@ class Catalog(HyperNetXWrapper):
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
 
-    def get_insertion_alternatives(self, pattern_edges: list[str], provided_attributes: list[str]) -> list[str]:
+    def get_insertion_alternatives(self, pattern_edges: list[str], provided_attributes: list[str]) -> list[tuple[str, dict[str,str]]]:
         """
         This function performs all required checks for an insertion to be correct, and returns a list of sets where the data needs to be inserted.
         :param pattern_edges: List of edge names defining the operation.
@@ -1240,6 +1240,7 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 Insertions cannot be executed if the pattern {pattern_edges} does not appear in any set or requires accessing many sets")
         if len(insert_points) > 1:
             warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different tables: {insert_points}")
+        result = []
         for set_name in insert_points:
             struct_name_list = self.get_struct_names_inside_set_name(set_name)
             # Check that all anchor points are provided
@@ -1255,6 +1256,7 @@ class Catalog(HyperNetXWrapper):
             if any(attribute not in provided_attributes for attribute in anchor_attributes):
                 raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{set_name}' is not provided in the insertion with pattern {pattern_edges}")
             # Check if all mandatory information is provided
+            replacements = {}
             for struct_name in struct_name_list:
                 # Create a restricted struct to search for paths that do not cross the anchor
                 dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
@@ -1269,5 +1271,13 @@ class Catalog(HyperNetXWrapper):
                         if len(paths) == 1:
                             # First position in the tuple of multiplicities is the min multiplicity at least one
                             if self.check_multiplicities_to_one(paths[0])[0] and table_attribute not in provided_attributes:
-                                raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{set_name}' is not provided in the insertion")
-        return insert_points
+                                # If the attribute is an ID, -2 is its class, -3 is its phantom and -4 is the association
+                                if len(paths[0]) > 3 and self.is_id(table_attribute):
+                                    # If it is an association end, we take note of the replacement
+                                    alternative = self.get_association_ends().query(f"edges=='{paths[0][-4]}' and nodes=='{paths[0][-3]}'").iloc[0]["name"]
+                                    if alternative in provided_attributes:
+                                        replacements[alternative] = table_attribute
+                                else:
+                                    raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{set_name}' is not provided in the insertion")
+            result.append((set_name, replacements))
+        return result

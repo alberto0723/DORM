@@ -152,7 +152,7 @@ However, the links would still be generated twice.
   
 ### 4- Insertions ➕
 Data can be provided in terms of the domain concepts.
-You can find some [insert examples](files/inserts/book-authors.json) over the same domain.
+You can find some [insert examples](files/inserts/book-authors_OneInsertPerWriting.json) over the same domain.
 
 The content of the insert files is just a list of insertions, whose structure is as follows:
 1. ``data`` contains a dictionary of attributes in the domain and the corresponding balue, which cannot be empty.
