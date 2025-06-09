@@ -558,7 +558,7 @@ class HyperNetXWrapper:
     def check_multiplicities_to_one(self, path) -> (bool, bool):
         """
         This method checks if minimum multiplicities in the path are all at least to-one,
-        and  if maximum multiplicities in the path are all at most to-one.
+        and if maximum multiplicities in the path are all at most to-one.
         :param path: List of associations.
         :return: Boolean indicating if the path is at least to-one.
         :return: Boolean indicating if the path is at most to-one.

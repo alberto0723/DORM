@@ -6,6 +6,7 @@ from IPython.display import display
 import pandas as pd
 import sqlalchemy
 import hypernetx as hnx
+import networkx as nx
 import json
 import re
 from typing import Type, TypeVar
@@ -465,7 +466,8 @@ class Relational(Catalog, ABC):
         """
         logger.info("Resolving insert")
         if not self.metadata.get("tables_created", False):
-            warnings.warn(f"⚠️ There are no tables in the schema '{self.dbschema}' to be receive the insertions")
+            # This is just a warning, because we are just generating the statement, not trying to execute it
+            warnings.warn(f"⚠️ There are no tables in the schema '{self.dbschema}' to receive the insertions")
         data_values, pattern_edges = self.parse_insert(spec)
         # For each combination of tables, generate an SQL query
         sentences = []
@@ -475,23 +477,19 @@ class Relational(Catalog, ABC):
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_classes.empty:
-            insert_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, data_values.keys())
-            if any(len(alternative) > 1 for alternative in insert_alternatives):
-                raise ValueError(f"🚨 Insertions cannot be executed if they affect more than one table: '{insert_alternatives}'")
+            insert_alternatives, _, _ = self.create_bucket_combinations(pattern_edges, data_values.keys())
             if len(insert_alternatives) > 1:
                 warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different combinations of tables: {insert_alternatives}")
             for alternative in insert_alternatives:
-                # We know each alternative has exactly one table name inside
+                # Each alternative has exactly one table name inside (otherwise, insertions are not allowed)
+                if len(alternative) > 1:
+                    raise ValueError(f"🚨 Insertions cannot be executed if they affect more than one table: '{alternative}'")
                 table_name = alternative[0]
-                # Get all the attributes of the set
-                table_attributes = []
-                for struct_name in self.get_struct_names_inside_set_name(table_name):
-                    table_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
-                table_attributes = drop_duplicates(table_attributes)
+                struct_name_list = self.get_struct_names_inside_set_name(table_name)
                 # Get the anchor attributes of the set
                 anchor_attributes = []
                 # Just need to take any struct, because all share the same anchor
-                for key in self.get_anchor_end_names_by_struct_name(struct_name):
+                for key in self.get_anchor_end_names_by_struct_name(struct_name_list[0]):
                     if self.is_class_phantom(key):
                         anchor_attributes.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
                     # If it is not a class, it is a loose end
@@ -499,7 +497,21 @@ class Relational(Catalog, ABC):
                         anchor_attributes.append(key)
                 if any(attribute not in data_values.keys() for attribute in anchor_attributes):
                     raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{table_name}' is not provided in the insertion")
-                # TODO: Check if all mandatory information is provided
+                # Check if all mandatory information is provided
+                for struct_name in struct_name_list:
+                    # Create a restricted struct to search for paths that do not cross the anchor
+                    dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
+                    restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                    bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
+                    for table_attribute in self.get_attribute_names_by_struct_name(struct_name):
+                        for anchor_attribute in anchor_attributes:
+                            paths = list(nx.all_simple_paths(bipartite, source=anchor_attribute, target=table_attribute))
+                            assert len(paths) <= 1, f"☠️ Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor_attribute}' and '{table_attribute}'"
+                            # It may happen that the attribute is not connected to this anchor (still should be connected to another one)
+                            if len(paths) == 1:
+                                # First position in the tuple of multiplicities is the min multiplicity at least one
+                                if self.check_multiplicities_to_one(paths[0])[0] and table_attribute not in data_values.keys():
+                                    raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{table_name}' is not provided in the insertion")
                 sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
         else:
             # TODO: Implement insertions in the presence of implicit classes
