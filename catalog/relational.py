@@ -6,7 +6,6 @@ from IPython.display import display
 import pandas as pd
 import sqlalchemy
 import hypernetx as hnx
-import networkx as nx
 import json
 import re
 from typing import Type, TypeVar
@@ -37,6 +36,7 @@ class Relational(Catalog, ABC):
     TABLE_NODES = '__dorm_catalog_nodes'
     TABLE_EDGES = '__dorm_catalog_edges'
     TABLE_INCIDENCES = '__dorm_catalog_incidences'
+    TABLE_GUARDS = '__dorm_catalog_guards'
 
     def __init__(self, paradigm_name=None, file_path=None, dbconf=None, dbschema=None, supersede=False):
         # This print is just to avoid silly mistakes while testing, can eventually be removed
@@ -66,7 +66,7 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                     self.metadata["paradigm"] = paradigm_name
                 else:
-                    catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
+                    catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES, self.TABLE_GUARDS]
                     if any(table not in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
                         ValueError(f"🚨 Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{self.dbschema}' at '{self.dbconf}' (probably not a DORM schema)")
                     logger.info(f"Loading the catalog from the database connection")
@@ -78,6 +78,7 @@ class Relational(Catalog, ABC):
                                        node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
                                        edge_properties=df_edges, edge_weight_prop_col="weight")
                     super().__init__(hypergraph=H)
+                    self.guards = pd.read_sql_table(self.TABLE_GUARDS, con=self.engine)
                     # Get domain and design
                     result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
                     row = result.fetchone()
@@ -106,6 +107,7 @@ class Relational(Catalog, ABC):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
+                self.guards.to_sql(self.TABLE_GUARDS, self.engine, if_exists='replace', index=True)
                 self.create_schema(migration_source_sch=migration_source_sch, migration_source_kind=migration_source_kind, show_sql=show_sql)
                 self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source_sch is not None and migration_source_kind is not None:
@@ -477,41 +479,7 @@ class Relational(Catalog, ABC):
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_classes.empty:
-            insert_alternatives, _, _ = self.create_bucket_combinations(pattern_edges, data_values.keys())
-            if len(insert_alternatives) > 1:
-                warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different combinations of tables: {insert_alternatives}")
-            for alternative in insert_alternatives:
-                # Each alternative has exactly one table name inside (otherwise, insertions are not allowed)
-                if len(alternative) > 1:
-                    raise ValueError(f"🚨 Insertions cannot be executed if they affect more than one table: '{alternative}'")
-                table_name = alternative[0]
-                struct_name_list = self.get_struct_names_inside_set_name(table_name)
-                # Get the anchor attributes of the set
-                anchor_attributes = []
-                # Just need to take any struct, because all share the same anchor
-                for key in self.get_anchor_end_names_by_struct_name(struct_name_list[0]):
-                    if self.is_class_phantom(key):
-                        anchor_attributes.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
-                    # If it is not a class, it is a loose end
-                    else:
-                        anchor_attributes.append(key)
-                if any(attribute not in data_values.keys() for attribute in anchor_attributes):
-                    raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{table_name}' is not provided in the insertion")
-                # Check if all mandatory information is provided
-                for struct_name in struct_name_list:
-                    # Create a restricted struct to search for paths that do not cross the anchor
-                    dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
-                    restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-                    bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
-                    for table_attribute in self.get_attribute_names_by_struct_name(struct_name):
-                        for anchor_attribute in anchor_attributes:
-                            paths = list(nx.all_simple_paths(bipartite, source=anchor_attribute, target=table_attribute))
-                            assert len(paths) <= 1, f"☠️ Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor_attribute}' and '{table_attribute}'"
-                            # It may happen that the attribute is not connected to this anchor (still should be connected to another one)
-                            if len(paths) == 1:
-                                # First position in the tuple of multiplicities is the min multiplicity at least one
-                                if self.check_multiplicities_to_one(paths[0])[0] and table_attribute not in data_values.keys():
-                                    raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{table_name}' is not provided in the insertion")
+            for table_name in self.get_insertion_alternatives(pattern_edges, data_values.keys()):
                 sentences.append("INSERT INTO " + self.generate_values_clause(table_name, data_values))
         else:
             # TODO: Implement insertions in the presence of implicit classes

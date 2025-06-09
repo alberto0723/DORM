@@ -1,0 +1,81 @@
+{
+  "classes": [
+    {
+      "name": "Book",
+      "prop": { "Count": 4000000 },
+      "attr": [
+        { "name": "B_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 4000000, "Identifier": true}},
+        { "name": "B_title", "prop": {"DataType": "String", "Size": 40, "DistinctVals": 100000, "Identifier": false}},
+        { "name": "B_publisher", "prop": {"DataType": "String", "Size": 40, "DistinctVals": 100, "Identifier": false}}
+        ]
+      },
+    {
+      "name": "Topic",
+      "prop": { "Count": 500 },
+      "attr": [
+        { "name": "T_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 500, "Identifier": true}},
+        { "name": "T_description", "prop": {"DataType": "String", "Size": 400, "DistinctVals": 500, "Identifier": false}}
+        ]
+      },
+    {
+      "name": "Author",
+      "prop": { "Count": 2500000 },
+      "attr": [
+        { "name": "A_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 2500000, "Identifier": true}},
+        { "name": "A_name", "prop": {"DataType": "String", "Size": 40, "DistinctVals": 100000, "Identifier": false}},
+        { "name": "A_age", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 100, "Identifier": false}},
+        { "name": "A_gender", "prop": {"DataType": "Char", "Size": 1, "DistinctVals": 3, "Identifier": false}},
+        { "name": "A_address", "prop": {"DataType": "String", "Size": 50, "DistinctVals": 2400000, "Identifier": false}}
+        ]
+      }
+
+    ],
+  "associations": [
+    {
+      "name": "Writes",
+      "ends": [
+        { "class": "Author",
+          "prop": {"End_name": "Writes_Author", "MultiplicityMin": 1, "MultiplicityMax": 4 }
+          },
+        {
+          "class": "Book",
+          "prop": {"End_name": "Writes_Book", "MultiplicityMin": 1, "MultiplicityMax": 20 }
+          }
+        ]
+      },
+    {
+      "name": "Touches",
+      "ends": [
+        { "class": "Topic",
+          "prop": {"End_name": "Touches_Topic", "MultiplicityMin": 0, "MultiplicityMax": 5 }
+          },
+        {
+          "class": "Book",
+          "prop": {"End_name": "Touches_Book", "MultiplicityMin": 1, "MultiplicityMax": 8000 }
+          }
+        ]
+      }
+    ],
+  "guards": [
+    {
+      "data": ["A_ID", "A_name", "A_age", "A_gender", "A_address"],
+      "pattern": ["Author"]
+    },
+    {
+      "data": ["B_ID", "B_title", "B_publisher"],
+      "pattern": ["Book"]
+    },
+    {
+      "data": ["T_ID", "T_description"],
+      "pattern": ["Topic"]
+    },
+    {
+      "data": ["Writes_Author", "Writes_Book"],
+      "pattern": ["Writes"]
+    },
+    {
+      "data": ["Touches_Topic", "Touches_Book"],
+      "pattern": ["Touches"]
+    }
+  ]
+}

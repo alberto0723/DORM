@@ -22,10 +22,12 @@ warnings.showwarning = custom_warning
 class Catalog(HyperNetXWrapper):
     """This class contains the main generic operations to build the catalog of a database using hypergraphs.
     It uses HyperNetX (https://github.com/pnnl/HyperNetX).
-    Morevover, it implements the most general consistency checks.
+    Moreover, it implements the most general consistency checks.
     """
     # This attributes keep track of the metadata of the catalog, including domain and design files
     metadata = {}
+    # This attribute keeps a dataframe with all the insertion guards
+    guards = None
 
     def __init__(self, *args, **kwargs):
         logger.info("Creating a catalog")
@@ -220,6 +222,7 @@ class Catalog(HyperNetXWrapper):
             self.add_association(ass.get("name"), ass.get("ends"))
         for gen in domain.get("generalizations", []):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
+        self.guards = pd.DataFrame(domain.get("guards", []))
 
     def load_design(self, file_path) -> None:
         logger.info(f"Loading design from '{file_path}'")
@@ -242,6 +245,11 @@ class Catalog(HyperNetXWrapper):
                 self.add_set(h.get("name"), h.get("elements"))
             else:
                 raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get('kind')}'")
+
+        logger.info("Checking the insertion guards")
+        # Check insertion guards
+        for guard in self.guards.itertuples():
+            self.get_insertion_alternatives(guard.pattern, guard.data)
 
     @staticmethod
     def get_domain_attribute_from_path(attr_path: list[dict[str, str]]) -> str:
@@ -1211,3 +1219,50 @@ class Catalog(HyperNetXWrapper):
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
+
+    def get_insertion_alternatives(self, pattern_edges: list[str], provided_attributes: list[str]) -> list[str]:
+        """
+        This function performs all required checks for an insertion to be correct, and returns a list of sets where the data needs to be inserted.
+        :param pattern_edges: List of edge names defining the operation.
+        :param provided_attributes: List of attribute names provided for the insertion.
+        :return:
+        """
+        # TODO: Check that the pattern is connected
+        insert_points, _, _ = self.create_bucket_combinations(pattern_edges, provided_attributes)
+        if len(insert_points) > 1:
+            warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different combinations of tables: {insert_points}")
+        for insertion in insert_points:
+            # Check that the insertion has exactly one table name inside (otherwise, insertions are not allowed)
+            if len(insertion) > 1:
+                raise ValueError(f"🚨 Insertions cannot be executed if they affect more than one table: '{insertion}'")
+            set_name = insertion[0]
+            struct_name_list = self.get_struct_names_inside_set_name(set_name)
+            # Check that all anchor points are provided
+            # Get the anchor attributes of the set
+            anchor_attributes = []
+            # Just need to take any struct, because all share the same anchor
+            for key in self.get_anchor_end_names_by_struct_name(struct_name_list[0]):
+                if self.is_class_phantom(key):
+                    anchor_attributes.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                # If it is not a class, it is a loose end
+                else:
+                    anchor_attributes.append(key)
+            if any(attribute not in provided_attributes for attribute in anchor_attributes):
+                raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{set_name}' is not provided in the insertion")
+            # Check if all mandatory information is provided
+            for struct_name in struct_name_list:
+                # Create a restricted struct to search for paths that do not cross the anchor
+                dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
+                restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
+                for table_attribute in self.get_attribute_names_by_struct_name(struct_name):
+                    for anchor_attribute in anchor_attributes:
+                        paths = list(nx.all_simple_paths(bipartite, source=anchor_attribute, target=table_attribute))
+                        assert len(
+                            paths) <= 1, f"☠️ Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor_attribute}' and '{table_attribute}'"
+                        # It may happen that the attribute is not connected to this anchor (still should be connected to another one)
+                        if len(paths) == 1:
+                            # First position in the tuple of multiplicities is the min multiplicity at least one
+                            if self.check_multiplicities_to_one(paths[0])[0] and table_attribute not in provided_attributes:
+                                raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{set_name}' is not provided in the insertion")
+        return [insertion[0] for insertion in insert_points]
