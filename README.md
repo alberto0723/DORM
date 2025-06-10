@@ -149,6 +149,36 @@ In this case, the corresponding association end should be used.
 Still, there are some queries that cannot be properly translated:
 - If the result of the query would have twice the same table in the FROM clause, it will only appear once.
 However, the links would still be generated twice.
+  
+### 4- Insertions ➕
+Data can be provided in terms of the domain concepts.
+You can find some [insert examples](files/inserts/book-authors_OneInsertPerWriting.json) over the same domain.
+
+The content of the insert files is just a list of insertions, whose structure is as follows:
+1. ``data`` contains a dictionary of attributes in the domain and the corresponding balue, which cannot be empty.
+2. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
+
+#### Semantics 🧠
+- The pattern may not contain any association.
+- The pattern may not contain any class (meaning that only identifiers involved in an association are interesting to us).
+- When using generalizations, insertions can be expressed both [in each of the classes](files/inserts/students-workers_OneInsertPerClass.json) or [only in the subclasses](files/inserts/students-workers_OneInsertInTheSubclass.json).
+However, due to the limitations below, each of them is tightly coupled to some database schemas.
+
+#### Constraints ⛓️
+- All elements in the two parts of a query must be connected (potentially by generalization).
+- Generalizations cannot be explicit in the insertion.
+- The pattern can not contain two classes (directly or transitively) related by generalization.
+
+#### Limitations ⛔
+The implementation follows the approach of most DBMS regarding the limitation of updating through views. 
+Thus, an insertion is only possible if it:
+- Affects exactly one set.
+- The values corresponding to the anchor of the set are provided.
+- All mandatory attributes for any struct inside the set are provided.
+
+Clearly, the satisfaction of these conditions does not depend only on the insertion, but also on the design.
+Thus, guards can be declared in the domain, as in [book-authors_1-1_guarded.json](files/domains/book-authors_1-1_guarded.json), so that design violating them are prevented.
+Such guards simply execute the checks of the corresponding insertion without actually inserting the data in the database.
 
 ## Setup ⚙️
 It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 
@@ -174,7 +204,7 @@ pip freeze > requirements.txt
 There is an annoying bug in HyperNetX that constantly generates a warning. It can be avoided as explained in [BugFixForHyperNetX.txt](BugFixForHyperNetX.txt).
 
 ## Launching 🚀
-There are two tools available to facilitate usage and testing.
+There are three tools available to facilitate usage and testing.
 
 ### catalogAction ▶️
 This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into CREATE TABLE statements.
@@ -233,6 +263,29 @@ options:
 
 Its [automatically generated](https://diagram-generator.com) flow chart is in [CatalogAction.pdf](documents/Diagrams/CatalogAction.pdf).
 
+### insertExecutor ➕
+This is a flexible scripting tool that allows to generate insertions and execute them in a DBMS.
+
+```
+usage: insertExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>] [--insert_file <path>]
+                         [--print_result]
+
+➕ Execute insertions over a pre-existing catalog
+
+options:
+  --help                Shows this help message and exit
+  --logging             Enables logging
+  --show_sql            Prints the generated statements
+  --hide_warnings       Silences warnings
+  --paradigm <prdgm>    Implementation paradigm for the design (either 1NF or NF2_JSON)
+  --dbconf_file <conf>  Filename of the configuration file for DBMS connection
+  --dbschema <sch>      Database schema
+  --insert_file <path>  Filename of the json file containing the queries
+  --print_result        Prints the resulting rows
+```
+
+Its [automatically generated](https://diagram-generator.com) flow chart is in [InsertExecutor.pdf](documents/Diagrams/InsertExecutor.pdf).
+
 ### queryExecutor 🔍
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
@@ -270,34 +323,20 @@ You can find an example at [db_conf.example.txt](db_conf.example.txt)
 ```bash
 python catalogAction.py --dbconf_file db_conf.txt --dbschema <sourcesch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test2
 ```
-3. Insert some testing data.
-```SQL
-INSERT INTO <sourcesch>.books_table VALUES (1, 'The Lord of the Rings', 'HarperCollins', 101, 'J.R.R. Tolkien', 133, 'M', 'U.K.');
-INSERT INTO <sourcesch>.books_table VALUES (2, 'The Goods Themselves', 'Galaxy', 102, 'Isaac Asimov', 105, 'M', 'New York City, U.S.A.');
+3. Insert some testing data (alternative the equivalent [SQL script](files/data/book-authors.sql) can be used).
+```bash
+python insertExecutor.py --dbconf_file db_conf.txt --dbschema <sourcesch> --paradigm 1NF --insert_file files/inserts/book-authors.json
 ```
-4. Indicate that the schema contains data by annotating it.
-```SQL
-DO $$
-DECLARE
-    metadata JSONB;
-BEGIN
-    SELECT d.description::JSONB INTO metadata
-    FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
-    WHERE n.nspname = '<sourcesch>';
-
-    EXECUTE format('COMMENT ON SCHEMA <sourcesch> IS %L', metadata || '{"data_migrated": true}');
-END $$
-```
-5. Query the source schema.
+4. Query the source schema.
 ```bash
 python queryExecutor.py --dbconf_file db_conf.txt --dbschema <sourcesch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
-6. Create a new schema containing a different design and migrate there the data contained in the source you just created before.
+5. Create a new schema containing a different design and migrate there the data contained in the source you just created before.
 ```bash
 python catalogAction.py --dbconf_file db_conf.txt --dbschema <newsch> --show_sql --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test1 --src_sch <sourcesch> --src_kind 1NF
 ```
-7. Check the tables and contents of the new schema and compare against the source ones.
-8. Query the new schema.
+6. Check the tables and contents of the new schema and compare against the source ones.
+7. Query the new schema.
 ```bash
 python queryExecutor.py --dbconf_file db_conf.txt --dbschema <newsch> --paradigm 1NF --show_sql --print_rows --query_file files/queries/book-authors.json
 ```
@@ -305,7 +344,7 @@ python queryExecutor.py --dbconf_file db_conf.txt --dbschema <newsch> --paradigm
 Notice that despite the source and the new schema being different, the query specification file we use is exactly the same, and the resulting tuples we get also coincide.
 Nevertheless, the SQL queries being generated are different.
 
-Steps 6 to 8 can be repeated for any design of domain [book-authors_1-1](files/domains/book-authors_1-1.json): 
+Steps 5 to 7 can be repeated for any design of domain [book-authors_1-1](files/domains/book-authors_1-1.json): 
 - [1NF/book-authors_test](files/designs/1NF/book-authors.json)
 - [1NF/book-authors_test1](files/designs/1NF/book-authors_test1.json) 
 - [1NF/book-authors_test2](files/designs/1NF/book-authors_test2.json)
@@ -326,5 +365,5 @@ test_all_1NF.bat
 test_all_NF2.bat
 ```
 
-Notice that, in order to migrate data, some of the tests in those batch files require the creation beforehand of the source schema in the demo above with name `source`.
-Also, a second source schema called `source2` should be created following the same steps as above, but the design [1NF/book-authors-topic](files/designs/1NF/book-authors-topic.json) and the corresponding data in [book-authors-topic](files/data/book-authors-topic.sql).
+Notice that, in order to migrate data for some of the tests in those batch files, a source schema will automatically be created as above with name `source`.
+Also, a second source schema called `source2` will automatically be created following the same steps as above, but the design [1NF/book-authors-topic](files/designs/1NF/book-authors-topic.json) and the corresponding data in [book-authors-topic](files/data/book-authors-topic.sql).

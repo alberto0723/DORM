@@ -36,6 +36,7 @@ class Relational(Catalog, ABC):
     TABLE_NODES = '__dorm_catalog_nodes'
     TABLE_EDGES = '__dorm_catalog_edges'
     TABLE_INCIDENCES = '__dorm_catalog_incidences'
+    TABLE_GUARDS = '__dorm_catalog_guards'
 
     def __init__(self, paradigm_name=None, file_path=None, dbconf=None, dbschema=None, supersede=False):
         # This print is just to avoid silly mistakes while testing, can eventually be removed
@@ -65,7 +66,7 @@ class Relational(Catalog, ABC):
                     super().__init__(file_path=file_path)
                     self.metadata["paradigm"] = paradigm_name
                 else:
-                    catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES]
+                    catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES, self.TABLE_GUARDS]
                     if any(table not in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
                         ValueError(f"🚨 Missing required tables '{catalog_tables}' in the database with tables {sqlalchemy.inspect(self.engine).get_table_names()} in schema '{self.dbschema}' at '{self.dbconf}' (probably not a DORM schema)")
                     logger.info(f"Loading the catalog from the database connection")
@@ -77,6 +78,7 @@ class Relational(Catalog, ABC):
                                        node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
                                        edge_properties=df_edges, edge_weight_prop_col="weight")
                     super().__init__(hypergraph=H)
+                    self.guards = pd.read_sql_table(self.TABLE_GUARDS, con=self.engine)
                     # Get domain and design
                     result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
                     row = result.fetchone()
@@ -105,10 +107,11 @@ class Relational(Catalog, ABC):
                 df_incidences = self.H.incidences.dataframe.copy()
                 df_incidences['misc_properties'] = df_incidences['misc_properties'].apply(json.dumps)
                 df_incidences.to_sql(self.TABLE_INCIDENCES, self.engine, if_exists='replace', index=True)
+                self.guards.to_sql(self.TABLE_GUARDS, self.engine, if_exists='replace', index=True)
                 self.create_schema(migration_source_sch=migration_source_sch, migration_source_kind=migration_source_kind, show_sql=show_sql)
                 self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source_sch is not None and migration_source_kind is not None:
-                    self.metadata["data_migrated"] = True
+                    self.metadata["has_data"] = True
                 with (self.engine.connect() as conn):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
                     conn.execute(sqlalchemy.text(statement))
@@ -180,7 +183,7 @@ class Relational(Catalog, ABC):
         pass
 
     @abstractmethod
-    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Type[RelationalType]) -> str:
+    def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Type[RelationalType]) -> str:
         '''
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
@@ -208,7 +211,7 @@ class Relational(Catalog, ABC):
             warnings.warn("⚠️ Useless action (design and paradigm of source and target coincide in the migration)")
         if not source.metadata.get("tables_created", False):
             raise ValueError(f"🚨 The source {migration_source_sch} does not have tables to migrate (according to its metadata)")
-        if not source.metadata.get("data_migrated", False):
+        if not source.metadata.get("has_data", False):
             warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
         statements = []
         # For each table
@@ -227,7 +230,7 @@ class Relational(Catalog, ABC):
                         node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
                     if self.is_set_phantom(node_name):
                         node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
-                sentence = self.generate_insert_statement(table_name, project, pattern, source)
+                sentence = self.generate_migration_insert_statement(table_name, project, pattern, source)
                 statements.append(sentence)
         return statements
 
@@ -447,22 +450,63 @@ class Relational(Catalog, ABC):
                 sentences.append("\nUNION\n".join(combination))
         return sentences
 
+    @abstractmethod
+    def generate_values_clause(self, table_name: str, data_values: dict[str, str]) -> str:
+        """
+        Values generation depends on the concrete implementation strategy.
+        :param table_name: Name of the table
+        :param data_values: Dictionary with pairs attribute name and value
+        :return: String representation of the values to be inserted
+        """
+        pass
+
+    def generate_insert_statement(self, spec) -> list[str]:
+        """
+        Generates SQL statements corresponding to the given insertion.
+        :param spec: A JSON containing the pattern and data to be inserted.
+        :return: A list with all possible SQL statements.
+        """
+        logger.info("Resolving insert")
+        if not self.metadata.get("tables_created", False):
+            # This is just a warning, because we are just generating the statement, not trying to execute it
+            warnings.warn(f"⚠️ There are no tables in the schema '{self.dbschema}' to receive the insertions")
+        data_values, pattern_edges = self.parse_insert(spec)
+        # For each table, generate an insert statement
+        sentences = []
+        for table_name, replacements in self.get_insertion_alternatives(pattern_edges, list(data_values.keys())):
+            tmp_data_values = data_values.copy()
+            # Association ends may require replacements
+            for k, v in replacements.items():
+                tmp_data_values[v] = tmp_data_values.pop(k)
+            sentences.append("INSERT INTO " + self.generate_values_clause(table_name, tmp_data_values))
+        return sentences
+
     def check_execution(self) -> None:
         if self.engine is None:
             raise ValueError("🚨 Queries cannot be executed without a connection to the DBMS")
         if not self.metadata.get("tables_created", False):
             print(f"🚨 There are no tables to be queried in the schema '{self.dbschema}'")
 
-    def execute(self, query) -> sqlalchemy.Sequence[sqlalchemy.Row]:
+    def execute(self, statement) -> sqlalchemy.Sequence[sqlalchemy.Row] | int:
         """
-        Executes a query in the engine associated to the catalog.
-        :param query: SQL query to be executed.
-        :return: Set of rows resulting from the query execution.
+        Executes a statement in the engine associated to the catalog.
+        :param statement: SQL statement to be executed (has to be either INSERT or UPDATE).
+        :return: Set of rows resulting from the query execution or 1 (if it was an insertion).
         """
         self.check_execution()
         with self.engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text(query)).fetchall()
-        return result
+            result = conn.execute(sqlalchemy.text(statement))
+            if statement.startswith("INSERT "):
+                if not self.metadata.get("has_data", False):
+                    self.metadata["has_data"] = True
+                    statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
+                    conn.execute(sqlalchemy.text(statement))
+                conn.commit()
+                return 1
+            elif statement.startswith("SELECT "):
+                return result.fetchall()
+            else:
+                assert False, f"☠️ Unknown kind of statement (neither SELECT nor INSERT) to be executed: '{statement}'"
 
     def get_cost(self, query) -> float:
         """

@@ -1,0 +1,20 @@
+{
+  "insertions": [
+    {
+      "data": { "A_ID": "9101", "A_name": "'J.R.R. Tolkien'", "A_age" : "133", "A_gender": "'M'", "A_address": "'U.K.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "9102", "A_name": "'Isaac Asimov'", "A_age" : "105", "A_gender": "'M'", "A_address": "'New York City, U.S.A.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "B_ID": "91", "B_title": "'The Lord of the Rings'", "B_publisher": "'HarperCollins'", "Writes_Author": "9101" },
+      "pattern": ["Book", "Writes"]
+    },
+    {
+      "data": { "B_ID": "92", "B_title": "'The Goods Themselves'", "B_publisher": "'Galaxy'", "Writes_Author": "9102" },
+      "pattern": ["Book", "Writes"]
+    }
+  ]
+}

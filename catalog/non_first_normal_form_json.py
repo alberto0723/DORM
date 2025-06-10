@@ -70,7 +70,7 @@ class NonFirstNormalFormJSON(Relational):
                 final_grouping = tmp_grouping
         return f"jsonb_build_object({', '.join(formatted_pairs)})", final_grouping
 
-    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
+    def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
         """
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
@@ -93,6 +93,23 @@ class NonFirstNormalFormJSON(Relational):
         else:
             return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
                                     source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
+    def generate_values_clause(self, table_name, data_values) -> str:
+        """
+        Values generation depends on the concrete implementation strategy.
+        :param table_name: Name of the table
+        :param data_values: Dictionary with pairs attribute name and value
+        :return: String representation of the values to be inserted
+        """
+        attr_paths = []
+        for struct_name in self.get_struct_names_inside_set_name(table_name):
+            attr_paths.extend(self.get_struct_attributes(struct_name))
+        attr_paths = drop_duplicates(attr_paths)
+        obj, grouping = self.build_jsonb_object(attr_paths)
+        if grouping:
+            assert False, f"☠️ Unexpected grouping '{grouping}' in the insertion of '{data_values}' into '{table_name}'"
+        for k, v in data_values.items():
+            obj = obj.replace("', " + k, "', " + v)
+        return table_name + "(value) VALUES (" + obj + ")"
 
     def generate_create_table_statements(self) -> list[str]:
         """

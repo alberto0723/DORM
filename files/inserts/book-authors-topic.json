@@ -1,0 +1,144 @@
+{
+  "insertions": [
+    {
+      "data": { "A_ID": "101", "A_name": "'J.R.R. Tolkien'", "A_age" : "133", "A_gender": "'M'", "A_address": "'U.K.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "102", "A_name": "'Isaac Asimov'", "A_age" : "105", "A_gender": "'M'", "A_address": "'New York City, U.S.A.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "103", "A_name": "'Alejandro Vaisman'", "A_age" : "NULL", "A_gender": "'M'", "A_address": "'Argentina'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "104", "A_name": "'Esteban Zimanyi'", "A_age" : "NULL", "A_gender": "'M'", "A_address": "'Belgium'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "105", "A_name": "'Matteo Golfarelli'", "A_age" : "NULL", "A_gender": "'M'", "A_address": "'Italy'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "106", "A_name": "'Stefano Rizzi'", "A_age" : "NULL", "A_gender": "'M'", "A_address": "'Italy'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "107", "A_name": "'Hector Garcia-Molina'", "A_age" : "70", "A_gender": "'M'", "A_address": "'U.S.A.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "108", "A_name": "'Jeffrey D. Ullman'", "A_age" : "83", "A_gender": "'M'", "A_address": "'U.S.A.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "A_ID": "109", "A_name": "'Jennifer Widom'", "A_age" : "64", "A_gender": "'M'", "A_address": "'U.S.A.'" },
+      "pattern": ["Author"]
+    },
+    {
+      "data": { "B_ID": "1", "B_title": "'The Lord of the Rings'", "B_publisher": "'HarperCollins'" },
+      "pattern": ["Book"]
+    },
+    {
+      "data": { "B_ID": "2", "B_title": "'The Goods Themselves'", "B_publisher": "'Galaxy'" },
+      "pattern": ["Book"]
+    },
+    {
+      "data": { "B_ID": "3", "B_title": "'Data Warehouse Systems'", "B_publisher": "'Springer'" },
+      "pattern": ["Book"]
+    },
+    {
+      "data": { "B_ID": "4", "B_title": "'Data Warehouse Design'", "B_publisher": "'McGraw Hill'" },
+      "pattern": ["Book"]
+    },
+    {
+      "data": { "B_ID": "5", "B_title": "'Database Systems'", "B_publisher": "'Pearson'" },
+      "pattern": ["Book"]
+    },
+    {
+      "data": { "T_ID": "201", "T_description": "'Data Warehousing'" },
+      "pattern": ["Topic"]
+    },
+    {
+      "data": { "T_ID": "202", "T_description": "'Data Base Management Systems'" },
+      "pattern": ["Topic"]
+    },
+    {
+      "data": { "T_ID": "203", "T_description": "'Science-Fiction'" },
+      "pattern": ["Topic"]
+    },
+    {
+      "data": { "T_ID": "204", "T_description": "'Fantasy'" },
+      "pattern": ["Topic"]
+    },
+    {
+      "data": { "Writes_Author": "101", "Writes_Book": "1" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "102", "Writes_Book": "2" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "103", "Writes_Book": "3" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "104", "Writes_Book": "3" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "105", "Writes_Book": "4" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "106", "Writes_Book": "4" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "107", "Writes_Book": "5" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "108", "Writes_Book": "5" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Writes_Author": "109", "Writes_Book": "5" },
+      "pattern": ["Writes"]
+    },
+    {
+      "data": { "Touches_Topic": "201", "Touches_Book": "3" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "201", "Touches_Book": "4" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "202", "Touches_Book": "3" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "202", "Touches_Book": "4" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "202", "Touches_Book": "5" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "203", "Touches_Book": "1" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "203", "Touches_Book": "2" },
+      "pattern": ["Touches"]
+    },
+    {
+      "data": { "Touches_Topic": "204", "Touches_Book": "1" },
+      "pattern": ["Touches"]
+    }
+  ]
+}

@@ -117,7 +117,7 @@ class FirstNormalForm(Relational):
             statements.append(sentence)
         return statements
 
-    def generate_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
+    def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
         '''
         Generates insert statements to migrate data from a database to another.
         :param table_name: The table to be loaded.
@@ -128,6 +128,15 @@ class FirstNormalForm(Relational):
         '''
         return (f"INSERT INTO {table_name}({', '.join(project)})\n  SELECT {', '.join(project)}\n  FROM (\n    " +
                             source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
+
+    def generate_values_clause(self, table_name, data_values) -> str:
+        """
+        Values generation depends on the concrete implementation strategy.
+        :param table_name: Name of the table
+        :param data_values: Dictionary with pairs attribute name and value
+        :return: String representation of the values to be inserted
+        """
+        return table_name + "(" + ", ".join(data_values.keys()) + ") VALUES (" + ", ".join(data_values.values()) + ")"
 
     def generate_add_pk_statements(self) -> list[str]:
         """

@@ -43,7 +43,7 @@
       "pattern": ["Book", "Writes", "Author", "Touches", "Topic"]
     },
     {
-      "project": ["A_ID", "A_name", "B_ID", "B_title","T_ID", "T_description"],
+      "project": ["A_ID", "A_name", "B_ID", "B_title", "T_ID", "T_description"],
       "pattern": ["Book", "Writes", "Author", "Touches", "Topic"]
     }
   ]

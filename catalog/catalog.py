@@ -22,10 +22,12 @@ warnings.showwarning = custom_warning
 class Catalog(HyperNetXWrapper):
     """This class contains the main generic operations to build the catalog of a database using hypergraphs.
     It uses HyperNetX (https://github.com/pnnl/HyperNetX).
-    Morevover, it implements the most general consistency checks.
+    Moreover, it implements the most general consistency checks.
     """
     # This attributes keep track of the metadata of the catalog, including domain and design files
     metadata = {}
+    # This attribute keeps a dataframe with all the insertion guards
+    guards = None
 
     def __init__(self, *args, **kwargs):
         logger.info("Creating a catalog")
@@ -220,6 +222,7 @@ class Catalog(HyperNetXWrapper):
             self.add_association(ass.get("name"), ass.get("ends"))
         for gen in domain.get("generalizations", []):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
+        self.guards = pd.DataFrame(domain.get("guards", []))
 
     def load_design(self, file_path) -> None:
         logger.info(f"Loading design from '{file_path}'")
@@ -242,6 +245,11 @@ class Catalog(HyperNetXWrapper):
                 self.add_set(h.get("name"), h.get("elements"))
             else:
                 raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get('kind')}'")
+
+        logger.info("Checking the insertion guards")
+        # Check insertion guards
+        for guard in self.guards.itertuples():
+            self.get_insertion_alternatives(guard.pattern, guard.data)
 
     @staticmethod
     def get_domain_attribute_from_path(attr_path: list[dict[str, str]]) -> str:
@@ -988,21 +996,16 @@ class Catalog(HyperNetXWrapper):
 
         return consistent
 
-    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
-        # Check if the hypergraph contains all the projected attributes
-        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
-
-        # Check if the hypergraph contains all the filter attributes
-        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.to_list()[0]}")
-
+    def check_basic_request_structure(self, pattern_edges: list[str], required_attributes: list[str]) -> None:
+        """
+        Checks if the pattern is connected and contains all the required attributes.
+        :param pattern_edges:
+        :param required_attributes:
+        """
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
         if not non_existing_associations.empty:
-            raise ValueError(f"🚨 Some class or association in the join does not belong to the catalog: {non_existing_associations.values.to_list()[0]}")
+            raise ValueError(f"🚨 Some class or association in the pattern does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
         superclasses = []
         for e in pattern_edges:
@@ -1012,7 +1015,7 @@ class Catalog(HyperNetXWrapper):
         restricted_domain = self.H.restrict_to_edges(pattern_edges+superclasses)
         # Check if the restricted domain is connected
         if not restricted_domain.is_connected(s=1):
-            raise ValueError(f"🚨 Some query elements (i.e., attributes, classes and associations) are not connected")
+            raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes and association ends
         attributes = pd.merge(restricted_domain.nodes.dataframe, self.get_attributes(), left_index=True, right_index=True, how="inner")["name"]
@@ -1027,7 +1030,20 @@ class Catalog(HyperNetXWrapper):
         else:
             missing_attributes = df_difference(pd.DataFrame(required_attributes), pd.concat([attributes, association_ends], axis=0))
         if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attributes {missing_attributes.values.to_list()} in the query are not covered by the elements in the pattern {pattern_edges}")
+            raise ValueError(f"🚨 Some attributes {missing_attributes.values.tolist()} in the request are not covered by the elements in the pattern {pattern_edges}")
+
+    def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
+        # Check if the hypergraph contains all the projected attributes
+        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
+        if not non_existing_attributes.empty:
+            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+
+        # Check if the hypergraph contains all the filter attributes
+        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
+        if not non_existing_attributes.empty:
+            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+
+        self.check_basic_request_structure(pattern_edges, required_attributes)
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
@@ -1059,7 +1075,7 @@ class Catalog(HyperNetXWrapper):
         identifiers = []
         for e in pattern_edges:
             if not (self.is_class(e) or self.is_association(e)):
-                raise ValueError(f"🚨 Chosen edge '{e}' is neither a class nor a association")
+                raise ValueError(f"🚨 Chosen edge '{e}' is neither a class nor an association")
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
@@ -1069,6 +1085,21 @@ class Catalog(HyperNetXWrapper):
 
         self.check_query_structure(project_attributes, filter_attributes, pattern_edges, required_attributes)
         return project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause
+
+    def parse_insert(self, insert) -> tuple[dict[str, str], list[str]]:
+        # Get the query and parse it
+        data = insert.get("data", {})
+        if not data:
+            raise ValueError("🚨 Empty data is not allowed in an insertion")
+        for a in data.keys():
+            if not (self.is_attribute(a) or self.is_association_end(a)):
+                raise ValueError(f"🚨 Projected '{a}' is neither an attribute nor an association end")
+        pattern_edges = insert.get("pattern", [])
+        if not pattern_edges:
+            raise ValueError("🚨 Empty pattern is not allowed in the insertion")
+
+        self.check_basic_request_structure(pattern_edges, data.keys())
+        return data, pattern_edges
 
     def create_bucket_combinations(self, pattern, required_attributes) -> tuple[list[list[str]], list[str], list[str]]:
         """
@@ -1086,7 +1117,7 @@ class Catalog(HyperNetXWrapper):
         for elem in pattern:
             # Find the sets at fist level where the element belongs
             hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
-            first_levels = drop_duplicates(self.get_transitive_fitsLevels(hierarchy))
+            first_levels = drop_duplicates(self.get_transitive_firstLevels(hierarchy))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
             # Split join edges into classes and associations
@@ -1194,3 +1225,59 @@ class Catalog(HyperNetXWrapper):
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return drop_duplicates(discriminants)
+
+    def get_insertion_alternatives(self, pattern_edges: list[str], provided_attributes: list[str]) -> list[tuple[str, dict[str,str]]]:
+        """
+        This function performs all required checks for an insertion to be correct, and returns a list of sets where the data needs to be inserted.
+        :param pattern_edges: List of edge names defining the operation.
+        :param provided_attributes: List of attribute names provided for the insertion.
+        :return:
+        """
+        set_combinations, _, _ = self.create_bucket_combinations(pattern_edges, provided_attributes)
+        # Check that the insertion has exactly one table name inside (otherwise, insertions are not allowed)
+        insert_points = [combination[0] for combination in set_combinations if len(combination) == 1]
+        if len(insert_points) == 0:
+            raise ValueError(f"🚨 Insertions cannot be executed if the pattern {pattern_edges} does not appear in any set or requires accessing many sets")
+        if len(insert_points) > 1:
+            warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different tables: {insert_points}")
+        result = []
+        for set_name in insert_points:
+            struct_name_list = self.get_struct_names_inside_set_name(set_name)
+            # Check that all anchor points are provided
+            # Get the anchor attributes of the set
+            anchor_attributes = []
+            # Just need to take any struct, because all share the same anchor
+            for key in self.get_anchor_end_names_by_struct_name(struct_name_list[0]):
+                if self.is_class_phantom(key):
+                    anchor_attributes.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                # If it is not a class, it is a loose end
+                else:
+                    anchor_attributes.append(key)
+            if any(attribute not in provided_attributes for attribute in anchor_attributes):
+                raise ValueError(f"🚨 Some anchor attribute in {anchor_attributes} of structs in set '{set_name}' is not provided in the insertion with pattern {pattern_edges}")
+            # Check if all mandatory information is provided
+            replacements = {}
+            for struct_name in struct_name_list:
+                # Create a restricted struct to search for paths that do not cross the anchor
+                dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
+                restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+                bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
+                for table_attribute in self.get_attribute_names_by_struct_name(struct_name):
+                    for anchor_attribute in anchor_attributes:
+                        paths = list(nx.all_simple_paths(bipartite, source=anchor_attribute, target=table_attribute))
+                        assert len(
+                            paths) <= 1, f"☠️ Unexpected problem in '{struct_name}' on finding more than one path '{paths}' between '{anchor_attribute}' and '{table_attribute}'"
+                        # It may happen that the attribute is not connected to this anchor (still should be connected to another one)
+                        if len(paths) == 1:
+                            # First position in the tuple of multiplicities is the min multiplicity at least one
+                            if self.check_multiplicities_to_one(paths[0])[0] and table_attribute not in provided_attributes:
+                                # If the attribute is an ID, -2 is its class, -3 is its phantom and -4 is the association
+                                if len(paths[0]) > 3 and self.is_id(table_attribute):
+                                    # If it is an association end, we take note of the replacement
+                                    alternative = self.get_association_ends().query(f"edges=='{paths[0][-4]}' and nodes=='{paths[0][-3]}'").iloc[0]["name"]
+                                    if alternative in provided_attributes:
+                                        replacements[alternative] = table_attribute
+                                else:
+                                    raise ValueError(f"🚨 Mandatory attribute '{table_attribute}' of struct '{struct_name}' in set '{set_name}' is not provided in the insertion")
+            result.append((set_name, replacements))
+        return result

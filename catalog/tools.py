@@ -15,7 +15,7 @@ def drop_duplicates(dirty_list):
     return unique_elems
 
 
-def combine_buckets(patterns_list):
+def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:
     '''
     Combines all lists of patterns in a smart way, by removing duplicates ASAP
     :param patterns_list:
