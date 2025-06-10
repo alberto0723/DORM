@@ -27,7 +27,7 @@ echo ========================================================================== 
 echo -------------------------------------------------------------------------- Table creation
 python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test1 --src_sch source --src_kind 1NF
 echo .......................................................................... Insert execution
-python insertExecutor.py --dbconf_file db_conf.txt --dbschema source --paradigm 1NF --insert_file files/inserts/book-authors_TwoInsertsPerWriting.json
+python insertExecutor.py --dbconf_file db_conf.txt --paradigm 1NF --insert_file files/inserts/book-authors_TwoInsertsPerWriting.json
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm 1NF --query_file files/queries/book-authors.json
 
@@ -47,7 +47,7 @@ echo ========================================================================== 
 echo -------------------------------------------------------------------------- Table creation
 python catalogAction.py --dbconf_file db_conf.txt --check --supersede --create design --paradigm 1NF --dsg_spec 1NF/book-authors_test4 --src_sch source --src_kind 1NF
 echo .......................................................................... Insert execution
-python insertExecutor.py --dbconf_file db_conf.txt --dbschema source --paradigm 1NF --insert_file files/inserts/book-authors_TwoInsertsPerWriting.json
+python insertExecutor.py --dbconf_file db_conf.txt --paradigm 1NF --insert_file files/inserts/book-authors_TwoInsertsPerWriting.json
 echo .......................................................................... Query execution
 python queryExecutor.py --dbconf_file db_conf.txt --paradigm 1NF --query_file files/queries/book-authors.json
 

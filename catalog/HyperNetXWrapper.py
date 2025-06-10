@@ -292,7 +292,13 @@ class HyperNetXWrapper:
                                                                                  x['Kind'] == 'ClassIncidence')]
             return outbounds
 
-    def get_transitive_fitsLevels(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
+    def get_transitive_firstLevels(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
+        """
+        Given some edges, returns the list of first levels containing them, following nested structs and sets.
+        :param edge_list: List of edges to find
+        :param visited: Visited edges to avoid potential recursion (which should not happen)
+        :return: List of first levels containing the given edges
+        """
         if visited is None:
             visited = edge_list
         else:
@@ -309,7 +315,7 @@ class HyperNetXWrapper:
             else:
                 next_edge_list.extend([edge for edge in parents.to_list() if edge not in visited])
         if next_edge_list:
-            firstLevels.extend(self.get_transitive_fitsLevels(next_edge_list, visited))
+            firstLevels.extend(self.get_transitive_firstLevels(next_edge_list, visited))
         return firstLevels
 
     def get_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:

@@ -1117,7 +1117,7 @@ class Catalog(HyperNetXWrapper):
         for elem in pattern:
             # Find the sets at fist level where the element belongs
             hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
-            first_levels = drop_duplicates(self.get_transitive_fitsLevels(hierarchy))
+            first_levels = drop_duplicates(self.get_transitive_firstLevels(hierarchy))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
             # Split join edges into classes and associations
