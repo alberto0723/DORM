@@ -142,7 +142,7 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 The hyperedge '{struct_name}' already exists")
         for element in anchor:
             if not self.is_class(element) and not self.is_association(element):
-                raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{element}') must be either a class or a association")
+                raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{element}') must be either a class or an association")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
@@ -711,7 +711,7 @@ class Catalog(HyperNetXWrapper):
                 for anchor_end_name in self.get_anchor_end_names_by_struct_name(struct):
                     if not self.is_class_phantom(anchor_end_name) and anchor_end_name not in loose_ends:
                         consistent = False
-                        print(f"🚨 IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct}', which is not a loose end (i.e., it has not the class in the anchor, but only in its elements)")
+                        print(f"🚨 IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct}', which is a loose end (i.e., it has not the class in the anchor, but only in its elements)")
 
             # IC-Structs8: A struct containing siblings by some generalization must also contain the discriminant attribute
             logger.info("Checking IC-Structs8")

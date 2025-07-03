@@ -1,0 +1,24 @@
+{
+  "insertions": [
+    {
+      "data": { "A_ID": "1", "A_name": "'The Beatles'" },
+      "pattern": ["Artist"]
+    },
+    {
+      "data": { "R_ID": "1", "R_name": "'Help!'" },
+      "pattern": ["Record"]
+    },
+    {
+      "data": { "R_ID": "2", "R_name": "'Abbey Road'" },
+      "pattern": ["Record"]
+    },
+    {
+      "data": { "Made_Artist": "1", "Made_Record": "1" },
+      "pattern": ["Made"]
+    },
+    {
+      "data": { "Made_Artist": "1", "Made_Record": "2" },
+      "pattern": ["Made"]
+    }
+  ]
+}

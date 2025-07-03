@@ -1,0 +1,19 @@
+{
+    "domain": "..\\..\\domains\\artist-record.json",
+    "hyperedges": [
+    {"kind": "Struct",
+        "name": "Record_type",
+        "anchor": ["Record"],
+        "elements": ["R_name"]},
+    {"kind": "Set",
+        "name": "Record_list",
+        "elements": ["Record_type"]},
+    {"kind": "Struct",
+        "name": "Artist_type",
+        "anchor": ["Artist"],
+        "elements": ["A_name", "Made", "Record_list"]},
+    {"kind": "Set",
+        "name": "Artist_table",
+        "elements": ["Artist_type"]}
+    ]
+}

@@ -1,0 +1,34 @@
+{
+  "classes": [
+    {
+      "name": "Artist",
+      "prop": { "Count": 20 },
+      "attr": [
+        { "name": "A_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 20, "Identifier": true}},
+        { "name": "A_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 20, "Identifier": false}}
+        ]
+      },
+    {
+      "name": "Record",
+      "prop": { "Count": 100 },
+      "attr": [
+        { "name": "R_ID", "prop": {"DataType": "Integer", "Size": 4, "DistinctVals": 100, "Identifier": true}},
+        { "name": "R_name", "prop": {"DataType": "String", "Size": 20, "DistinctVals": 100, "Identifier": false}}
+        ]
+      }
+    ],
+  "associations": [
+    {
+      "name": "Made",
+      "ends": [
+        { "class": "Artist",
+          "prop": {"End_name": "Made_Artist", "MultiplicityMin": 1, "MultiplicityMax": 3 }
+          },
+        {
+          "class": "Record",
+          "prop": {"End_name": "Made_Record", "MultiplicityMin": 1, "MultiplicityMax": 50 }
+          }
+        ]
+      }
+    ]
+  }

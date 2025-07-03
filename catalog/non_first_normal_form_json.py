@@ -106,7 +106,7 @@ class NonFirstNormalFormJSON(Relational):
         attr_paths = drop_duplicates(attr_paths)
         obj, grouping = self.build_jsonb_object(attr_paths)
         if grouping:
-            assert False, f"☠️ Unexpected grouping '{grouping}' in the insertion of '{data_values}' into '{table_name}'"
+            assert False, f"☠️ Unexpected grouping '{grouping}' in the insertion of '{data_values}' into '{table_name}' (insertions are not allowed in the presence of nested sets)"
         for k, v in data_values.items():
             obj = obj.replace("', " + k, "', " + v)
         return table_name + "(value) VALUES (" + obj + ")"

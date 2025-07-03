@@ -366,4 +366,4 @@ test_all_NF2.bat
 ```
 
 Notice that, in order to migrate data for some of the tests in those batch files, a source schema will automatically be created as above with name `source`.
-Also, a second source schema called `source2` will automatically be created following the same steps as above, but the design [1NF/book-authors-topic](files/designs/1NF/book-authors-topic.json) and the corresponding data in [book-authors-topic](files/data/book-authors-topic.sql).
+Also, a second source schema called `source2` will be automatically created following the same steps as above, but using the design [1NF/book-authors-topic](files/designs/1NF/book-authors-topic.json) and the corresponding data in [book-authors-topic](files/data/book-authors-topic.sql).

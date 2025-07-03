@@ -1,0 +1,12 @@
+{
+    "domain": "..\\..\\domains\\artist-record.json",
+    "hyperedges": [
+    {"kind": "Struct",
+        "name": "Made_type",
+        "anchor": ["Made", "Artist", "Record"],
+        "elements": ["A_name", "R_name"]},
+    {"kind": "Set",
+        "name": "Made_table",
+        "elements": ["Made_type"]}
+]
+}
