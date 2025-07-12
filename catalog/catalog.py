@@ -295,8 +295,10 @@ class Catalog(HyperNetXWrapper):
             if self.is_attribute(elem_name):
                 attribute_list.append((elem_name, [{"kind": "Attribute", "name": elem_name}]))
             elif self.is_class_phantom(elem_name):
-                attribute_list.append((self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name)),
-                                       [{"kind": "Attribute", "name": self.get_class_id_by_name(self.get_edge_by_phantom_name(elem_name))}]))
+                # Add the class identifier if there is not any other attribute of the same class
+                class_name = self.get_edge_by_phantom_name(elem_name)
+                if not self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(elem_names).any():
+                    attribute_list.append((self.get_class_id_by_name(class_name), [{"kind": "Attribute", "name": self.get_class_id_by_name(class_name)}]))
             elif self.is_association_phantom(elem_name):
                 ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem_name))
                 for end in ends.itertuples():

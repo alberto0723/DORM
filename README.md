@@ -76,7 +76,7 @@ The contents of the design files are as follows:
 1. The name of the corresponding domain.
 2. A list of hyperedges with a different name each, that can be of two kids
    1. ``Set``: Contains a list of elements (either classes or associations) contained in the set.
-   2. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the ``anchor`` elements (also either classes or associations) which is the entry point (a.k.a. identifier) the struct.
+   2. ``Struct``: Contains a (potentially empty) list of elements (either classes or associations) contained in the struct, plus the ``anchor`` elements (also either classes or associations) which is the entry point (a.k.a. identifier) of the struct.
 
 #### Semantics 🧠
 *Sets* are abstractions that represent tables, collections, arrays.
@@ -120,6 +120,7 @@ About structs:
 - If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided in the struct.
 - Any struct with a class with subclasses must contain the corresponding discriminants.
 - All classes must appear linked to at least one anchor with minimum multiplicitity one. Such anchor must have minimum multiplicity one internally in the anchor, to guarantee that it does not miss any instance.
+- If a class is declared as an element of a struct, but not any of its attributes is declared to be, then the identifier is automatically assumed to be.
   
 ### 3- Queries 🔍
 Select-Project-Join expressions in terms of the domain concepts.
