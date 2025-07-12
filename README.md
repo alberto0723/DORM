@@ -120,6 +120,7 @@ About structs:
 - If there are different structs in a set, and two of them differ in some sibling class in the anchor, the discriminant attribute must be provided in the struct.
 - Any struct with a class with subclasses must contain the corresponding discriminants.
 - All classes must appear linked to at least one anchor with minimum multiplicitity one. Such anchor must have minimum multiplicity one internally in the anchor, to guarantee that it does not miss any instance.
+- If a class belongs to the anchor of the struct, its identifier automatically belongs to the struct.
 - If a class is declared as an element of a struct, but not any of its attributes is declared to be, then the identifier is automatically assumed to be.
   
 ### 3- Queries 🔍

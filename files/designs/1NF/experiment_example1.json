@@ -4,7 +4,7 @@
     {"kind": "Struct",
         "name": "Made_type",
         "anchor": ["Made", "Artist", "Record"],
-        "elements": ["A_name", "R_name"]},
+        "elements": ["A_ID", "A_name", "R_ID", "R_name"]},
     {"kind": "Set",
         "name": "Made_table",
         "elements": ["Made_type"]}
