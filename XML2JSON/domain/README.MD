@@ -97,13 +97,14 @@ To ensure all elements map correctly, configure your Visual Paradigm UML model w
 - **Distinct Values**: Enter the `distinctvals` value in the **Multiplicity** field.  
 - **Identifier**: In the attribute’s **Specification** dialog, check the **ID** box if it is a primary identifier.
 
-### 3. Generalization Stereotypes & Discriminant
+### 3. Generalizations
 
-Under each **Generalization** connector, use these stereotypes:
+For related generalizations, create a **GeneralizationSet** that groups all individual generalization lines sharing the same parent.
 
-1. **Disjoint** — Child sets do not overlap. Apply to every generalization line from a parent.  
-2. **Complete** — Child sets collectively cover the parent’s instances. Apply to every generalization line from a parent.  
-3. **Discriminant** — On the **parent class**, mark exactly one attribute with this stereotype to serve as the discriminating attribute.
+- **Disjoint**: in the GeneralizationSet’s properties, you may check **Disjoint** to ensure child sets do not overlap.  
+- **Complete (Covering)**: in the same dialog, you may check **Covering** so that the children collectively cover all instances of the parent.  
+
+On the **parent class**, add a **stereotype** whose name exactly matches the GeneralizationSet name and apply it to the attribute that will serve as the discriminant.  
 
 - In JSON output, the discriminant attribute’s value will be the child’s class name for each instance.
 

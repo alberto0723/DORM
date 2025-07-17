@@ -1,14 +1,23 @@
 
 class Generalization:
     def __init__(self):
+        self.ID = ""
         self.name = ""
+        
         self.nameParent = ""
+        self.idParent = ""
+        
         self.namesChildren = []
         
         self.disjoint = False
         self.complete = False
         self.discriminator = ""
         
+
+    def getID(self) -> str:
+        return self.ID
+    def setID(self, ID: str) -> None:
+        self.ID = ID
 
     def getName(self) -> str:
         return self.name
@@ -19,6 +28,14 @@ class Generalization:
         return self.nameParent
     def setNameParent(self, nameParent: str) -> None:
         self.nameParent = nameParent
+        
+    def getIdParent(self) -> str:
+        return self.idParent
+    def setIdParent(self, idParent: str) -> None:
+        self.idParent = idParent
+
+    def addNameChild(self, nameChild: str) -> None:
+        self.namesChildren.append(nameChild)
 
     def getNamesChildren(self) -> list[str]:
         return self.namesChildren

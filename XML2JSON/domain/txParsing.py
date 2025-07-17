@@ -151,16 +151,14 @@ class TxParsing:
         gen_list = children.findall('Generalization')
         
         
-        temp_inds = []
+        temp_inds = {}
         for gen in gen_list:
-            temp_inds.append(self.generateSingleGeneralization(root, gen))
+            iden = gen.get('Id', '')
+            temp_inds[iden] = self.generateSingleGeneralization(root, gen)
+        print(temp_inds)
         
-        generals = {}
-        for gi in temp_inds:
-            self.joinGeneralizations(generals, gi)
 
-        result = list(generals.values())
-        self.ListGeneralizations = result
+        self.ListGeneralizations = self.joinGeneralizations(root, temp_inds)
 
 
 
@@ -175,19 +173,10 @@ class TxParsing:
         gi.setNameParent(self.getClassID(root, parent_id))
         gi.setIdChild(child_id)
         gi.setNameChild(self.getClassID(root, child_id))
-
-        for st in gen.findall('Stereotypes/Stereotype'):
-            nm = st.get('Name', '').lower()
-            if nm == 'disjoint':
-                gi.setDisjoint(True)
-            elif nm == 'complete':
-                gi.setComplete(True)
-
-        self.asignarDiscriminator(root, gi)
         
         return gi
 
-    def asignarDiscriminator(self, root: ET.Element, gi: Generalization_single) -> None:
+    def asignarDiscriminator(self, root: ET.Element, gi: Generalization) -> None:
         class_elem = root.find(f".//Class[@Id='{gi.getIdParent()}']")
         if class_elem is None:
             raise ValueError(f"The parent class with Id={gi.getIdParent()} does not exist.")
@@ -199,7 +188,7 @@ class TxParsing:
         
         for at in model_children.findall('Attribute'):
             for st in at.findall('Stereotypes/Stereotype'):
-                if st.get('Name', '').lower() == 'discriminant':
+                if st.get('Name', '') == gi.getName():
                     gi.setDiscriminator(at.get('Name', ''))
                     found = True
                     break
@@ -210,33 +199,50 @@ class TxParsing:
                 f"No discriminator found in parent class Id={gi.getIdParent()}"
             )
 
-    def joinGeneralizations(self, generales: dict[str, Generalization], gi: Generalization_single) -> None:
-        key = gi.getNameParent()
-        if key not in generales:
+    def joinGeneralizations(self, root: ET.Element, generales: dict[str, Generalization_single]):
+        models_xml = root.find('Models')
+        
+        generalizations_list = []
+        
+        for gen_set in models_xml.findall('GeneralizationSet'):
+            gens = gen_set.find('Generalizations')
+            print('1A')
+            if gens is None:
+                print('A')
+                continue
+            print('2A')
             g = Generalization()
-            g.setName(gi.getName())
-            g.setNameParent(gi.getNameParent())
-            g.setDisjoint(gi.getDisjoint())
-            g.setComplete(gi.getComplete())
-            g.setDiscriminator(gi.getDiscriminator())
-            g.setNamesChildren([gi.getNameChild()])
-            generales[key] = g
-        else:
-            g = generales[key]
-
-
-            if (g.getDisjoint() != gi.getDisjoint() or
-                g.getComplete() != gi.getComplete() or
-                g.getDiscriminator() != gi.getDiscriminator()):
-                raise ValueError(
-                    f"Conflict in the generalizations of parent '{key}'"
-                )
             
-            fills = g.getNamesChildren()
-            fills.append(gi.getNameChild())
-            g.setNamesChildren(fills)
+            g.setID(gen_set.get('Id', '1b'))
+            g.setName(gen_set.get('Name', '2b'))
+            print(g.getID())
+            print(g.getName())
+            
+            id_parent = None
+            
+            for gen_single in gens.findall('Generalization'):
+                iden = gen_single.get('Idref')
+                print(iden)
+                gen = generales[iden]
+                if id_parent is None:
+                    id_parent = gen.getIdParent()
+                    g.setIdParent(id_parent)
+                    g.setNameParent(gen.getNameParent())
+                    
+                elif id_parent != gen.getIdParent():
+                    raise ValueError(f"Children classes in GeneralizationSet '{g.getID()}' do not have the same parent class")
+                
+                g.addNameChild(gen.getNameChild())
 
+            if gen_set.get('Covering') == 'true':
+                g.setComplete(True)
+            if gen_set.get('Disjoint') == 'true':
+                g.setDisjoint(True)
+            self.asignarDiscriminator(root, g)
 
+            generalizations_list.append(g)
+        
+        return generalizations_list
 
 
     def getMultiplicities(self, mult: str) -> (str, str):

@@ -11,7 +11,7 @@ def translate(root: str) -> str:
         escriptor.setAssociations(lector.getAssociations())
         escriptor.setGeneralitzacions(lector.getGeneralizations())
 
-        return escriptor.generarJSON()
+        return escriptor.createJSON()
     except Exception as e:
         print(f"Error generating JSON: {e}")
                     
