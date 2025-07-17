@@ -18,7 +18,7 @@ class TxSerialization:
         self.ListGeneralizations = list_generalitzacions
 
 
-    def generarJSON(self) -> str:
+    def createJSON(self) -> str:
         classes = self.ListClasses
         assocs = self.ListAssociations
         generals = self.ListGeneralizations
@@ -29,26 +29,26 @@ class TxSerialization:
 
         if classes:
             classes_str = ['  "classes": [']
-            classes_str.extend(self.generarJSON_Classes(classes))
+            classes_str.extend(self.createJSON_Classes(classes))
             lines.extend(classes_str)
             
         if assocs:
             assocs_str = ['    ],']
             assocs_str.append('  "associations": [')
-            assocs_str.extend(self.generarJSON_Associations(assocs))
+            assocs_str.extend(self.createJSON_Associations(assocs))
             lines.extend(assocs_str)
             
         if generals:
             generals_str = ['    ],']
             generals_str.append('  "generalizations": [')
-            generals_str.extend(self.generarJSON_Generalitzacions(generals))
+            generals_str.extend(self.createJSON_Generalitzacions(generals))
             lines.extend(generals_str)
 
         lines.append('    ]')
         lines.append('  }')
         return "\n".join(lines)
 
-    def generarJSON_Classes(self, clases: List[ClassUML]) -> List[str]:
+    def createJSON_Classes(self, clases: List[ClassUML]) -> List[str]:
         lines = []
         class_strs: List[str] = []
         for c in clases:
@@ -57,7 +57,7 @@ class TxSerialization:
             cls_block.append(f'      "name": "{c.getName()}",')
             cls_block.append(f'      "prop": {{ "Count": {c.getCount()} }},')
             cls_block.append(f'      "attr": [')
-            attr_lines = self.generarJSON_Atributs(c)
+            attr_lines = self.createJSON_Atributs(c)
             cls_block.append(attr_lines)
             cls_block.append('        ]')
             cls_block.append('      }')
@@ -65,7 +65,7 @@ class TxSerialization:
         lines.append(',\n'.join(class_strs))
         return lines
 
-    def generarJSON_Atributs(self, c: ClassUML) -> str:
+    def createJSON_Atributs(self, c: ClassUML) -> str:
         lines: List[str] = []
         for at in c.getListAttributes():
             prop = (
@@ -78,7 +78,7 @@ class TxSerialization:
             lines.append(prop)
         return ",\n".join(lines)
 
-    def generarJSON_Associations(self, assocs: List[Association]) -> List[str]:
+    def createJSON_Associations(self, assocs: List[Association]) -> List[str]:
         lines = []
         assoc_strs: List[str] = []
         for ir in assocs:
@@ -130,7 +130,7 @@ class TxSerialization:
         return lines
 
 
-    def generarJSON_Generalitzacions(self, generals: List[Generalization]) -> List[str]:
+    def createJSON_Generalitzacions(self, generals: List[Generalization]) -> List[str]:
         lines = []
         gen_strs: List[str] = []
         for g in generals:
