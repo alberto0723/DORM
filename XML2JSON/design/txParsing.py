@@ -15,6 +15,7 @@ class TxParsing:
         self.componentsList = []
         self.mapComponents: dict[str, Node] = {}
         self.mapComponentsParent: dict[str, Optional[Node]] = {}
+        self.domain_reference = ""
         
     def getComponents(self):
         return reversed(self.componentsList)
@@ -22,6 +23,8 @@ class TxParsing:
     def getMapComponents(self):
         return self.mapComponents
 
+    def getDomainReference(self):
+        return self.domain_reference
 
     def loadComponents(self, root: str):
         if not root:
@@ -35,6 +38,25 @@ class TxParsing:
     
         self.loadModels(root_elem)
         self.loadAssociacions(root_elem)
+        self.loadDomainReference(root_elem)
+        
+    def loadDomainReference(self, root: ET.Element):
+        models_xml = root.find('Models')
+        
+        ref_cont = models_xml.find("ReferenceContainer")
+        if ref_cont is None:
+            return
+        
+        ref_set= ref_cont.find("References")
+        if ref_set is None:
+            return
+        
+        for ref in ref_set.findall('Reference'):
+            ref_type = ref.get('Description', '').lower()
+            if ref_type == 'domain':
+                self.domain_reference = ref.get('Url', '')
+                
+        
 
 
     def loadModels(self, root: ET.Element):

@@ -10,17 +10,21 @@ class TxSerialization:
     def __init__(self):
         self.componentsList = []
         self.mapComponents: dict[str, Node] = {}
+        self.domain_reference = ""
 
     def setComponents(self, components):
         self.componentsList = list(components)
 
     def setMapComponents(self, map_components):
         self.mapComponents = dict(map_components)
-
+        
+    def setDomainReference(self, domain_ref):
+        self.domain_reference = domain_ref
+        
     def createJSON(self) -> str:    
         lines: List[str] = []
         lines.append('{')
-
+        lines.append(f'    "domain": "{self.domain_reference}",')
         lines.append('    "hyperedges": [')
 
         components_strs: List[str] = []

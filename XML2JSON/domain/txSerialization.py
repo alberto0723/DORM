@@ -10,6 +10,7 @@ class TxSerialization:
         self.ListAssociations: List[Association] = []
         self.ListGeneralizations: List[Generalization] = []
 
+
     def setClasses(self, list_classes):
         self.ListClasses = list_classes
     def setAssociations(self, list_interrelacions):

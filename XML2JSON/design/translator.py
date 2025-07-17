@@ -9,6 +9,7 @@ def translate(root: str) -> str:
         escriptor = TxSerialization()
         escriptor.setComponents(lector.getComponents())
         escriptor.setMapComponents(lector.getMapComponents())
+        escriptor.setDomainReference(lector.getDomainReference())
 
         return escriptor.createJSON()
     except Exception as e:
