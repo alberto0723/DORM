@@ -17,6 +17,8 @@ class TxParsing:
         self.mapComponentsParent: dict[str, Optional[Node]] = {}
         self.domain_reference = ""
         
+        self.mapStructName: dict[str, Node] = {}
+        
     def getComponents(self):
         return reversed(self.componentsList)
     
@@ -99,6 +101,7 @@ class TxParsing:
                 s.setName(name)
                 
                 self.mapComponents[iden] = s
+                self.mapStructName[name] = s
                 self.mapComponentsParent[iden] = parent
                 self.componentsList.append(iden)
                 
@@ -126,32 +129,34 @@ class TxParsing:
         c.setName(e.get('Name', '').replace(" ", "_"))
         c.setID(e.get('Id', ''))
         stereotype = e.find('Stereotypes')
-        if stereotype is None:
-            raise ValueError(f"The class {c.getName()} with identifier {c.getID()} has no stereotypes")
+        is_anchor = False
         
-        has_stereotype = False
-        for st in stereotype.findall('Stereotype'):
-            if st.get('Name', '').lower() == 'phantom':     #Association class with phantom stereotype
-                sub_elements.append(c.getName())
-                has_stereotype = True
-                break
-            elif st.get('Name', '').lower() == 'anchor':    #Anchor class
-                anchors.append(c.getName())
-            
-                model_children = e.find('ModelChildren') 
-                if model_children is not None:
-                    for elem in model_children.findall('Attribute'):
-                        sub_elements.append(elem.get('Name', '  ').replace(' ', '_'))
+        
+        if stereotype is not None:
+            for st in stereotype.findall('Stereotype'):
+                if st.get('Name', '').lower() == 'anchor':    #Anchor class
+                    anchors.append(c.getName())
                 
-                has_stereotype = True
-                break
+                    model_children = e.find('ModelChildren') 
+                    if model_children is not None:
+                        for elem in model_children.findall('Attribute'):
+                            sub_elements.append(elem.get('Name', '  ').replace(' ', '_'))
+                    
+                    is_anchor = True
+                    break
 
+        if not is_anchor:
+            sub_elements.append(c.getName())
+        
+            model_children = e.find('ModelChildren') 
+            if model_children is not None:
+                for elem in model_children.findall('Attribute'):
+                    sub_elements.append(elem.get('Name', '  ').replace(' ', '_'))
         
         self.mapComponents[c.getID()] = c
         self.mapComponentsParent[c.getID()] = parent
         
-        if not has_stereotype:
-            raise ValueError(f"The class {c.getName()} with identifier {c.getID()} has no stereotypes")
+
     
     def loadAssociacions(self, root: ET.Element):
         models = root.find('Models')
@@ -177,31 +182,43 @@ class TxParsing:
             n2 = self.mapComponents.get(id_to)
             if not n1 or not n2 or not name:
                 continue
-
+            
+            is_anchor = False
+            has_set_parent = False           #The struct parent is decided with a stereotype
+            
             path1 = self.getPathToRoot(n1.getID())
             path2 = self.getPathToRoot(n2.getID())
             lca = None
-
-            for anc in path2:
-                if anc in reversed(path1):
-                    lca = anc
-                    break
-            if not lca:
-                continue
-            nodo_lca = self.mapComponents[lca]
-            nodo_lca.getName()
-
-            is_anchor = False
 
             stereotype = assoc.find('Stereotypes')
             if stereotype is not None:
                 for st in stereotype.findall('Stereotype'):
                     if st.get('Name', '').lower() == 'anchor':
-                        nodo_lca.addAnchor(name)
                         is_anchor = True
+                    elif has_set_parent and is_anchor: 
                         break
-            
-            if not is_anchor: nodo_lca.addElement(name)
+                    else:
+                        name_struct = st.get('Name', '')
+                        struct_elem = self.mapStructName[name_struct]
+                        if struct_elem is not None:
+                            id_struct = struct_elem.getID()
+                            if id_struct in path1 or id_struct in path2:
+                                lca = id_struct
+                                has_set_parent = True
+                            
+            if not lca:            
+                for anc in path2:
+                    if anc in reversed(path1):
+                        lca = anc
+                        break
+            if not lca:
+                continue
+            nodo_lca = self.mapComponents[lca]
+            nodo_lca.getName()
+
+                    
+            if is_anchor: nodo_lca.addAnchor(name)
+            else: nodo_lca.addElement(name)
         
     def getPathToRoot(self, node_id: str) -> List[str]:
 

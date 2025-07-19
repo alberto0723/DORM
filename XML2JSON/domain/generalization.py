@@ -70,10 +70,6 @@ class Generalization_single:
         self.nameChild = ""
         self.idChild = ""
         
-        self.disjoint = False
-        self.complete = False
-        self.discriminator = ""
-        
         
     def getID(self) -> str:
         return self.ID
@@ -109,21 +105,3 @@ class Generalization_single:
         return self.idChild
     def setIdChild(self, idChild: str) -> None:
         self.idChild = idChild
-
-
-    def getDisjoint(self) -> bool:
-        return self.disjoint
-    def setDisjoint(self, disjoint: bool) -> None:
-        self.disjoint = disjoint
-
-
-    def getComplete(self) -> bool:
-        return self.complete
-    def setComplete(self, complete: bool) -> None:
-        self.complete = complete
-
-
-    def getDiscriminator(self) -> str:
-        return self.discriminator
-    def setDiscriminator(self, discriminator: str) -> None:
-        self.discriminator = discriminator

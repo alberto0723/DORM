@@ -5,6 +5,28 @@ This Python program parses UML models exported as XML from Visual Paradigm and c
 - **Binary Associations** between two classes
 - **Generalizations**, between a parent class and its children classes
 
+
+---
+
+## Installation & Usage
+
+1. **Prerequisites**: 
+ - `Python`: 3.7 or newer.  
+ - `Visual Paradigm`: 17.2 
+
+2. **Run the translator**:
+   ``` bash
+   python main.py
+   ```
+
+---
+
+## Exporting XML from Visual Paradigm
+
+To use this translator with Visual Paradigm, it is important to export the UML schema in **Simple XML format**. 
+The translator is not compatible with Visual Paradigm's traditional XML export format. 
+To ensure compatibility, select the *Simple* export format in Visual Paradigm  (i.e., choose *Simple* under *XML Structure* in the *Export to XML* dialog) before running the tool on the generated XML file.
+
 ---
 
 ## Project Structure
@@ -12,45 +34,58 @@ This Python program parses UML models exported as XML from Visual Paradigm and c
 The project consists of the following eight Python modules:
 
 1. **classUML.py**
-   - Defines `ClassUML`, representing a UML class with:
-     - `ID`: Class ID
-     - `name`: Class name
-     - `count`: Number of instances
-     - `attributes`: Attributes of the class
+  - Represents a UML class with its defining properties.
+    - `ID`: Unique identifier of the UML class.
+    - `name`: Name of the UML class.
+    - `count`: Number of instances of the class.
+    - `attributes`: List of `Attribute` objects representing each attribute of the class.
 
 2. **attribute.py**
-   - Defines `Attribute`, representing a UML attribute with:
-     - `ID`
-     - `name`
-     - `datatype`
-     - `size`
-     - `distinctvals`
-     - `identifier`
+  - Represents a property of a UML class.
+    - `ID`: Unique identifier of the attribute.
+    - `name`: Name of the attribute.
+    - `datatype`: Data type of the attribute.
+    - `size`: Maximum allowed length or size of the attribute.
+    - `distinctvals`: Number of distinct values that this attribute can take.
+    - `identifier`: Boolean flag; if `True`, this attribute serves as an identifier (primary key).
 
 3. **association.py**
-   - Defines `Association`, representing a binary relationship between two classes, with:
-     - `ID`
-     - `name`
-     - `nameClassFrom`: Source class name
-     - `nameFrom`: Source name
-     - `mulFromMin`. minimum multiplicity of the source class
-     - `mulFromMax`. maximum multiplicity of the source class
+  - Represents a UML association between two classes.
+    - `ID`: Unique identifier of the association.
+    - `name`: Name of the association.
 
-     - `nameClassTo`: Target class name
-     - `nameTo`: Target name
-     - `mulToMin`. minimum multiplicity of the target class
-     - `mulToMax`. maximum multiplicity of the target class
+    - `nameFrom`: Role name at the source end of the association.
+    - `nameClassFrom`: Name of the source class in the association.
+    - `idFrom`: Unique identifier of the source class.
+    - `mulFromMin`: Minimum multiplicity at the source end.
+    - `mulFromMax`: Maximum multiplicity at the source end.
+
+    - `nameTo`: Role name at the target end of the association.
+    - `nameClassTo`: Name of the target class in the association.
+    - `idTo`: Unique identifier of the target class.
+    - `mulToMin`: Minimum multiplicity at the target end.
+    - `mulToMax`: Maximum multiplicity at the target end.
 
 4. **generalization.py**
-   - Defines `Generalization`, grouping one parent class with all its child classes.
-   - Defines `GeneralizationSingle`, representing a single parent–child pair, with:
-     - `ID`
-     - `name`
-     - `nameParent`
-     - `nameChild`
-     - `disjoint`: indicates if the generalization is disjoint
-     - `complete`: indicates if the generalization is complete
-     - `discriminator`: name of the discriminator attribute
+  - Defines two classes for modeling UML‑style generalizations (inheritance relationships) in your data:
+
+  - `Generalization`: represents a single parent class together with _multiple_ child classes.
+    - `ID`: Unique identifier of the individual generalization.
+    - `name`: Name of the generalization.
+    - `nameParent`: Name of the parent class.
+    - `idParent`: Unique identifier of the parent class.
+    - `namesChildren`: List of the names of all child classes under this generalization.
+    - `disjoint`: Boolean flag; if `True`, no two child classes overlap.
+    - `complete`: Boolean flag; if `True`, every possible subclass must appear in `namesChildren`.
+    - `discriminator`: Name of the attribute used to distinguish which child class an instance belongs to.
+
+  - `GeneralizationSingle`: represents one specific parent–child pair (a single branch of a generalization).
+    - `ID`: Unique identifier of the individual generalization.
+    - `name`: Name of the generalization.
+    - `nameParent`: Name of the parent class.
+    - `idParent`: Unique identifier of the parent class.
+    - `nameChild`: Name of the child class.
+    - `idChild`: Unique identifier of the child class.
 
 5. **txParsing.py**
    - Contains `TxParsing`, responsible for:
@@ -69,16 +104,6 @@ The project consists of the following eight Python modules:
        - Loads the XML file at `xml_path`
        - Invokes `TxParsing` and `TxSerialization`
        - Returns the resulting JSON
-
----
-
-## Installation & Usage
-
-1. **Prerequisites**: Python 3.7 or newer.  
-2. **Run the translator:**:
-   ``` bash
-   python main.py
-   ```
 
 ---
 

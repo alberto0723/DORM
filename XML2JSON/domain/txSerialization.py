@@ -34,7 +34,8 @@ class TxSerialization:
             lines.extend(classes_str)
             
         if assocs:
-            assocs_str = ['    ],']
+            assocs_str = ['']
+            assocs_str.append('    ],')
             assocs_str.append('  "associations": [')
             assocs_str.extend(self.createJSON_Associations(assocs))
             lines.extend(assocs_str)

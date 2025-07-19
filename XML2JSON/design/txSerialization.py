@@ -42,8 +42,8 @@ class TxSerialization:
         comp_strs: List[str] = []
             
         if isinstance(comp, Structure):
-            comp_strs.append(f'    {{"kind": "Struct"')
-            comp_strs.append(f'        "name": "{comp.getName()}"')
+            comp_strs.append(f'        {{"kind": "Struct"')
+            comp_strs.append(f'         "name": "{comp.getName()}"')
             anchor_strs: List[str] = []
             elem_strs: List[str] = []
             
@@ -55,19 +55,19 @@ class TxSerialization:
             for elem in element_list:
                 elem_strs.append('"' + elem + '"')
                     
-            comp_strs.append(f'        "anchor": [{",".join(anchor_strs)}]')
-            comp_strs.append(f'        "elements": [{",".join(elem_strs)}]}}')
+            comp_strs.append(f'         "anchor": [{",".join(anchor_strs)}]')
+            comp_strs.append(f'         "elements": [{",".join(elem_strs)}]}}')
             
             
         elif isinstance(comp, Set):
-            comp_strs.append(f'    {{"kind": "Set"')
-            comp_strs.append(f'        "name": "{comp.getName()}"')
+            comp_strs.append(f'        {{"kind": "Set"')
+            comp_strs.append(f'         "name": "{comp.getName()}"')
             elem_strs: List[str] = []
             
             element_list = comp.getElements()
             for elem in element_list:
                     elem_strs.append('"' + elem + '"')
                     
-            comp_strs.append(f'        "elements": [{",".join(elem_strs)}]}}')
+            comp_strs.append(f'         "elements": [{",".join(elem_strs)}]}}')
         
         return ",\n".join(comp_strs)

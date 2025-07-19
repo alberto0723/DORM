@@ -155,7 +155,6 @@ class TxParsing:
         for gen in gen_list:
             iden = gen.get('Id', '')
             temp_inds[iden] = self.generateSingleGeneralization(root, gen)
-        print(temp_inds)
         
 
         self.ListGeneralizations = self.joinGeneralizations(root, temp_inds)
@@ -206,23 +205,17 @@ class TxParsing:
         
         for gen_set in models_xml.findall('GeneralizationSet'):
             gens = gen_set.find('Generalizations')
-            print('1A')
             if gens is None:
-                print('A')
                 continue
-            print('2A')
             g = Generalization()
             
-            g.setID(gen_set.get('Id', '1b'))
-            g.setName(gen_set.get('Name', '2b'))
-            print(g.getID())
-            print(g.getName())
+            g.setID(gen_set.get('Id', ''))
+            g.setName(gen_set.get('Name', ''))
             
             id_parent = None
             
             for gen_single in gens.findall('Generalization'):
                 iden = gen_single.get('Idref')
-                print(iden)
                 gen = generales[iden]
                 if id_parent is None:
                     id_parent = gen.getIdParent()
