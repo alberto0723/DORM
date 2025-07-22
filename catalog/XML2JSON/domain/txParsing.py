@@ -1,10 +1,10 @@
 from typing import List
 import xml.etree.ElementTree as ET
 
-from classUML import ClassUML
-from attribute import Attribute
-from association import Association
-from generalization import Generalization, Generalization_single
+from .classUML import ClassUML
+from .attribute import Attribute
+from .association import Association
+from .generalization import Generalization, Generalization_single
 
 
 class TxParsing:
@@ -130,12 +130,11 @@ class TxParsing:
                 assocs.append(i)
 
         self.ListAssociations = assocs
-        
-        
+
     def loadGeneralizations(self, root: str):
+        # TODO: Mira't aixo, perque "find" retorna un enter, no una llista
         models = root.find('Models') or []
 
-        
         rels = models.find("ModelRelationshipContainer[@Name='relationships']")
         if rels is None:
             return []

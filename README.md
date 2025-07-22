@@ -4,6 +4,7 @@ Thus, queries are expressed in terms of fixed domain concepts, and generated aut
 Hence, mappings dynamically change as database schema design evolves.
 Once the data are in the database powered by DORM, a new design also triggers the migration to the new schema.
 
+---
 ## Project Information 📝
 The motivation and need of evolving the database schema can be found in the paper:
 [Enrico Gallinucci, Matteo Golfarelli, Wafaa Radwan, Gabriel Zarate, Alberto Abelló:
@@ -182,6 +183,7 @@ Clearly, the satisfaction of these conditions does not depend only on the insert
 Thus, guards can be declared in the domain, as in [book-authors_1-1_guarded.json](files/domains/book-authors_1-1_guarded.json), so that design violating them are prevented.
 Such guards simply execute the checks of the corresponding insertion without actually inserting the data in the database.
 
+---
 ## Setup ⚙️
 It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/HyperNetX) (among others) are installed. 
 Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt).
@@ -205,6 +207,7 @@ pip freeze > requirements.txt
 
 There is an annoying bug in HyperNetX that constantly generates a warning. It can be avoided as explained in [BugFixForHyperNetX.txt](BugFixForHyperNetX.txt).
 
+---
 ## Launching 🚀
 There are three tools available to facilitate usage and testing.
 
@@ -240,13 +243,14 @@ options:
   --text                Shows the catalog in text format
   --graph               Shows the catalog in graphical format
 ------------------------------------------------------------------------------------------
-usage: catalogAction.py domain [--dom_path <path>] [--dom_spec <domain>]
+usage: catalogAction.py domain [--dom_path <path>] [--dom_fmt <fmt>] [--dom_spec <domain>]
 
 ▶️ Acts on a catalog with only domain elements
 
 options:
   --dom_path <path>    Path to domains folder
-  --dom_spec <domain>  Specification of the domain (only atomic elements) in a JSON file
+  --dom_fmt <fmt>      Format of the specification file (either JSON or XML)
+  --dom_spec <domain>  Filename containing the specification of the domain (only atomic elements)
 ------------------------------------------------------------------------------------------
 usage: catalogAction.py design --paradigm <prdgm> [--dsg_path <path>] [--dsg_spec <design>] [--translate]
                                [--src_sch <sch>] [--src_kind <prdgm>]
@@ -314,6 +318,7 @@ options:
 
 Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.pdf](documents/Diagrams/QueryExecutor.pdf).
 
+---
 ## Demo 💻
 
 Understanding the contribution of this project is tricky, since it must be seen in the DBMS itself (everything automatically happens behind scenes).

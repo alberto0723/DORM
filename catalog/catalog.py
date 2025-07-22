@@ -10,6 +10,7 @@ import sqlparse
 from .config import show_warnings
 from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference
 from .HyperNetXWrapper import HyperNetXWrapper
+from .XML2JSON.domain.translator import translate as translate_domain
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -209,12 +210,16 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
-    def load_domain(self, file_path) -> None:
+    def load_domain(self, file_path, file_format="json") -> None:
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = str(file_path)
-        # Open and load the JSON file
-        with open(file_path, 'r') as f:
-            domain = json.load(f)
+        assert file_format in ["json", "xml"], "🚨 The format of the domain specification file must be either 'json' or 'xml'"
+        if file_format == "json":
+            # Open and load the JSON file
+            with open(file_path, 'r') as f:
+                domain = json.load(f)
+        else:
+            domain = json.loads(translate_domain(file_path))
         # Create and fill the catalog
         for cl in domain.get("classes"):
             self.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))

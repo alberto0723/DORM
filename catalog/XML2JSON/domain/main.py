@@ -15,8 +15,6 @@ if __name__ == '__main__':
         translation = translate(ruta)
         
         print(translation)
-        
-        
     except Exception as e:
         print(f"Error generating JSON: {e}")
                 

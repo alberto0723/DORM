@@ -50,7 +50,8 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- Schemas
     domain_parser.set_defaults(state="domain")  # This is the subfolder where hypergraphs are stored
     domain_parser.add_argument("--dom_path", type=Path, default=default_domains_path, help="Path to domains folder", metavar="<path>")
-    domain_parser.add_argument("--dom_spec", type=str, default="default_spec", help="Specification of the domain (only atomic elements) in a JSON file", metavar="<domain>")
+    domain_parser.add_argument("--dom_fmt", type=str, choices=["JSON", "XML"], default="JSON", help="Format of the specification file (either JSON or XML)", metavar="<fmt>")
+    domain_parser.add_argument("--dom_spec", type=str, default="default_spec", help="Filename containing the specification of the domain (only atomic elements)", metavar="<domain>")
     # ---------------------------------------------------------------------- Designs
     design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
     design_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
@@ -82,7 +83,7 @@ if __name__ == "__main__":
             if args.state == "domain":
                 # Any subclass can be used here (not Relational, because it is abstract and cannot be instantiated)
                 cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=True)
-                cat.load_domain(args.dom_path.joinpath(args.dom_spec + ".json"))
+                cat.load_domain(args.dom_path.joinpath(args.dom_spec + "." + args.dom_fmt.lower()), args.dom_fmt.lower())
             elif args.state == "design":
                 assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
                 if args.paradigm == "1NF":

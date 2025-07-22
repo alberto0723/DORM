@@ -12,7 +12,7 @@ This Python program parses UML models exported as XML from Visual Paradigm and c
 
 1. **Prerequisites**: 
  - `Python`: 3.7 or newer.  
- - `Visual Paradigm`: 17.2 
+ - `Visual Paradigm`: 17.2 Community Edition
 
 2. **Run the translator**:
    ``` bash
@@ -23,8 +23,7 @@ This Python program parses UML models exported as XML from Visual Paradigm and c
 
 ## Exporting XML from Visual Paradigm
 
-To use this translator with Visual Paradigm, it is important to export the UML schema in **Simple XML format**. 
-The translator is not compatible with Visual Paradigm's traditional XML export format. 
+To use this translator with Visual Paradigm, it is important to export the UML schema in **Simple XML format**, because it is not compatible with Visual Paradigm's traditional XML export format. 
 To ensure compatibility, select the *Simple* export format in Visual Paradigm  (i.e., choose *Simple* under *XML Structure* in the *Export to XML* dialog) before running the tool on the generated XML file.
 
 ---
