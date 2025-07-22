@@ -132,8 +132,9 @@ class TxParsing:
         self.ListAssociations = assocs
 
     def loadGeneralizations(self, root: str):
-        # TODO: Mira't aixo, perque "find" retorna un enter, no una llista
-        models = root.find('Models') or []
+        models = root.find('Models')
+        if models is None:
+            return []
 
         rels = models.find("ModelRelationshipContainer[@Name='relationships']")
         if rels is None:
