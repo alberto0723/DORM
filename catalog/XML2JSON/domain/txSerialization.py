@@ -1,31 +1,28 @@
-from typing import List
-
-from .classUML import ClassUML
-from .association import Association
-from .generalization import Generalization
+from classUML import ClassUML
+from association import Association
+from generalization import Generalization
 
 class TxSerialization:
     def __init__(self):
-        self.ListClasses: List[ClassUML] = []
-        self.ListAssociations: List[Association] = []
-        self.ListGeneralizations: List[Generalization] = []
-
+        self.ListClasses: list[ClassUML] = []
+        self.ListAssociations: list[Association] = []
+        self.ListGeneralizations: list[Generalization] = []
 
     def setClasses(self, list_classes):
         self.ListClasses = list_classes
+
     def setAssociations(self, list_interrelacions):
         self.ListAssociations = list_interrelacions
+
     def setGeneralitzacions(self, list_generalitzacions):
         self.ListGeneralizations = list_generalitzacions
-
 
     def createJSON(self) -> str:
         classes = self.ListClasses
         assocs = self.ListAssociations
         generals = self.ListGeneralizations
 
-        
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append('{')
 
         if classes:
@@ -50,11 +47,11 @@ class TxSerialization:
         lines.append('  }')
         return "\n".join(lines)
 
-    def createJSON_Classes(self, clases: List[ClassUML]) -> List[str]:
+    def createJSON_Classes(self, clases: list[ClassUML]) -> list[str]:
         lines = []
-        class_strs: List[str] = []
+        class_strs: list[str] = []
         for c in clases:
-            cls_block: List[str] = []
+            cls_block: list[str] = []
             cls_block.append('    {')    
             cls_block.append(f'      "name": "{c.getName()}",')
             cls_block.append(f'      "prop": {{ "Count": {c.getCount()} }},')
@@ -64,11 +61,12 @@ class TxSerialization:
             cls_block.append('        ]')
             cls_block.append('      }')
             class_strs.append("\n".join(cls_block))
+        # TODO: Jo diria que "lines" realment te nomes un element, no? Potser millor retornar un unic strig (igual que a la seguent funcio) per a no confondre
         lines.append(',\n'.join(class_strs))
         return lines
 
     def createJSON_Atributs(self, c: ClassUML) -> str:
-        lines: List[str] = []
+        lines: list[str] = []
         for at in c.getListAttributes():
             prop = (
                 f'        {{ "name": "{at.getName()}", '
@@ -80,9 +78,9 @@ class TxSerialization:
             lines.append(prop)
         return ",\n".join(lines)
 
-    def createJSON_Associations(self, assocs: List[Association]) -> List[str]:
+    def createJSON_Associations(self, assocs: list[Association]) -> list[str]:
         lines = []
-        assoc_strs: List[str] = []
+        assoc_strs: list[str] = []
         for ir in assocs:
             ends = self.getEndsJSON(ir)
             block = ['    {']
@@ -93,11 +91,12 @@ class TxSerialization:
             block.append('        ]')
             block.append('      }')
             assoc_strs.append("\n".join(block))
+        # TODO: De nou, peso que la llista nomes pot tenir un element
         lines.append(',\n'.join(assoc_strs))
         return lines
 
-    def getEndsJSON(self, ir: Association) -> List[str]:
-        lines: List[str] = []
+    def getEndsJSON(self, ir: Association) -> list[str]:
+        lines: list[str] = []
         
         lines.append("        {")
         cls_from = ir.getNameClassFrom()
@@ -131,10 +130,9 @@ class TxSerialization:
 
         return lines
 
-
-    def createJSON_Generalitzacions(self, generals: List[Generalization]) -> List[str]:
+    def createJSON_Generalitzacions(self, generals: list[Generalization]) -> list[str]:
         lines = []
-        gen_strs: List[str] = []
+        gen_strs: list[str] = []
         for g in generals:
             subclass_lines = self.getChildrenJSON(g)
             block = ["      {"]
@@ -149,12 +147,13 @@ class TxSerialization:
             block.append('        ]')
             block.append('      }')
             gen_strs.append("\n".join(block))
+        # TODO: la llista nomes pot tenir un element
         lines.append(',\n'.join(gen_strs))
         return lines
 
-    def getChildrenJSON(self, g: Generalization) -> List[str]:
-        lines: List[str] = []
-        child_strs: List[str] = []
+    def getChildrenJSON(self, g: Generalization) -> list[str]:
+        lines: list[str] = []
+        child_strs: list[str] = []
         for child in g.getNamesChildren():
             constraint = f"{g.getDiscriminator()}='{child.lower()}'"
             block = ['          {']
@@ -164,5 +163,6 @@ class TxSerialization:
             block.append('            }')
             block.append('          }')
             child_strs.append("\n".join(block))
+        # TODO: La llista nomes pot tenir un element
         lines.append(',\n'.join(child_strs))
         return lines

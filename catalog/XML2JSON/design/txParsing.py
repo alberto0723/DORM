@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import Optional, Union
 import xml.etree.ElementTree as ET
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
@@ -220,7 +220,7 @@ class TxParsing:
             if is_anchor: nodo_lca.addAnchor(name)
             else: nodo_lca.addElement(name)
         
-    def getPathToRoot(self, node_id: str) -> List[str]:
+    def getPathToRoot(self, node_id: str) -> list[str]:
 
         res = []
         current = node_id

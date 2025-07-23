@@ -1,27 +1,25 @@
-from typing import List
 import xml.etree.ElementTree as ET
 
-from .classUML import ClassUML
-from .attribute import Attribute
-from .association import Association
-from .generalization import Generalization, Generalization_single
+from classUML import ClassUML
+from attribute import Attribute
+from association import Association
+from generalization import Generalization, Generalization_single
 
 
 class TxParsing:
     def __init__(self):
-        self.ListClasses: List[ClassUML] = []
-        self.ListAssociations: List[Association] = []
-        self.ListGeneralizations: List[Generalization] = []
+        self.ListClasses: list[ClassUML] = []
+        self.ListAssociations: list[Association] = []
+        self.ListGeneralizations: list[Generalization] = []
 
-    
-        
-    def getClasses(self):
+    def getClasses(self) -> list[ClassUML]:
         return self.ListClasses
-    def getAssociations(self):
-        return self.ListAssociations
-    def getGeneralizations(self):
-        return self.ListGeneralizations
 
+    def getAssociations(self) -> list[Association]:
+        return self.ListAssociations
+
+    def getGeneralizations(self) -> list[Generalization]:
+        return self.ListGeneralizations
 
     def loadElements(self, root: str):
         if not root:
@@ -32,15 +30,14 @@ class TxParsing:
         except Exception as e:
             raise RuntimeError(f"Error parsing the XML '{root}': {e}")
     
-        self.loadClasses(root_elem)
-        self.loadAssociations(root_elem)
-        self.loadGeneralizations(root_elem)
+        self.ListClasses = self.loadClasses(root_elem)
+        self.ListAssociations = self.loadAssociations(root_elem)
+        self.ListGeneralizations = self.loadGeneralizations(root_elem)
 
-
-
-    def loadClasses(self, root: str):
+    def loadClasses(self, root: str) -> list[ClassUML]:
         models_xml = root.find('Models')
-        classes: List[ClassUML] = []
+        classes: list[ClassUML] = []
+        # TODO: si models_xml es un enter, no pot tenir "findall"
         for e in models_xml.findall('Class'):
             c = ClassUML()
             name, count = self.getNameCount(e.get('Name', ''))
@@ -50,16 +47,15 @@ class TxParsing:
             c.setID(e.get('Id', ''))
             c.setListAttributes(self.importAttributesClass(e))
             classes.append(c)
-            
-        self.ListClasses = classes
-    
-    def importAttributesClass(self, class_elem: ET.Element) -> List[Attribute]:
-        atributs_list: List[Attribute] = []
+        return classes
+
+    def importAttributesClass(self, class_elem: ET.Element) -> list[Attribute]:
+        atributs_list: list[Attribute] = []
         
-        model_children = class_elem.find('ModelChildren') 
+        model_children = class_elem.find('ModelChildren')
         if model_children is None:
             return []
-        
+
         for elem in model_children.findall('Attribute'):
             at = Attribute()
             at.setID(elem.get('Id', ''))
@@ -86,12 +82,12 @@ class TxParsing:
             
         return atributs_list
     
-    
-    
-    def loadAssociations(self, root: str):
+    def loadAssociations(self, root: str) -> list[Association]:
         models = root.find('Models')
-        assocs: List[Association] = []
+        assocs: list[Association] = []
 
+        # TODO: models es un numero, no?
+        #       En aquest metode tot son strings, cap resultat de find pot ser None
         rels_cont = models.find("ModelRelationshipContainer[@Name='relationships']")
         if rels_cont is None:
             return []
@@ -103,39 +99,42 @@ class TxParsing:
             return []
 
         for assoc in assoc_list.findall('Association'):
-                i = Association()
-                i.setID(   assoc.get('Id', '')     )
-                i.setName(  assoc.get('Name', '')   )
+            i = Association()
+            i.setID(   assoc.get('Id', '')     )
+            i.setName(  assoc.get('Name', '')   )
 
-                # FromEnd
-                fe = assoc.find('FromEnd/AssociationEnd')
-                if fe is not None:
-                    i.setIdFrom(   fe.get('Id', '')    )
-                    i.setNameFrom(  fe.get('Name', '')  )
-                    i.setNameClassFrom(self.getClassEnd(fe))
-                    minf, maxf = self.getMultiplicities(fe.get('Multiplicity', ''))
-                    i.setMulFromMin(minf)
-                    i.setMulFromMax(maxf)
+            # FromEnd
+            fe = assoc.find('FromEnd/AssociationEnd')
+            # TODO: Sospito que aquest tampoc pot ser None
+            if fe is not None:
+                i.setIdFrom(   fe.get('Id', '')    )
+                i.setNameFrom(  fe.get('Name', '')  )
+                i.setNameClassFrom(self.getClassEnd(fe))
+                minf, maxf = self.getMultiplicities(fe.get('Multiplicity', ''))
+                i.setMulFromMin(minf)
+                i.setMulFromMax(maxf)
 
-                # ToEnd
-                te = assoc.find('ToEnd/AssociationEnd')
-                if te is not None:
-                    i.setIdTo(     te.get('Id', '')    )
-                    i.setNameTo(    te.get('Name', '')  )
-                    i.setNameClassTo(self.getClassEnd(te))
-                    mint, maxt = self.getMultiplicities(te.get('Multiplicity', ''))
-                    i.setMulToMin(mint)
-                    i.setMulToMax(maxt)
+            # ToEnd
+            # TODO: Ni aquest
+            te = assoc.find('ToEnd/AssociationEnd')
+            if te is not None:
+                i.setIdTo(     te.get('Id', '')    )
+                i.setNameTo(    te.get('Name', '')  )
+                i.setNameClassTo(self.getClassEnd(te))
+                mint, maxt = self.getMultiplicities(te.get('Multiplicity', ''))
+                i.setMulToMin(mint)
+                i.setMulToMax(maxt)
 
-                assocs.append(i)
+            assocs.append(i)
+        return assocs
 
-        self.ListAssociations = assocs
-
-    def loadGeneralizations(self, root: str):
+    def loadGeneralizations(self, root: str) -> list[Generalization]:
         models = root.find('Models')
+        # TODO: No pot ser None
         if models is None:
             return []
 
+        # TODO: models es un enter, no? No pot tenir un metode find
         rels = models.find("ModelRelationshipContainer[@Name='relationships']")
         if rels is None:
             return []
@@ -149,17 +148,14 @@ class TxParsing:
             return []
         
         gen_list = children.findall('Generalization')
-        
-        
+
         temp_inds = {}
         for gen in gen_list:
             iden = gen.get('Id', '')
+            # TODO: root aqui es un string, pero el parametre es un ET.Element
             temp_inds[iden] = self.generateSingleGeneralization(root, gen)
-        
 
-        self.ListGeneralizations = self.joinGeneralizations(root, temp_inds)
-
-
+        return self.joinGeneralizations(root, temp_inds)
 
     def generateSingleGeneralization(self, root: ET.Element, gen: ET.Element) -> Generalization_single:
         gi = Generalization_single()
@@ -183,7 +179,7 @@ class TxParsing:
         
         model_children = class_elem.find('ModelChildren')
         if model_children is None:
-            return []
+            return
         
         for at in model_children.findall('Attribute'):
             for st in at.findall('Stereotypes/Stereotype'):
@@ -198,7 +194,7 @@ class TxParsing:
                 f"No discriminator found in parent class Id={gi.getIdParent()}"
             )
 
-    def joinGeneralizations(self, root: ET.Element, generales: dict[str, Generalization_single]):
+    def joinGeneralizations(self, root: ET.Element, generales: dict[str, Generalization_single]) -> list[Generalization]:
         models_xml = root.find('Models')
         
         generalizations_list = []
@@ -237,7 +233,6 @@ class TxParsing:
         
         return generalizations_list
 
-
     def getMultiplicities(self, mult: str) -> (str, str):
         if '..' in mult:
             return mult.split('..', 1)
@@ -249,16 +244,18 @@ class TxParsing:
         if cls is not None:
             name, count = self.getNameCount(cls.get('Name', ''))
             return name
-        else: return ''
+        else:
+            return ''
 
     def getClassID(self, root: ET.Element, id: str) -> str:
         c = root.find(f".//Class[@Id='{id}']")
+        # TODO: Millor posar una condicio al if per a que quedi clar el que s'espera
         if c:
             name, count = self.getNameCount(c.get('Name', ''))
             return name
-        else: raise ValueError(f"The class with Id={id} does not exist.")
-        
-        
+        else:
+            raise ValueError(f"The class with Id={id} does not exist.")
+
     def getNameCount(self, namecount: str) -> (str, str):
         name = ""
         count = ""

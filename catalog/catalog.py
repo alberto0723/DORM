@@ -6,11 +6,14 @@ import networkx as nx
 from IPython.display import display
 import pandas as pd
 import sqlparse
+import os
+import sys
+sys.path.append(os.getcwd()+'\\catalog\\XML2JSON\\domain')
 
 from .config import show_warnings
 from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference
 from .HyperNetXWrapper import HyperNetXWrapper
-from .XML2JSON.domain.translator import translate as translate_domain
+from DomainTranslator import translate as translate_domain
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)

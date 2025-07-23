@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import Union
 
 from set import Set
 from structure import Structure
@@ -22,12 +22,12 @@ class TxSerialization:
         self.domain_reference = domain_ref
         
     def createJSON(self) -> str:    
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append('{')
         lines.append(f'    "domain": "{self.domain_reference}",')
         lines.append('    "hyperedges": [')
 
-        components_strs: List[str] = []
+        components_strs: list[str] = []
         for comp in self.componentsList:
             comp_element = self.mapComponents[comp]
             components_strs.append(self.createJSON_Components(comp_element))
@@ -39,13 +39,13 @@ class TxSerialization:
         return "\n".join(lines)
 
     def createJSON_Components(self, comp) -> str:
-        comp_strs: List[str] = []
+        comp_strs: list[str] = []
             
         if isinstance(comp, Structure):
             comp_strs.append(f'        {{"kind": "Struct"')
             comp_strs.append(f'         "name": "{comp.getName()}"')
-            anchor_strs: List[str] = []
-            elem_strs: List[str] = []
+            anchor_strs: list[str] = []
+            elem_strs: list[str] = []
             
             anchor_list = comp.getAnchors()
             for anchor in anchor_list:
@@ -62,7 +62,7 @@ class TxSerialization:
         elif isinstance(comp, Set):
             comp_strs.append(f'        {{"kind": "Set"')
             comp_strs.append(f'         "name": "{comp.getName()}"')
-            elem_strs: List[str] = []
+            elem_strs: list[str] = []
             
             element_list = comp.getElements()
             for elem in element_list:
