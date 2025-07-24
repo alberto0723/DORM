@@ -26,28 +26,25 @@ class TxSerialization:
         lines.append('{')
 
         if classes:
-            classes_str = ['  "classes": [']
-            classes_str.extend(self.createJSON_Classes(classes))
-            lines.extend(classes_str)
+            lines.append('  "classes": [')
+            lines.append(self.createJSON_Classes(classes))
             
         if assocs:
-            assocs_str = ['']
-            assocs_str.append('    ],')
-            assocs_str.append('  "associations": [')
-            assocs_str.extend(self.createJSON_Associations(assocs))
-            lines.extend(assocs_str)
+            lines.append('')
+            lines.append('    ],')
+            lines.append('  "associations": [')
+            lines.append(self.createJSON_Associations(assocs))
             
         if generals:
-            generals_str = ['    ],']
-            generals_str.append('  "generalizations": [')
-            generals_str.extend(self.createJSON_Generalitzacions(generals))
-            lines.extend(generals_str)
+            lines.append('    ],')
+            lines.append('  "generalizations": [')
+            lines.append(self.createJSON_Generalitzacions(generals))
 
         lines.append('    ]')
         lines.append('  }')
         return "\n".join(lines)
 
-    def createJSON_Classes(self, clases: list[ClassUML]) -> list[str]:
+    def createJSON_Classes(self, clases: list[ClassUML]) -> str:
         lines = []
         class_strs: list[str] = []
         for c in clases:
@@ -62,8 +59,7 @@ class TxSerialization:
             cls_block.append('      }')
             class_strs.append("\n".join(cls_block))
         # TODO: Jo diria que "lines" realment te nomes un element, no? Potser millor retornar un unic strig (igual que a la seguent funcio) per a no confondre
-        lines.append(',\n'.join(class_strs))
-        return lines
+        return ',\n'.join(class_strs)
 
     def createJSON_Atributs(self, c: ClassUML) -> str:
         lines: list[str] = []
@@ -78,8 +74,7 @@ class TxSerialization:
             lines.append(prop)
         return ",\n".join(lines)
 
-    def createJSON_Associations(self, assocs: list[Association]) -> list[str]:
-        lines = []
+    def createJSON_Associations(self, assocs: list[Association]) -> str:
         assoc_strs: list[str] = []
         for ir in assocs:
             ends = self.getEndsJSON(ir)
@@ -91,9 +86,7 @@ class TxSerialization:
             block.append('        ]')
             block.append('      }')
             assoc_strs.append("\n".join(block))
-        # TODO: De nou, peso que la llista nomes pot tenir un element
-        lines.append(',\n'.join(assoc_strs))
-        return lines
+        return ',\n'.join(assoc_strs)
 
     def getEndsJSON(self, ir: Association) -> list[str]:
         lines: list[str] = []
@@ -130,7 +123,7 @@ class TxSerialization:
 
         return lines
 
-    def createJSON_Generalitzacions(self, generals: list[Generalization]) -> list[str]:
+    def createJSON_Generalitzacions(self, generals: list[Generalization]) -> str:
         lines = []
         gen_strs: list[str] = []
         for g in generals:
@@ -143,15 +136,14 @@ class TxSerialization:
             block.append('        },')
             block.append(f'        "superclass": "{g.getNameParent()}",')
             block.append('        "subclasses": [')
-            block.extend(subclass_lines)
+            block.append(subclass_lines)
             block.append('        ]')
             block.append('      }')
             gen_strs.append("\n".join(block))
-        # TODO: la llista nomes pot tenir un element
-        lines.append(',\n'.join(gen_strs))
-        return lines
 
-    def getChildrenJSON(self, g: Generalization) -> list[str]:
+        return ',\n'.join(gen_strs)
+
+    def getChildrenJSON(self, g: Generalization) -> str:
         lines: list[str] = []
         child_strs: list[str] = []
         for child in g.getNamesChildren():
@@ -163,6 +155,5 @@ class TxSerialization:
             block.append('            }')
             block.append('          }')
             child_strs.append("\n".join(block))
-        # TODO: La llista nomes pot tenir un element
-        lines.append(',\n'.join(child_strs))
-        return lines
+            
+        return ',\n'.join(child_strs)

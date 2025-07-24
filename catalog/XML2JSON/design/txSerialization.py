@@ -55,8 +55,8 @@ class TxSerialization:
             for elem in element_list:
                 elem_strs.append('"' + elem + '"')
                     
-            comp_strs.append(f'         "anchor": [{",".join(anchor_strs)}]')
-            comp_strs.append(f'         "elements": [{",".join(elem_strs)}]}}')
+            comp_strs.append(f'         "anchor": [{", ".join(anchor_strs)}]')
+            comp_strs.append(f'         "elements": [{", ".join(elem_strs)}]}}')
             
             
         elif isinstance(comp, Set):
@@ -68,6 +68,6 @@ class TxSerialization:
             for elem in element_list:
                     elem_strs.append('"' + elem + '"')
                     
-            comp_strs.append(f'         "elements": [{",".join(elem_strs)}]}}')
+            comp_strs.append(f'         "elements": [{", ".join(elem_strs)}]}}')
         
         return ",\n".join(comp_strs)

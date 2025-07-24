@@ -34,10 +34,10 @@ class TxParsing:
         self.ListAssociations = self.loadAssociations(root_elem)
         self.ListGeneralizations = self.loadGeneralizations(root_elem)
 
-    def loadClasses(self, root: str) -> list[ClassUML]:
+    def loadClasses(self, root: ET.Element) -> list[ClassUML]:
         models_xml = root.find('Models')
         classes: list[ClassUML] = []
-        # TODO: si models_xml es un enter, no pot tenir "findall"
+
         for e in models_xml.findall('Class'):
             c = ClassUML()
             name, count = self.getNameCount(e.get('Name', ''))
@@ -82,12 +82,10 @@ class TxParsing:
             
         return atributs_list
     
-    def loadAssociations(self, root: str) -> list[Association]:
+    def loadAssociations(self, root: ET.Element) -> list[Association]:
         models = root.find('Models')
         assocs: list[Association] = []
 
-        # TODO: models es un numero, no?
-        #       En aquest metode tot son strings, cap resultat de find pot ser None
         rels_cont = models.find("ModelRelationshipContainer[@Name='relationships']")
         if rels_cont is None:
             return []
@@ -105,7 +103,7 @@ class TxParsing:
 
             # FromEnd
             fe = assoc.find('FromEnd/AssociationEnd')
-            # TODO: Sospito que aquest tampoc pot ser None
+
             if fe is not None:
                 i.setIdFrom(   fe.get('Id', '')    )
                 i.setNameFrom(  fe.get('Name', '')  )
@@ -115,7 +113,6 @@ class TxParsing:
                 i.setMulFromMax(maxf)
 
             # ToEnd
-            # TODO: Ni aquest
             te = assoc.find('ToEnd/AssociationEnd')
             if te is not None:
                 i.setIdTo(     te.get('Id', '')    )
@@ -128,13 +125,11 @@ class TxParsing:
             assocs.append(i)
         return assocs
 
-    def loadGeneralizations(self, root: str) -> list[Generalization]:
+    def loadGeneralizations(self, root: ET.Element) -> list[Generalization]:
         models = root.find('Models')
-        # TODO: No pot ser None
         if models is None:
             return []
 
-        # TODO: models es un enter, no? No pot tenir un metode find
         rels = models.find("ModelRelationshipContainer[@Name='relationships']")
         if rels is None:
             return []
@@ -152,7 +147,6 @@ class TxParsing:
         temp_inds = {}
         for gen in gen_list:
             iden = gen.get('Id', '')
-            # TODO: root aqui es un string, pero el parametre es un ET.Element
             temp_inds[iden] = self.generateSingleGeneralization(root, gen)
 
         return self.joinGeneralizations(root, temp_inds)
@@ -249,8 +243,7 @@ class TxParsing:
 
     def getClassID(self, root: ET.Element, id: str) -> str:
         c = root.find(f".//Class[@Id='{id}']")
-        # TODO: Millor posar una condicio al if per a que quedi clar el que s'espera
-        if c:
+        if c is not None:
             name, count = self.getNameCount(c.get('Name', ''))
             return name
         else:
