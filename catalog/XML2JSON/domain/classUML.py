@@ -1,4 +1,4 @@
-from attribute import Attribute
+from .attribute import Attribute
 
 class ClassUML:
     def __init__(self):

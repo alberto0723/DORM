@@ -6,14 +6,16 @@ import networkx as nx
 from IPython.display import display
 import pandas as pd
 import sqlparse
-import os
-import sys
-sys.path.append(os.getcwd()+'\\catalog\\XML2JSON\\domain')
+# import os
+# import sys
+# sys.path.append(os.getcwd()+'\\catalog\\XML2JSON\\domain')
+# sys.path.append(os.getcwd()+'\\catalog\\XML2JSON\\design')
 
 from .config import show_warnings
-from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference
+from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
 from .HyperNetXWrapper import HyperNetXWrapper
-from DomainTranslator import translate as translate_domain
+from .XML2JSON.domain.DomainTranslator import translate as translate_domain
+from .XML2JSON.design.DesignTranslator import translate as translate_design
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -232,14 +234,18 @@ class Catalog(HyperNetXWrapper):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
 
-    def load_design(self, file_path) -> None:
+    def load_design(self, file_path, file_format="json") -> None:
         logger.info(f"Loading design from '{file_path}'")
-        # Open and load the JSON file
-        with open(file_path, 'r') as f:
-            design = json.load(f)
-        domain_path = str(file_path.parent.joinpath(design.get("domain", None)).resolve())
+        assert file_format in ["json", "xml"], "🚨 The format of the design specification file must be either 'json' or 'xml'"
+        if file_format == "json":
+            # Open and load the JSON file
+            with open(file_path, 'r') as f:
+                design = json.load(f)
+        else:
+            design = json.loads(translate_design(file_path))
+        domain_path = str(extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve())
         if "domain" not in self.metadata:
-            self.load_domain(domain_path)
+            self.load_domain(domain_path, file_format)
         # Check if the domain in the catalog and that of the design coincide
         if self.metadata.get("domain", "Non-existent") != domain_path:
             raise ValueError(f"🚨 The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.metadata.get('domain', 'Non-existent')}'")

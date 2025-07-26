@@ -50,12 +50,13 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- Schemas
     domain_parser.set_defaults(state="domain")  # This is the subfolder where hypergraphs are stored
     domain_parser.add_argument("--dom_path", type=Path, default=default_domains_path, help="Path to domains folder", metavar="<path>")
-    domain_parser.add_argument("--dom_fmt", type=str, choices=["JSON", "XML"], default="JSON", help="Format of the specification file (either JSON or XML)", metavar="<fmt>")
+    domain_parser.add_argument("--dom_fmt", type=str, choices=["JSON", "XML"], default="JSON", help="Format of the domain specification file (either JSON or XML)", metavar="<fmt>")
     domain_parser.add_argument("--dom_spec", type=str, default="default_spec", help="Filename containing the specification of the domain (only atomic elements)", metavar="<domain>")
     # ---------------------------------------------------------------------- Designs
     design_parser.set_defaults(state="design")  # This is the subfolder where hypergraphs are stored
     design_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     design_parser.add_argument("--dsg_path", type=Path, default=default_designs_path, help="Path to designs folder", metavar="<path>")
+    design_parser.add_argument("--dsg_fmt", type=str, choices=["JSON", "XML"], default="JSON", help="Format of the design specification file (either JSON or XML)", metavar="<fmt>")
     design_parser.add_argument("--dsg_spec", type=str, default="default_spec", help="Specification of the design in a JSON file", metavar="<design>")
     design_parser.add_argument("--translate", help="Translates the design into the database schema (i.e., generates create tables) when files are used (when using a DBMS, the translation is always performed)", action="store_true")
     design_parser.add_argument("--src_sch", type=str, help="Database schema to migrate the data from", metavar="<sch>")
@@ -90,7 +91,7 @@ if __name__ == "__main__":
                     cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=args.supersede)
                 else:
                     cat = NonFirstNormalFormJSON(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=args.supersede)
-                cat.load_design(args.dsg_path.joinpath(args.dsg_spec + ".json"))
+                cat.load_design(args.dsg_path.joinpath(args.dsg_spec + "." + args.dsg_fmt.lower()), args.dsg_fmt.lower())
             else:
                 raise Exception("Unknown catalog type to be created")
         # Load pre-existing catalog

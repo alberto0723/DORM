@@ -1,5 +1,5 @@
-from txSerialization import TxSerialization
-from txParsing import TxParsing
+from .txSerialization import TxSerialization
+from .txParsing import TxParsing
 
 def translate(root: str) -> str:
     try:

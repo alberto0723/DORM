@@ -1,8 +1,8 @@
 from typing import Union
 
-from set import Set
-from structure import Structure
-from classUML import ClassUML
+from .set import Set
+from .structure import Structure
+from .classUML import ClassUML
 
 Node = Union[Set, Structure, ClassUML]
 

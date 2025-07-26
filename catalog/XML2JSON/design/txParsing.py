@@ -1,11 +1,12 @@
 from typing import Optional, Union
+from pathlib import Path
 import xml.etree.ElementTree as ET
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 
-from set import Set
-from structure import Structure
-from classUML import ClassUML
+from .set import Set
+from .structure import Structure
+from .classUML import ClassUML
 
 Node = Union[Set, Structure, ClassUML]
 
@@ -29,8 +30,8 @@ class TxParsing:
         return self.domain_reference
 
     def loadComponents(self, root: str):
-        if not root:
-            raise FileNotFoundError("No file was selected.")
+        if not root or not Path(root).exists():
+            raise FileNotFoundError(f"File not found: '{root}'")
 
         try:
             tree = ET.parse(root)
@@ -49,16 +50,14 @@ class TxParsing:
         if ref_cont is None:
             return
         
-        ref_set= ref_cont.find("References")
+        ref_set = ref_cont.find("References")
         if ref_set is None:
             return
         
         for ref in ref_set.findall('Reference'):
             ref_type = ref.get('Description', '').lower()
             if ref_type == 'domain':
-                self.domain_reference = ref.get('Url', '')
-                
-        
+                self.domain_reference = Path(ref.get('Url', '')).stem
 
 
     def loadModels(self, root: ET.Element):

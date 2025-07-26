@@ -9,6 +9,17 @@ def custom_warning(message, category, filename, lineno, file=None, line=None):
         print(f"{message} 👉 {os.path.basename(filename)}:{lineno}")
 
 
+def extract_up_to_folder(path_str, folder_name) -> Path:
+    path = Path(path_str).resolve()
+    parts = path.parts
+    if folder_name not in parts:
+        raise ValueError(f"🚨 Folder '{folder_name}' not found in {path_str}")
+
+    index = parts.index(folder_name)
+    sub_path = Path(*parts[:index + 1])
+    return sub_path
+
+
 def drop_duplicates(dirty_list):
     unique_elems = []
     [unique_elems.append(elem) for elem in dirty_list if elem not in unique_elems]

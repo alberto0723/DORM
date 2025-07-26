@@ -1,9 +1,10 @@
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
-from classUML import ClassUML
-from attribute import Attribute
-from association import Association
-from generalization import Generalization, Generalization_single
+from .classUML import ClassUML
+from .attribute import Attribute
+from .association import Association
+from .generalization import Generalization, Generalization_single
 
 
 class TxParsing:
@@ -22,8 +23,8 @@ class TxParsing:
         return self.ListGeneralizations
 
     def loadElements(self, root: str):
-        if not root:
-            raise FileNotFoundError("No file has been selected.")
+        if not root or not Path(root).exists():
+            raise FileNotFoundError(f"File not found: '{root}'")
         try:
             tree = ET.parse(root)
             root_elem = tree.getroot()

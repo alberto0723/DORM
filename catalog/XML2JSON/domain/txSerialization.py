@@ -1,6 +1,6 @@
-from classUML import ClassUML
-from association import Association
-from generalization import Generalization
+from .classUML import ClassUML
+from .association import Association
+from .generalization import Generalization
 
 class TxSerialization:
     def __init__(self):
