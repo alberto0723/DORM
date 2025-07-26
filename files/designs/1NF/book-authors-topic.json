@@ -1,5 +1,5 @@
 {
-    "domain": "..\\..\\domains\\book-authors-topic.json",
+    "domain": "..\\..\\domains\\book-authors-topic",
     "__comment__domain": "..\\..\\domains\\book-authors-topic_guarded.json",
     "hyperedges": [
         {"kind": "Struct",

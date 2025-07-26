@@ -1,5 +1,5 @@
 {
-    "domain": "..\\..\\domains\\artist-record-track.json",
+    "domain": "..\\..\\domains\\artist-record-track",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Artists_type",
