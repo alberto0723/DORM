@@ -1,6 +1,6 @@
 {
-    "domain": "..\\..\\domains\\book-authors_1-1",
-    "__commented__domain": "..\\..\\domains\\book-authors_1-1_guarded.json",
+    "domain": "book-authors_1-1",
+    "__commented__domain": "book-authors_1-1_guarded.json",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Writes_type",

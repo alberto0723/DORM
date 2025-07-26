@@ -1,5 +1,5 @@
 {
-    "domain": "..\\..\\domains\\book-authors-topic",
+    "domain": "book-authors-topic",
     "hyperedges": [
         {"kind": "Struct",
          "name": "Books_p1_type",
