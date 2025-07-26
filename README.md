@@ -249,17 +249,18 @@ usage: catalogAction.py domain [--dom_path <path>] [--dom_fmt <fmt>] [--dom_spec
 
 options:
   --dom_path <path>    Path to domains folder
-  --dom_fmt <fmt>      Format of the specification file (either JSON or XML)
+  --dom_fmt <fmt>      Format of the domain specification file (either JSON or XML)
   --dom_spec <domain>  Filename containing the specification of the domain (only atomic elements)
 ------------------------------------------------------------------------------------------
-usage: catalogAction.py design --paradigm <prdgm> [--dsg_path <path>] [--dsg_spec <design>] [--translate]
-                               [--src_sch <sch>] [--src_kind <prdgm>]
+usage: catalogAction.py design --paradigm <prdgm> [--dsg_path <path>] [--dsg_fmt <fmt>] [--dsg_spec <design>]
+                               [--translate] [--src_sch <sch>] [--src_kind <prdgm>]
 
 ▶️ Acts on a catalog with both domain and design elements
 
 options:
   --paradigm <prdgm>   Implementation paradigm for the design (either 1NF or NF2_JSON)
   --dsg_path <path>    Path to designs folder
+  --dsg_fmt <fmt>      Format of the design specification file (either JSON or XML)
   --dsg_spec <design>  Specification of the design in a JSON file
   --translate          Translates the design into the database schema (i.e., generates create tables) when files are
                        used (when using a DBMS, the translation is always performed)

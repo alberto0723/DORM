@@ -1,7 +1,7 @@
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 
-from DomainTranslator import translate
+from .DomainTranslator import translate
 
 if __name__ == '__main__':
     try:
