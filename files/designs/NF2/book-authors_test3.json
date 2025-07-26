@@ -1,5 +1,5 @@
 {
-    "domain": "..\\..\\domains\\book-authors_1-1",
+    "domain": "book-authors_1-1",
     "___commented_out___domain": "..\\..\\domains\\book-authors-topic.json",
     "hyperedges": [
         {"kind": "Struct",
