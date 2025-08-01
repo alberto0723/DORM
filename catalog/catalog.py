@@ -215,11 +215,12 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
-    def load_domain(self, file_path, file_format="json") -> None:
+    def load_domain(self, file_path, file_format="JSON") -> None:
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = str(file_path)
-        assert file_format in ["json", "xml"], "🚨 The format of the domain specification file must be either 'json' or 'xml'"
-        if file_format == "json":
+        assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'json' or 'xml'"
+        print(f"Reading {file_format} domain")
+        if file_format == "JSON":
             # Open and load the JSON file
             with open(file_path, 'r') as f:
                 domain = json.load(f)
@@ -234,10 +235,11 @@ class Catalog(HyperNetXWrapper):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
 
-    def load_design(self, file_path, file_format="json") -> None:
+    def load_design(self, file_path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
-        assert file_format in ["json", "xml"], "🚨 The format of the design specification file must be either 'json' or 'xml'"
-        if file_format == "json":
+        assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'json' or 'xml'"
+        print(f"Reading {file_format} design")
+        if file_format == "JSON":
             # Open and load the JSON file
             with open(file_path, 'r') as f:
                 design = json.load(f)

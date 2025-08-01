@@ -84,14 +84,14 @@ if __name__ == "__main__":
             if args.state == "domain":
                 # Any subclass can be used here (not Relational, because it is abstract and cannot be instantiated)
                 cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=True)
-                cat.load_domain(args.dom_path.joinpath(args.dom_spec + "." + args.dom_fmt.lower()), args.dom_fmt.lower())
+                cat.load_domain(args.dom_path.joinpath(args.dom_spec + "." + args.dom_fmt.lower()), args.dom_fmt.upper())
             elif args.state == "design":
                 assert args.paradigm in ["1NF", "NF2_JSON"], f"☠️ Only paradigms allowed are 1NF and NF2_JSON"
                 if args.paradigm == "1NF":
                     cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=args.supersede)
                 else:
                     cat = NonFirstNormalFormJSON(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema, supersede=args.supersede)
-                cat.load_design(args.dsg_path.joinpath(args.dsg_spec + "." + args.dsg_fmt.lower()), args.dsg_fmt.lower())
+                cat.load_design(args.dsg_path.joinpath(args.dsg_spec + "." + args.dsg_fmt.lower()), args.dsg_fmt.upper())
             else:
                 raise Exception("Unknown catalog type to be created")
         # Load pre-existing catalog
