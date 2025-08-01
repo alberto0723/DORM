@@ -90,6 +90,10 @@ class TxParsing:
                     sub_elements = []
                     for sub_elem in model_children.findall('Model'):
                         sub_elements.append(self.loadModel(sub_elem, s))
+                          
+                    for classe in model_children.findall('Class'):
+                        self.processClass(classe, s, sub_elements, [])
+                        
                     s.setElements(sub_elements)
                 
                 return name
@@ -215,9 +219,9 @@ class TxParsing:
             nodo_lca = self.mapComponents[lca]
             nodo_lca.getName()
 
-                    
-            if is_anchor: nodo_lca.addAnchor(name)
-            else: nodo_lca.addElement(name)
+            if isinstance(nodo_lca, Structure):        
+                if is_anchor: nodo_lca.addAnchor(name)
+                else: nodo_lca.addElement(name)
         
     def getPathToRoot(self, node_id: str) -> list[str]:
 
