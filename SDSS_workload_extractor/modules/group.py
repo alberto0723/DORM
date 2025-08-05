@@ -2,6 +2,7 @@ import json
 from collections import defaultdict
 from tqdm import tqdm
 
+
 # Step 0: Load the cleaned queries from input JSON
 def load_cleaned_queries(path: str) -> list:
     print(f"📂 Loading cleaned queries from {path}...")

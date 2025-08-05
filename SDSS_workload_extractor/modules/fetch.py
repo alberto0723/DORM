@@ -53,7 +53,7 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
     elapsed = round(end - start, 2)
 
     if response.status_code == 200:
-        path = Path("data")
+        path = Path("tmp")
         path.mkdir(parents=True, exist_ok=True)
         if limit is None:
             filename = f"fetched_{datestring}_all.csv"

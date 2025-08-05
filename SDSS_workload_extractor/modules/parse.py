@@ -6,6 +6,7 @@ from sqlparse.sql import IdentifierList, Identifier, Where
 from sqlparse.tokens import Keyword, DML
 from tqdm import tqdm
 
+
 def preprocess_query_for_top_and_distinct(sql_query):
     top_regex = re.compile(r'\bTOP\s+(\d+)\b', re.IGNORECASE)
     distinct_regex = re.compile(r'\bDISTINCT\b', re.IGNORECASE)
@@ -18,6 +19,7 @@ def preprocess_query_for_top_and_distinct(sql_query):
     sql_query = distinct_regex.sub('', sql_query)
 
     return sql_query, top_value, distinct
+
 
 def extract_query_info(real_query, the_time):
     sql_query, top_value, distinct = preprocess_query_for_top_and_distinct(real_query)
@@ -161,4 +163,3 @@ def process_csv(input_path, output_path):
 
         json.dump({"queries": all_queries}, outfile, ensure_ascii=False, indent=2)
         print(f"Parsed queries saved to {output_path}")
-

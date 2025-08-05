@@ -11,12 +11,13 @@ from modules.group import (
     load_cleaned_queries,
     save_frequencies  
 )
-from fastapi import FastAPI
-from api import workload
+# fastapi import FastAPI
+#from api import workload
+
 
 def main():
-    app = FastAPI()
-    app.include_router(workload.router, prefix="/api")
+    #app = FastAPI()
+    #app.include_router(workload.router, prefix="/api")
 
     parser = argparse.ArgumentParser(description="🛠️ Workload SQL Tool")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -57,12 +58,12 @@ def main():
     args = parser.parse_args()
 
     # Auto-prepend "data/" if not already present
-    if hasattr(args, "output") and not args.output.startswith("data/"):
-        args.output = os.path.join("data", args.output)
-    if hasattr(args, "input") and not args.input.startswith("data/"):
-        args.input = os.path.join("data", args.input)
-    if hasattr(args, "freq_output") and not args.freq_output.startswith("data/"):
-        args.freq_output = os.path.join("data", args.freq_output)
+    if hasattr(args, "output") and not args.output.startswith("tmp/"):
+        args.output = os.path.join("tmp", args.output)
+    if hasattr(args, "input") and not args.input.startswith("tmp/"):
+        args.input = os.path.join("tmp", args.input)
+    if hasattr(args, "freq_output") and not args.freq_output.startswith("tmp/"):
+        args.freq_output = os.path.join("tmp", args.freq_output)
 
     try:
         if args.command == "fetch":
