@@ -21,7 +21,7 @@ def preprocess_query_for_top_and_distinct(sql_query):
     return sql_query, top_value, distinct
 
 
-def extract_query_info(real_query, the_time):
+def extract_query_info(real_query):
     sql_query, top_value, distinct = preprocess_query_for_top_and_distinct(real_query)
     has_order_by = bool(re.search(r'\bORDER\s+BY\b', sql_query, re.IGNORECASE))
     parsed_results = sqlparse.parse(sql_query)
@@ -138,28 +138,25 @@ def process_csv(input_path, output_path):
          open(output_path, "w", encoding="utf-8") as outfile:
 
         reader = csv.reader(csvfile)
-        header = next(reader)
-        # outfile.write("[\n")
-        # first = True
+        # Remove header
+        _ = next(reader)
+
         all_queries = []
-
         for idx, row in enumerate(tqdm(reader, desc="Parsing queries")):
-            if idx == 0:
-                if len(row) < 2:
-                    continue
-                the_time = row[0]
-                statement_parts = row[1:]
+            if True:  # idx == 0:
+                if len(row) > 1:
+                    statement_parts = row[1:]  # First field in the row is the time, which we can ignore
 
-                while statement_parts and re.match(r'^\s*[\d.E+-]+\s*$', statement_parts[-1]):
-                    statement_parts.pop()
+                    # Remove numerical fields from right to left
+                    while statement_parts and re.match(r'^\s*[\d.E+-]+\s*$', statement_parts[-1]):
+                        statement_parts.pop()
 
+                    # This is required because CSV parsing sometimes gets confused with commas
+                    statement = ' '.join(statement_parts).strip()
 
-                statement = ' '.join(statement_parts).strip()
-
-                info = extract_query_info(statement, the_time)
-                if info is None:
-                    continue
-                all_queries.append(info)
+                    info = extract_query_info(statement)
+                    if info is not None:
+                        all_queries.append(info)
 
         json.dump({"queries": all_queries}, outfile, ensure_ascii=False, indent=2)
         print(f"Parsed queries saved to {output_path}")

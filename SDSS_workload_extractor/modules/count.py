@@ -16,6 +16,7 @@ HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded"
 }
 
+
 def get_total_logs(year: int = None, month: int = None, day: int = None) -> int:
     message = f"🔍 Querying total logs for "
     query = """SELECT COUNT(*) as total_logs

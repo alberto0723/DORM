@@ -2,6 +2,7 @@ import json
 import re
 from tqdm import tqdm
 
+
 def is_mydb_query(query_text):
     """
     Returns True if the query should be discarded due to referencing MyDB
@@ -26,6 +27,7 @@ def is_mydb_query(query_text):
             return True
 
     return False  # Otherwise, keep
+
 
 def clean_queries(input_file, output_file):
     print(f"Loading parsed data from {input_file}...")
