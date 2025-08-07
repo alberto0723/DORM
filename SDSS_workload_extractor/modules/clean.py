@@ -30,13 +30,19 @@ def clean_queries(input_file, output_file):
     print(f"Loading parsed data from {input_file}...")
     with open(input_file, 'r', encoding='utf-8') as infile:
         data = json.load(infile)
+    print(f"✅ Data loaded")
 
-    print("🧹 Filtering out queries that read or modify MyDB...")
-    cleaned = [q for q in tqdm(data["queries"], desc="Filtering queries") if not is_mydb_query(q["original_query"])]
-
-    print(f"✅ Cleaned: {len(cleaned)} of {len(data["queries"])} queries retained.")
+    print("\n🧹 Filtering out queries that read or modify MyDB, or do not have tables in the FROM clause")
+    cleaned = []
+    for query in tqdm(data["queries"], desc="Filtering queries"):
+        table_set = [t.split()[0].lower() for t in query.get("pattern", []) if "(" not in t]
+        if (not is_mydb_query(query["original_query"])
+                and table_set and table_set != ['dbobjects']
+                and query.get("project", [])):
+            cleaned.append(query)
+    print(f"✅ Cleaned: {len(cleaned)} of {len(data["queries"])} queries retained")
     
-    print(f"💾 Saving cleaned data to {output_file}...")
+    print(f"\n💾 Saving cleaned data to {output_file}...")
     with open(output_file, 'w', encoding='utf-8') as outfile:
         json.dump(cleaned, outfile, indent=2, ensure_ascii=False)
-    print("Done!")
+    print(f"✅ Data saved")

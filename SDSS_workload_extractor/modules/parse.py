@@ -135,12 +135,13 @@ def process_input(input_path, output_path):
 
         all_queries = []
         for line in tqdm(infile, desc="Parsing queries"):
-            # Avoid processing the last empty line
+            # Avoid processing the last empty line (or any other line without at least a SELECT)
             if len(line) > 6:
                 info = extract_query_info(line)
                 all_queries.append(info)
 
+    print(f"\n💾 Saving queries to {output_path}")
     with open(output_path, "w", encoding="utf-8") as outfile:
         json.dump({"queries": all_queries}, outfile, ensure_ascii=False, indent=2)
 
-    print(f"Parsed queries saved to {output_path}")
+    print(f"✅ Queries saved to {output_path}")

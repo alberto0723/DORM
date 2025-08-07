@@ -43,13 +43,15 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
 
     data = {"cmd": query, "format": "csv"}
 
-    print(f"📦 Fetching TOP {limit} logs from " + datestring + "...")
+    print(f"\n📦 Fetching TOP {limit} logs from " + datestring + "...")
     start = time.time()
     response = requests.post(URL, data=data, headers=HEADERS)
     end = time.time()
     elapsed = round(end - start, 2)
+    print(f"✅ Logs fetched  (⏱️ {elapsed}s)")
 
     if response.status_code == 200:
+        print(f"\n💾 Data saving data")
         path = Path("tmp")
         path.mkdir(parents=True, exist_ok=True)
         if limit is None:
@@ -64,7 +66,7 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
                     .replace('"', '')
                     .replace(",__EOL__", '\n')
                     )
-        print(f"💾 Data saved to {file.absolute()} (⏱️ {elapsed}s)")
+        print(f"✅ Data saved to {file.absolute()}")
     else:
-        print(f"❌ Failed with status {response.status_code}")
+        print(f"\n❌ Failed with status {response.status_code}")
         print(response.text[:300])
