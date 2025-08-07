@@ -71,8 +71,8 @@ def extract_query_info(real_query):
                         alias_mapping[alias] = full_table
                         tables.append(full_table)
                     else:
-                        # It still may be a function call
-                        match = re.match(r"([a-zA-Z_][\w]*)\([^)]*\)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
+                        # It still may be a function call, that optionally starts by "bdo."
+                        match = re.match(r"(?:dbo\.)?([a-zA-Z_][\w]*)\([^)]*\)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
                         if match:
                             _, alias = match.groups()
                             alias_mapping[alias] = "__Function_Call__"
@@ -91,15 +91,13 @@ def extract_query_info(real_query):
                             ]:
                                 tables.append(name)
         elif isinstance(token, Where):
-            where_clause = str(token).replace('\n', ' ')
             # Remove the WHERE keyword
-            where_clause = re.sub(r"(?i)^\s*WHERE\s*", "", where_clause.strip())
-            # Normalize WHERE clause (remove noise, abstract constants)
-            cleaned = re.sub(r'\s+\d+(\.\d+)?([Ee][-+]?\d+)?\s+\d+\s+\d+\s*$', '', where_clause)
-            normalized = re.sub(r"(0x[0-9a-fA-F]+)|(\b\d+(\.\d+)?([Ee][-+]?\d+)?\b)|('[^']*')", "?", cleaned)
-            # remove trailing ? ? ? 
-            where_clause = re.sub(r'(\?\s*){3,}$', '', normalized)
-
+            initial_clause = re.sub(r"(?i)^\s*WHERE\s*", "", str(token).strip())
+            # remove trailing ? ? ?
+            head_clause = re.sub(r'(\?\s*){3,}$', '', initial_clause)
+            # Normalize WHERE clause (remove noise, abstract constants, and function calls)
+            cleaned = re.sub(r'\s+\d+(\.\d+)?([Ee][-+]?\d+)?\s+\d+\s+\d+\s*$', '', head_clause)
+            where_clause = re.sub(r"(0x[0-9a-fA-F]+)|(\b\d+(\.\d+)?([Ee][-+]?\d+)?\b)|('[^']*')", "?", cleaned)
         elif token.is_group:
             has_nested_queries = True
     final_columns = []
@@ -123,7 +121,7 @@ def extract_query_info(real_query):
         where_clause = where_clause.strip()
         for alias, table in alias_mapping.items():
             if table == "__Function_Call__":
-                where_clause = re.sub(rf"\b{alias}\.[\w]+", f"?", where_clause)
+                where_clause = re.sub(rf"\b{alias}\.[\w]+", "?", where_clause)
             else:
                 where_clause = re.sub(rf"\b{alias}\.", f"{table}_", where_clause)
         parsed_query["filter"] = where_clause

@@ -52,10 +52,10 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
 
     if response.status_code == 200:
         print(f"\n💾 Data saving data")
-        path = Path("tmp")
+        path = Path("data")
         path.mkdir(parents=True, exist_ok=True)
         if limit is None:
-            filename = f"fetched_{datestring}_all.csv"
+            filename = f"fetched_{datestring}_all.txt"
         else:
             filename = f"fetched_{datestring}_top{limit}.csv"
         file = path / filename
@@ -63,6 +63,7 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
             f.write(response.text
                     .replace('\r', ' ')
                     .replace('\n', ' ')
+                    .replace('\t', ' ')
                     .replace('"', '')
                     .replace(",__EOL__", '\n')
                     )

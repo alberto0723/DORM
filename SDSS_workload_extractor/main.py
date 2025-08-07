@@ -51,13 +51,13 @@ if __name__ == "__main__":
                               help="Optional modifiers to include in grouping")
     args = parser.parse_args()
 
-    # Auto-prepend "tmp/" if not already present
-    if hasattr(args, "output") and not args.output.startswith("tmp/"):
-        args.output = os.path.join("tmp", args.output)
+    # Auto-prepend "data/" if not already present
+    if hasattr(args, "output") and not args.output.startswith("data/"):
+        args.output = os.path.join("data", args.output)
     if hasattr(args, "input") and not args.input.startswith("tmp/"):
-        args.input = os.path.join("tmp", args.input)
-    if hasattr(args, "freq_output") and not args.freq_output.startswith("tmp/"):
-        args.freq_output = os.path.join("tmp", args.freq_output)
+        args.input = os.path.join("data", args.input)
+    if hasattr(args, "freq_output") and not args.freq_output.startswith("data/"):
+        args.freq_output = os.path.join("data", args.freq_output)
 
     try:
         if args.command == "fetch":
@@ -72,9 +72,6 @@ if __name__ == "__main__":
             queries = load_cleaned_queries(args.input)
             grouped = group_queries_by_table(queries, args.modifiers)
             filtered_groups = calculate_column_frequencies(grouped, args.modifiers, args.threshold, args.jaccard)
-            # Save frequencies correctly (stringify keys)
-            # save_frequencies(frequencies, args.freq_output)
-            # Save full grouped queries only if requested
             save_grouped_queries(filtered_groups, args.output)
 
     except Exception as e:
