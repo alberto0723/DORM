@@ -1,4 +1,3 @@
-import csv 
 import json
 import re
 import sqlparse
@@ -25,8 +24,6 @@ def extract_query_info(real_query):
     sql_query, top_value, distinct = preprocess_query_for_top_and_distinct(real_query)
     has_order_by = bool(re.search(r'\bORDER\s+BY\b', sql_query, re.IGNORECASE))
     parsed_results = sqlparse.parse(sql_query)
-    if not parsed_results:
-        return None
     parsed = parsed_results[0]
 
     select_columns, tables = [], []
@@ -50,8 +47,8 @@ def extract_query_info(real_query):
                     # Remove alias (find "AS")
                     if " AS " in col.upper():
                         col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0]
-                    # Split the column into several columns if it has algebraic operators (+,-,*,/)
-                    if any(op in col for op in ['+', '-', '*', '/']):
+                    # Split the column into several columns if it has algebraic operators (+,-,*,/), but it is not a SELECT *
+                    if col[-1] != '*' and any(op in col for op in ['+', '-', '*', '/']):
                         col_parts = re.split(r'\s*[\+\-\*/]\s*', col)
                         for part in col_parts:
                             cleaned_part = part.strip(" ()")  # Remove whitespace and parentheses
@@ -60,7 +57,6 @@ def extract_query_info(real_query):
                                 select_columns.append(cleaned_part)
                         continue  # Skip appending the full col again
                     select_columns.append(col)
-                    
                 elif in_from:
                     name = str(identifier).strip()
 
@@ -92,7 +88,6 @@ def extract_query_info(real_query):
                             ]:
                                 tables.append(name)
         elif isinstance(token, Where):
-            #where_clause = str(token)
             where_clause = str(token).replace('\n', ' ')
             # Remove the WHERE keyword
             where_clause = re.sub(r"(?i)^\s*WHERE\s*", "", where_clause.strip())
@@ -108,7 +103,7 @@ def extract_query_info(real_query):
     for col in select_columns:
         for alias, table in alias_mapping.items():
             col = re.sub(rf"\b{alias}\.", f"{table}_", col)
-        final_columns.append(col)    
+        final_columns.append(col)
 
     parsed_query = {
         "original_query": real_query,
@@ -133,30 +128,19 @@ def extract_query_info(real_query):
     return parsed_query
 
 
-def process_csv(input_path, output_path):
-    with open(input_path, "r", encoding="utf-8", errors="replace") as csvfile, \
-         open(output_path, "w", encoding="utf-8") as outfile:
-
-        reader = csv.reader(csvfile)
+def process_input(input_path, output_path):
+    with open(input_path, mode="r", encoding="utf-8", errors="replace") as infile:
         # Remove header
-        _ = next(reader)
+        _ = next(infile)
 
         all_queries = []
-        for idx, row in enumerate(tqdm(reader, desc="Parsing queries")):
-            if True:  # idx == 0:
-                if len(row) > 1:
-                    statement_parts = row[1:]  # First field in the row is the time, which we can ignore
+        for line in tqdm(infile, desc="Parsing queries"):
+            # Avoid processing the last empty line
+            if len(line) > 6:
+                info = extract_query_info(line)
+                all_queries.append(info)
 
-                    # Remove numerical fields from right to left
-                    while statement_parts and re.match(r'^\s*[\d.E+-]+\s*$', statement_parts[-1]):
-                        statement_parts.pop()
-
-                    # This is required because CSV parsing sometimes gets confused with commas
-                    statement = ' '.join(statement_parts).strip()
-
-                    info = extract_query_info(statement)
-                    if info is not None:
-                        all_queries.append(info)
-
+    with open(output_path, "w", encoding="utf-8") as outfile:
         json.dump({"queries": all_queries}, outfile, ensure_ascii=False, indent=2)
-        print(f"Parsed queries saved to {output_path}")
+
+    print(f"Parsed queries saved to {output_path}")

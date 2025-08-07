@@ -1,8 +1,9 @@
+import traceback
 import argparse
 import os
 from modules.fetch import fetch_logs
 from modules.count import get_total_logs
-from modules.parse import process_csv
+from modules.parse import process_input
 from modules.clean import clean_queries
 from modules.group import (
     group_queries_by_table,
@@ -10,14 +11,9 @@ from modules.group import (
     save_grouped_queries,
     load_cleaned_queries
 )
-# fastapi import FastAPI
-#from api import workload
 
 
-def main():
-    #app = FastAPI()
-    #app.include_router(workload.router, prefix="/api")
-
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="🛠️ Workload SQL Tool")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -53,10 +49,9 @@ def main():
     group_parser.add_argument("--jaccard", type=float, default=0.8, help="Jaccard similarity threshold")
     group_parser.add_argument("--modifiers", nargs="*", default=[], choices=["distinct", "groupby", "orderby", "top"],
                               help="Optional modifiers to include in grouping")
-    group_parser.add_argument("--store_groups", action="store_true", help="Save grouped query data")
     args = parser.parse_args()
 
-    # Auto-prepend "data/" if not already present
+    # Auto-prepend "tmp/" if not already present
     if hasattr(args, "output") and not args.output.startswith("tmp/"):
         args.output = os.path.join("tmp", args.output)
     if hasattr(args, "input") and not args.input.startswith("tmp/"):
@@ -70,7 +65,7 @@ def main():
         elif args.command == "count":
             get_total_logs(year=args.year, month=getattr(args, "month", None), day=getattr(args, "day", None))
         elif args.command == "parse":
-            process_csv(args.input, args.output)
+            process_input(args.input, args.output)
         elif args.command == "clean":
             clean_queries(args.input, args.output)
         elif args.command == "group":
@@ -84,7 +79,4 @@ def main():
 
     except Exception as e:
         print(f"🚨 Error: {e}")
-
-
-if __name__ == "__main__":
-    main()
+        traceback.print_exc()

@@ -22,11 +22,8 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
     else:
         query = f"SELECT TOP {limit} "
     query += """ 
-        theTime, 
         statement,
-        elapsed,
-        busy,
-        [rows]
+        '__EOL__' as __EOL__
     FROM SqlLog
     WHERE
         error = 0 AND
@@ -61,7 +58,12 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
             filename = f"fetched_{datestring}_top{limit}.csv"
         file = path / filename
         with open(file, "w", encoding="utf-8") as f:
-            f.write(response.text)
+            f.write(response.text
+                    .replace('\r', ' ')
+                    .replace('\n', ' ')
+                    .replace('"', '')
+                    .replace(",__EOL__", '\n')
+                    )
         print(f"💾 Data saved to {file.absolute()} (⏱️ {elapsed}s)")
     else:
         print(f"❌ Failed with status {response.status_code}")
