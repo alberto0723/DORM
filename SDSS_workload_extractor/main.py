@@ -8,8 +8,7 @@ from modules.group import (
     group_queries_by_table,
     calculate_column_frequencies,
     save_grouped_queries,
-    load_cleaned_queries,
-    save_frequencies  
+    load_cleaned_queries
 )
 # fastapi import FastAPI
 #from api import workload
@@ -79,10 +78,9 @@ def main():
             grouped = group_queries_by_table(queries, args.modifiers)
             frequencies = calculate_column_frequencies(grouped, args.threshold, args.jaccard)
             # Save frequencies correctly (stringify keys)
-            save_frequencies(frequencies, args.freq_output)
+            # save_frequencies(frequencies, args.freq_output)
             # Save full grouped queries only if requested
-            if args.store_groups:
-                save_grouped_queries(grouped, args.output, args.modifiers)
+            save_grouped_queries(grouped, frequencies, args.output, args.modifiers)
 
     except Exception as e:
         print(f"🚨 Error: {e}")
