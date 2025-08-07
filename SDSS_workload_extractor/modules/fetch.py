@@ -1,6 +1,7 @@
 import requests
 import time
 from pathlib import Path
+import re
 
 """
 This module fetches filtered SQL logs from SDSS using the x_sql.asp endpoint.
@@ -60,12 +61,15 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
             filename = f"fetched_{datestring}_top{limit}.csv"
         file = path / filename
         with open(file, "w", encoding="utf-8") as f:
-            f.write(response.text
-                    .replace('\r', ' ')
-                    .replace('\n', ' ')
-                    .replace('\t', ' ')
-                    .replace('"', '')
-                    .replace(",__EOL__", '\n')
+            f.write(
+                    re.sub(r'\s+', ' ',
+                           response.text.replace('\r', ' ')
+                                        .replace('\n', ' ')
+                                        .replace('\t', ' ')
+                                        .replace('"', '')
+                                        .replace(",__EOL__", '')
+                           ).replace("count (", "count(")
+                            .replace("COUNT (", "COUNT(")
                     )
         print(f"✅ Data saved to {file.absolute()}")
     else:
