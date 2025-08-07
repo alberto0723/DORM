@@ -44,19 +44,21 @@ def extract_query_info(real_query):
             for identifier in identifiers:
                 if in_select:
                     col = str(identifier)
-                    # Remove alias (find "AS")
-                    if " AS " in col.upper():
-                        col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0]
-                    # Split the column into several columns if it has algebraic operators (+,-,*,/), but it is not a SELECT *
-                    if col[-1] != '*' and any(op in col for op in ['+', '-', '*', '/']):
-                        col_parts = re.split(r'\s*[\+\-\*/]\s*', col)
-                        for part in col_parts:
-                            cleaned_part = part.strip(" ()")  # Remove whitespace and parentheses
-                            # Only keep if it looks like a column (no literals like 1.21 or 'text')
-                            if re.match(r'^[a-zA-Z_][\w\.]*$', cleaned_part):  
-                                select_columns.append(cleaned_part)
-                        continue  # Skip appending the full col again
-                    select_columns.append(col)
+                    # TODO: Extract the attributes inside HTML code (by now, they are ignored)
+                    if "HREF=HTTP" not in col.upper():
+                        # Remove alias (find "AS")
+                        if " AS " in col.upper():
+                            col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0]
+                        # Split the column into several columns if it has algebraic operators (+,-,*,/), but it is not a SELECT *
+                        if col[-1] != '*' and any(op in col for op in ['+', '-', '*', '/']):
+                            col_parts = re.split(r'\s*[\+\-\*/]\s*', col)
+                            for part in col_parts:
+                                cleaned_part = part.strip(" ()")  # Remove whitespace and parentheses
+                                # Only keep if it looks like a column (no literals like 1.21 or 'text')
+                                if re.match(r'^[a-zA-Z_][\w\.]*$', cleaned_part):
+                                    select_columns.append(cleaned_part)
+                            continue  # Skip appending the full col again
+                        select_columns.append(col)
                 elif in_from:
                     name = str(identifier).strip()
 
