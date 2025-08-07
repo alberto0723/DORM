@@ -50,7 +50,7 @@ def group_queries_by_table(queries: list, modifiers: list) -> dict:
 
 
 # Step 2: Frequency analysis with Jaccard merging
-def calculate_column_frequencies(grouped_queries: dict, threshold_ratio: float, jaccard_threshold: float = 0.8) -> dict:
+def calculate_column_frequencies(grouped_queries: dict, modifiers: list, threshold_ratio: float, jaccard_threshold: float = 0.8) -> list[dict]:
 
     def stringify_key(key):
         if isinstance(key, (tuple, list)):
@@ -61,14 +61,12 @@ def calculate_column_frequencies(grouped_queries: dict, threshold_ratio: float, 
 
     global total_queries
     min_queries = total_queries * threshold_ratio
+    group_id = 0
 
-    result = {}
+    summarized_groups = []
     for table_key, queries in tqdm(grouped_queries.items(), desc="🔍 Processing groups"):
         # All the group must have the minimum queries, so that a part of it can have it
         if len(queries) > min_queries:
-            print("Table key:", table_key)
-            print("Queries:", len(queries))
-            print("Example:", queries[0])
 
             # Since we do not have information on the schema of the tables, we assume '*' is simply the union of all attributes appearing in the queries
             all_columns = set()
@@ -80,8 +78,6 @@ def calculate_column_frequencies(grouped_queries: dict, threshold_ratio: float, 
                 pattern_counts[column_key] += 1
                 if columns != ['*']:
                     all_columns |= set(columns)
-            print("Pattern counts:", pattern_counts)
-            print("All columns:", all_columns)
 
             merged_patterns = []
             used = set()
@@ -91,8 +87,10 @@ def calculate_column_frequencies(grouped_queries: dict, threshold_ratio: float, 
                 if i not in used:
                     shape_i, count_i = patterns[i]
                     if shape_i == ('*',):
+                        star_found = True
                         set_i = all_columns
                     else:
+                        star_found = False
                         set_i = set(shape_i)
                     merged = set_i.copy()
                     total_count = count_i
@@ -101,6 +99,7 @@ def calculate_column_frequencies(grouped_queries: dict, threshold_ratio: float, 
                         if j not in used:
                             shape_j, count_j = patterns[j]
                             if shape_j == ('*',):
+                                star_found = True
                                 set_j = all_columns
                             else:
                                 set_j = set(shape_j)
@@ -112,66 +111,52 @@ def calculate_column_frequencies(grouped_queries: dict, threshold_ratio: float, 
                                 total_count += count_j
 
                     if total_count > min_queries:
-                        merged_patterns.append((tuple(sorted(merged)), total_count))
+                        group_id += 1
 
-            print("Merged patterns:", merged_patterns)
-            # TODO: Should be remove repetitions after joining the columns?
-            filtered = {
-                ", ".join(cols): count
-                for cols, count in merged_patterns
-                if count >= min_queries
-            }
+                        try:
+                            dedup_pattern = sorted(set(
+                                t.split()[0] for t in queries[i].get("pattern", []) if "(" not in t
+                            ))
+                            if dedup_pattern != queries[i].get("pattern", []):
+                                print("---------------------")
+                                print("Original pattern: ", queries[i].get("pattern", []))
+                                print("Cleaned pattern: ", dedup_pattern)
+                                print("---------------------")
 
-            if filtered:
-                result[stringify_key(table_key)] = filtered
+                            group_summary = {
+                                "group_id": group_id,
+                                "frequency": total_count / total_queries,
+                                "original_query": queries[i].get("original_query", ""),
+                                "pattern": dedup_pattern,
+                                "project": list(merged) if not star_found else ['*'],
+                                "filter": queries[i].get("filter"),
+                                "has_nested_queries": queries[i].get("has_nested_queries"),
+                            }
+                            modifier_map = {
+                                "distinct": "has_distinct",
+                                "top": "top_value",
+                                "orderby": "has_order_by",
+                                "groupby": "has_group_by",
+                            }
+
+                            # Add only the modifiers used in grouping
+                            for mod in modifiers:
+                                json_key = modifier_map.get(mod)
+                                if json_key in queries[i]:
+                                    group_summary[json_key] = queries[i][json_key]
+                            print(group_summary)
+                            summarized_groups.append(group_summary)
+
+                        except Exception as e:
+                            print(f"⚠️ Failed processing group {group_id}: {e}")
 
     print("\n✅ Frequency analysis completed.\n")
-    return result
+    return summarized_groups
 
 
 # Step 3: Save summarized representative queries per group
-def save_grouped_queries(grouped: dict, frequencies, output_path: str, modifiers: list):
+def save_grouped_queries(summarized_groups: list[dict], output_path: str):
     print(f"💾 Saving summarized group representatives to {output_path}...")
-    summarized_groups = []
-
-    for group_id, group_queries in enumerate(grouped.values()):
-        # print(group_id, group_queries)
-        assert group_queries, f"No queries in the group {group_id}"
-
-        first_query = group_queries[0]
-
-        try:
-            dedup_pattern = sorted(set(
-                t.split()[0] for t in first_query.get("pattern", []) if "(" not in t
-            ))
-            dedup_project = sorted(set(first_query.get("project", [])))
-
-            group_summary = {
-                "group_id": group_id,
-                "frequency": len(group_queries)/total_queries,
-                "original_query": first_query.get("original_query", ""),
-                "pattern": dedup_pattern,
-                "project": dedup_project,
-                "filter": first_query.get("filter"),
-                "has_nested_queries": first_query.get("has_nested_queries"),
-            }
-            modifier_map = {
-            "distinct": "has_distinct",
-            "top": "top_value",
-            "orderby": "has_order_by",
-            "groupby": "has_group_by",
-            }
-
-            # Add only the modifiers used in grouping
-            for mod in modifiers:
-                json_key = modifier_map.get(mod)
-                if json_key in first_query:
-                    group_summary[json_key] = first_query[json_key]
-            
-            summarized_groups.append(group_summary)
-
-        except Exception as e:
-            print(f"⚠️ Failed processing group {group_id}: {e}")
 
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -179,14 +164,3 @@ def save_grouped_queries(grouped: dict, frequencies, output_path: str, modifiers
         print(f"✅ Saved: {output_path}\n")
     except Exception as e:
         print(f"🚨 Failed to save grouped queries: {e}")
-
-
-# Step 4: Save frequency results
-# def save_frequencies(frequencies: dict, output_path: str):
-#     print(f"💾 Saving column frequency analysis to {output_path}...")
-#     try:
-#         with open(output_path, 'w', encoding='utf-8') as f:
-#             json.dump(frequencies, f, indent=2, ensure_ascii=False)
-#         print(f"✅ Saved: {output_path}\n")
-#     except Exception as e:
-#         print(f"🚨 Failed to save frequency file: {e}")

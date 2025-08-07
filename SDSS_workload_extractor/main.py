@@ -76,11 +76,11 @@ def main():
         elif args.command == "group":
             queries = load_cleaned_queries(args.input)
             grouped = group_queries_by_table(queries, args.modifiers)
-            frequencies = calculate_column_frequencies(grouped, args.threshold, args.jaccard)
+            filtered_groups = calculate_column_frequencies(grouped, args.modifiers, args.threshold, args.jaccard)
             # Save frequencies correctly (stringify keys)
             # save_frequencies(frequencies, args.freq_output)
             # Save full grouped queries only if requested
-            save_grouped_queries(grouped, frequencies, args.output, args.modifiers)
+            save_grouped_queries(filtered_groups, args.output)
 
     except Exception as e:
         print(f"🚨 Error: {e}")
