@@ -118,7 +118,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                             if json_key in queries[i]:
                                 group_summary[json_key] = queries[i][json_key]
                         summarized_groups.append(group_summary)
-    print(f"✅ Created {len(summarized_groups)} groups")
+    print(f"✅ Retained {len(summarized_groups)} groups")
     return summarized_groups
 
 

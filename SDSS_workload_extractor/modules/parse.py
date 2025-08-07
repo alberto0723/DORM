@@ -63,7 +63,8 @@ def extract_query_info(real_query):
                     name = str(identifier).strip()
 
                     # Try to match "TableName AS alias" or "TableName alias"
-                    match = re.match(r"([a-zA-Z_][\w]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
+                    # Some temporary tables start with "#"
+                    match = re.match(r"(#?[a-zA-Z_][\w]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
                     if match:
                         # It is a table with alias
                         full_table, alias = match.groups()
