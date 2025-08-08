@@ -156,4 +156,4 @@ def process_input(input_path, output_path):
     with open(output_path, "w", encoding="utf-8") as outfile:
         json.dump({"queries": all_queries}, outfile, ensure_ascii=False, indent=2)
 
-    print(f"✅ Queries saved to {output_path}")
+    print(f"✅ Queries saved")

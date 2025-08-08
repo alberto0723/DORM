@@ -143,6 +143,6 @@ def save_grouped_queries(summarized_groups: list[dict], output_path: str):
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump({"queries": summarized_groups}, f, indent=2, ensure_ascii=False)
-        print(f"✅ Saved: {output_path}\n")
+        print(f"✅ Data saved")
     except Exception as e:
         print(f"❌ Failed to save grouped queries: {e}")

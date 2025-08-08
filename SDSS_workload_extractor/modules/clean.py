@@ -45,7 +45,7 @@ def clean_queries(input_file, output_file):
             cleaned.append(query)
     print(f"✅ Cleaned: {len(cleaned)} of {len(data["queries"])} queries retained")
     
-    print(f"\n💾 Saving cleaned data to {output_file}...")
+    print(f"\n💾 Saving queries to {output_file}...")
     with open(output_file, 'w', encoding='utf-8') as outfile:
         json.dump(cleaned, outfile, indent=2, ensure_ascii=False)
     print(f"✅ Data saved")

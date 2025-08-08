@@ -52,7 +52,7 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
     print(f"✅ Logs fetched  (⏱️ {elapsed}s)")
 
     if response.status_code == 200:
-        print(f"\n💾 Data saving data")
+        print(f"\n💾 Saving data")
         path = Path("data")
         path.mkdir(parents=True, exist_ok=True)
         if limit is None:
