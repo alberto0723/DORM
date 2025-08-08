@@ -63,15 +63,29 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
     for table_key, queries in tqdm(grouped_queries.items(), desc="🔍 Grouping queries and filtering them by frequency"):
         # All the group must have the minimum queries, so that a part of it can have it
         if len(queries) > min_queries:
+            # We split the queries depending on the select having a star or not
+            star_queries = []
+            non_star_queries = []
             # Since we do not have information on the schema of the tables, we assume '*' is simply the union of all attributes appearing in the queries
             all_columns = set()
+            for query in queries:
+                columns = query.get("project", [])
+                if len(columns) > 1 or columns[0][-1] != '*':
+                    all_columns |= set(columns)
+                    non_star_queries.append(query)
+                else:
+                    star_queries.append(query)
+            # Merge back all the queries sorted by the length of the projection
+            queries = star_queries + sorted(non_star_queries, key=lambda q: len(q.get("project", [])), reverse=True)
+            # Now we generate an auxiliary structure with the count of columns of each query
             pattern_counts = defaultdict(int)
+            pattern_representative = {}
             for query in queries:
                 columns = query.get("project", [])
                 column_key = tuple(sorted(set(columns)))
                 pattern_counts[column_key] += 1
-                if len(columns) > 1 or columns[0][-1] != '*':
-                    all_columns |= set(columns)
+                if column_key not in pattern_representative:
+                    pattern_representative[column_key] = query
 
             used = set()
             patterns = list(pattern_counts.items())
@@ -106,11 +120,11 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                         group_summary = {
                             "group_id": len(summarized_groups)+1,
                             "frequency": total_count / total_queries,
-                            "original_query": queries[i].get("original_query", ""),
-                            "pattern": queries[i].get("pattern", []),
+                            "original_query": pattern_representative[shape_i].get("original_query", ""),
+                            "pattern": pattern_representative[shape_i].get("pattern", []),
                             "project": list(merged) if not star_found else ['*'],
-                            "filter": queries[i].get("filter"),
-                            "has_nested_queries": queries[i].get("has_nested_queries"),
+                            "filter": pattern_representative[shape_i].get("filter"),
+                            "has_nested_queries": pattern_representative[shape_i].get("has_nested_queries"),
                         }
                         # Add only the modifiers used in grouping
                         for mod in modifiers:
