@@ -129,7 +129,7 @@ Select-Project-Join expressions in terms of the domain concepts.
 You can find some [query examples](files/queries/book-authors.json) over the same domain.
 
 The content of the query files is just a list of SPJ queries, whose structure is as follows:
-1. ``project`` contains a list of attributes in the domain, which cannot be empty.
+1. ``project`` contains a list of attributes in the domain (or wildcard ``*``), which cannot be empty.
 2. ``pattern`` contains a list of classes and associations in the domain, which cannot be empty.
 3. ``filter`` contains a predicate (by now without parenthesis) in terms of the attributes of the domain.
 

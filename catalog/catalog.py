@@ -1080,16 +1080,28 @@ class Catalog(HyperNetXWrapper):
         return attributes
 
     def parse_query(self, query) -> tuple[list[str], list[str], list[str], list[str], str]:
-        # Get the query and parse it
-        project_attributes = query.get("project", [])
-        if not project_attributes:
-            raise ValueError("🚨 Empty projection is not allowed in a query")
-        for a in project_attributes:
-            if not (self.is_attribute(a) or self.is_association_end(a)):
-                raise ValueError(f"🚨 Projected '{a}' is neither an attribute nor an association end")
         pattern_edges = query.get("pattern", [])
         if not pattern_edges:
             raise ValueError("🚨 Empty pattern is not allowed in the query")
+        # Get the query and parse it
+        requested_project_attributes = query.get("project", [])
+        if not requested_project_attributes:
+            raise ValueError("🚨 Empty projection is not allowed in a query")
+        project_attributes = []
+        for requested in requested_project_attributes:
+            if self.is_attribute(requested) or self.is_association_end(requested):
+                project_attributes.append(requested)
+            elif requested == '*':
+                for edge in pattern_edges:
+                    if self.is_class(edge):
+                        for attr in self.get_outbound_class_by_name(edge).itertuples():
+                            project_attributes.append(attr.Index[1])
+            elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
+                print("Class wildcard", requested)
+                for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
+                    project_attributes.append(attr.Index[1])
+            else:
+                raise ValueError(f"🚨 Projected '{requested}' is neither an attribute, nor an association end, nor an accepted wildcard")
         identifiers = []
         for e in pattern_edges:
             if not (self.is_class(e) or self.is_association(e)):

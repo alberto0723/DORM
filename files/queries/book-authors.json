@@ -31,12 +31,16 @@
       "filter": "A_name = 'hello'"
     },
     {
-      "project": ["B_ID", "B_title", "B_publisher"],
+      "project": ["*"],
       "pattern": ["Book"]
     },
     {
-      "project": ["A_ID", "A_name", "A_gender", "A_age", "A_address"],
+      "project": ["*"],
       "pattern": ["Author"]
+    },
+    {
+      "project": ["A_ID", "Book_*"],
+      "pattern": ["Book", "Writes", "Author"]
     }
   ]
 }
