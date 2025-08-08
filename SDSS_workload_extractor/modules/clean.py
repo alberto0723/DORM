@@ -32,16 +32,13 @@ def clean_queries(input_file, output_file):
         data = json.load(infile)
     print(f"✅ Data loaded")
 
-    print("\n🧹 Filtering out queries that read or modify MyDB, have temporary tables starting with '#', or do not have tables in the FROM clause")
+    print("\n🧹 Filtering out queries that read or modify MyDB, have 'dbobjects' in the FROM, have temporary tables starting with '#' in the FROM, or have an empty SELECT clause")
     cleaned = []
     for query in tqdm(data["queries"], desc="Filtering queries"):
         table_set = [t.split()[0].lower() for t in query.get("pattern", []) if "(" not in t]
         if (not is_mydb_query(query["original_query"])
                 and table_set and all(t != 'dbobjects' and t[0] != '#' for t in table_set)
                 and query.get("project", [])):
-            if "#" in query["original_query"]:
-                print(query["original_query"])
-                print(table_set)
             cleaned.append(query)
     print(f"✅ Cleaned: {len(cleaned)} of {len(data["queries"])} queries retained")
     
