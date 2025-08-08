@@ -146,7 +146,7 @@ def process_input(input_path, output_path):
         _ = next(infile)
 
         all_queries = []
-        for line in tqdm(infile, desc="Parsing queries"):
+        for line in tqdm(infile, desc=f"Parsing queries in {input_path}"):
             # Avoid processing the last empty line (or any other line without at least a SELECT)
             if len(line) > 6:
                 info = extract_query_info(line)

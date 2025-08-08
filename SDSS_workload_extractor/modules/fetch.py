@@ -58,19 +58,15 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
         if limit is None:
             filename = f"fetched_{datestring}_all.txt"
         else:
-            filename = f"fetched_{datestring}_top{limit}.csv"
+            filename = f"fetched_{datestring}_top{limit}.txt"
         file = path / filename
         with open(file, "w", encoding="utf-8") as f:
             f.write(
-                    re.sub(r'\s+', ' ',
-                           response.text.replace('\r', ' ')
-                                        .replace('\n', ' ')
-                                        .replace('\t', ' ')
-                                        .replace('"', '')
-                                        .replace(",__EOL__", '')
-                           ).replace("count (", "count(")
-                            .replace("COUNT (", "COUNT(")
-                    )
+                re.sub(r'\s+', ' ', response.text.replace('"', ''))
+                .replace("count (", "count(")
+                .replace("COUNT (", "COUNT(")
+                .replace(",__EOL__", '\n')
+            )
         print(f"✅ Data saved to {file.absolute()}")
     else:
         print(f"\n❌ Failed with status {response.status_code}")
