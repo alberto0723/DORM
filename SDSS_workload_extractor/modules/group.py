@@ -103,6 +103,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                         star_found = False
                         set_i = set(shape_i)
                     merged = set_i.copy()
+                    intersect_conditions = queries[i].get("filter_clauses")
                     total_count = count_i
 
                     for j in range(i + 1, len(patterns)):
@@ -117,16 +118,28 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                             if jaccard >= jaccard_threshold:
                                 used.add(j)
                                 merged |= set_j
+                                # Keep the intersection of all the conditions of queries in the group
+                                intersect_conditions = [c for c in intersect_conditions if c in queries[j].get("filter_clauses")]
                                 total_count += count_j
 
+                    filter_clauses = []
+                    i = 1
+                    for c in intersect_conditions:
+                        if c["operator"].upper() == "BETWEEN":
+                            filter_clauses.append("("+c["attribute"]+" BETWEEN $"+str(i)+" AND $"+str(i+1)+")")
+                            i += 2
+                        else:
+                            filter_clauses.append(c["attribute"] + c["operator"] + "$" + str(i))
+                            i += 1
                     if total_count > min_queries:
+                        # We are assuming conjunctive queries in the filter
                         group_summary = {
                             "group_id": len(summarized_groups)+1,
                             "frequency": total_count / total_queries,
                             "original_query": pattern_representative[shape_i].get("original_query", ""),
                             "pattern": pattern_representative[shape_i].get("pattern", []),
                             "project": sorted(merged) if not star_found else ['*'],
-                            "filter": pattern_representative[shape_i].get("filter"),
+                            "filter": " and ".join(filter_clauses),
                             "has_nested_queries": pattern_representative[shape_i].get("has_nested_queries"),
                         }
                         # Add only the modifiers used in grouping
