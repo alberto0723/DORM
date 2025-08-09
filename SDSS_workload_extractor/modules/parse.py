@@ -11,6 +11,7 @@ distinct_regex = re.compile(r'\bDISTINCT\b', re.IGNORECASE)
 match_regex = re.compile(r'\bMATCH\b', re.IGNORECASE)
 type_regex = re.compile(r'\bTYPE\b', re.IGNORECASE)
 class_regex = re.compile(r'\bCLASS\b', re.IGNORECASE)
+mode_regex = re.compile(r'\bMODE\b', re.IGNORECASE)
 
 
 def is_discarded_query(query_text):
@@ -28,10 +29,10 @@ def is_discarded_query(query_text):
         r'update\s+mydb\.',  # UPDATE MyDB...
         r'delete\s+from\s+mydb\.'  # DELETE FROM MyDB...
     ]
-    # Discard also queries using metadata in dbobjects
-    patterns.extend(['dbobjects', 'sqllog', 'dbcolumns'])
+    # Discard also queries using metadata
+    patterns.extend(['dbobjects', 'sqllog', 'dbcolumns', 'information_schema'])
     # Remove also other SQL commands
-    patterns.extend(['exec'])
+    patterns.extend(['exec', r'create\s+table'])
 
     for pattern in patterns:
         if re.search(pattern, query_text):
@@ -52,6 +53,7 @@ def preprocess_query_for_match_top_and_distinct(sql_query):
     sql_query = match_regex.sub('__MATCH__', sql_query)
     sql_query = type_regex.sub('__TYPE__', sql_query)
     sql_query = class_regex.sub('__CLASS__', sql_query)
+    sql_query = mode_regex.sub('__MODE__', sql_query)
 
     return sql_query, top_value, distinct
 
@@ -197,6 +199,7 @@ def post_processing(parsed_query, alias_mapping):
         if "__Function_Call__" not in col:
             col = re.sub(r"__TYPE__", "type", col)
             col = re.sub(r"__CLASS__", "class", col)
+            col = re.sub(r"__MODE__", "mode", col)
             final_columns.append(col)
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
@@ -213,6 +216,7 @@ def post_processing(parsed_query, alias_mapping):
                 comparison["attribute"] = re.sub(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
         comparison["attribute"] = re.sub(r"__TYPE__", "type", comparison["attribute"])
         comparison["attribute"] = re.sub(r"__CLASS__", "class", comparison["attribute"])
+        comparison["attribute"] = re.sub(r"__MODE__", "mode", comparison["attribute"])
         final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 
