@@ -126,7 +126,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                     i = 1
                     for c in intersect_conditions:
                         if c["operator"].upper() == "BETWEEN":
-                            filter_clauses.append("("+c["attribute"]+" BETWEEN $"+str(i)+" AND $"+str(i+1)+")")
+                            filter_clauses.append(c["attribute"]+" BETWEEN $"+str(i)+" AND $"+str(i+1))
                             i += 2
                         else:
                             filter_clauses.append(c["attribute"] + c["operator"] + "$" + str(i))

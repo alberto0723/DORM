@@ -130,31 +130,28 @@ def extract_query_info(real_query):
             for i in range(len(token.tokens)):
                 current = token.tokens[i]
                 if isinstance(current, Comparison):
-                    attributes = 0
+                    attributes = []
                     for elem in current.tokens:
                         if elem.ttype == Token.Operator.Comparison:
                             operator = elem.value
                         elif isinstance(elem, Identifier):
-                            if elem.value == "__TYPE__":
-                                attribute = re.sub(r"__TYPE__", "type", elem.value)
-                            else:
-                                attribute = elem.value
+                            attribute = elem.value
                             for alias, table in alias_mapping.items():
                                 if table == "__Function_Call__":
                                     attribute = re.sub(rf"\b{alias}\.[\w]+", "?", attribute)
                             # If it is not a function call, then we have an attribute
                             if attribute != "?":
-                                attributes += 1
-                    if attributes == 1:
-                        comparisons.append({"attribute": attribute, "operator": operator})
+                                attributes.append(attribute)
+                    if len(attributes) == 1:
+                        comparisons.append({"attribute": attributes[0], "operator": operator})
                 elif current.ttype is Keyword and current.value.upper() == "BETWEEN":
                     operator = current.value
                     assert i > 2, f"Wrong 'between' clause in {token}"
                     attribute = token.tokens[i-2].value
                     comparisons.append({"attribute": attribute, "operator": operator})
                 elif current.ttype is Keyword:
-                    # TODO: Consider other more complex comparisons
-                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR"):
+                    # TODO: Consider other more complex comparisons not properly treated by sqlparse library
+                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL"):
                         logic_word = current.value
                         assert logic_word.upper() == "AND", "Non conjunctive query: '" + logic_word + f"' in {sql_query}"
 
@@ -192,6 +189,7 @@ def post_processing(parsed_query, alias_mapping):
             for alias, table in alias_mapping.items():
                 col = re.sub(rf"\b{alias}\.", f"{table}_", col)
         if "__Function_Call__" not in col:
+            col = re.sub(r"__TYPE__", "type", col)
             final_columns.append(col)
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
@@ -206,6 +204,7 @@ def post_processing(parsed_query, alias_mapping):
         else:
             for alias, table in alias_mapping.items():
                 comparison["attribute"] = re.sub(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
+        comparison["attribute"] = re.sub(r"__TYPE__", "type", comparison["attribute"])
         final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 
