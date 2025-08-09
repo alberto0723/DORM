@@ -117,7 +117,10 @@ def extract_query_info(real_query):
                             _, alias = match.groups()
                             alias_mapping[alias] = "__Function_Call__"
                         else:
-                            tables.append(identifier.value)
+                            if identifier.value == "__MATCH__":
+                                tables.append("Match")
+                            else:
+                                tables.append(identifier.value)
         elif isinstance(token, Where):
             in_from = False
             for i in range(len(token.tokens)):
