@@ -8,7 +8,7 @@ from modules.group import (
     group_queries_by_table,
     calculate_column_frequencies,
     save_grouped_queries,
-    load_cleaned_queries
+    load_parsed_queries
 )
 
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         elif args.command == "parse":
             process_input(args.input, args.output)
         elif args.command == "group":
-            queries = load_cleaned_queries(args.input)
+            queries = load_parsed_queries(args.input)
             grouped = group_queries_by_table(queries, args.modifiers)
             filtered_groups = calculate_column_frequencies(grouped, args.modifiers, args.threshold, args.jaccard)
             save_grouped_queries(filtered_groups, args.output)

@@ -1,15 +1,17 @@
 import json
 from collections import defaultdict
 from tqdm import tqdm
+from pathlib import Path
 
 
 total_queries = 0
 
 
-# Step 0: Load the cleaned queries from input JSON
-def load_cleaned_queries(path: str) -> list:
-    print(f"📂 Loading cleaned queries from {path}...")
-    with open(path, 'r', encoding='utf-8') as f:
+# Step 0: Load the parsed queries from input JSON
+def load_parsed_queries(path: str) -> list:
+    input_file = Path(path).joinpath("parsed.json")
+    print(f"📂 Loading cleaned queries from {input_file}...")
+    with open(input_file, 'r', encoding='utf-8') as f:
         raw = json.load(f)
         queries = raw["queries"] if isinstance(raw, dict) else raw
     print(f"✅ Loaded {len(queries)} queries.\n")
@@ -69,20 +71,21 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
             # Since we do not have information on the schema of the tables, we assume '*' is simply the union of all attributes appearing in the queries
             all_columns = set()
             for query in queries:
-                columns = query.get("project", [])
+                columns = query.get("all_attributes")
                 if len(columns) > 1 or columns[0][-1] != '*':
                     all_columns |= set(columns)
                     non_star_queries.append(query)
                 else:
                     star_queries.append(query)
             # Merge back all the queries sorted by the length of the projection
-            queries = star_queries + sorted(non_star_queries, key=lambda q: len(q.get("project", [])), reverse=True)
-            # Now we generate an auxiliary structure with the count of columns of each query
+            queries = star_queries + sorted(non_star_queries, key=lambda q: len(q.get("all_attributes")), reverse=True)
+            # After sorting, we generate an auxiliary structure with the count of columns of each query
             pattern_counts = defaultdict(int)
             pattern_representative = {}
             for query in queries:
-                columns = query.get("project", [])
-                column_key = tuple(sorted(set(columns)))
+                columns = query.get("all_attributes", [])
+                # Columns need to be previously sorted on parsing
+                column_key = tuple(columns)
                 pattern_counts[column_key] += 1
                 if column_key not in pattern_representative:
                     pattern_representative[column_key] = query
@@ -93,7 +96,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
             for i in range(len(patterns)):
                 if i not in used:
                     shape_i, count_i = patterns[i]
-                    if shape_i[0][-1] == '*':
+                    if shape_i[0][0] == '*':
                         star_found = True
                         set_i = all_columns
                     else:
@@ -105,7 +108,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                     for j in range(i + 1, len(patterns)):
                         if j not in used:
                             shape_j, count_j = patterns[j]
-                            if shape_j[0][-1] == '*':
+                            if shape_j[0][0] == '*':
                                 star_found = True
                                 set_j = all_columns
                             else:
@@ -122,7 +125,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                             "frequency": total_count / total_queries,
                             "original_query": pattern_representative[shape_i].get("original_query", ""),
                             "pattern": pattern_representative[shape_i].get("pattern", []),
-                            "project": list(merged) if not star_found else ['*'],
+                            "project": sorted(merged) if not star_found else ['*'],
                             "filter": pattern_representative[shape_i].get("filter"),
                             "has_nested_queries": pattern_representative[shape_i].get("has_nested_queries"),
                         }
@@ -138,10 +141,11 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
 
 # Step 3: Save summarized representative queries per group
 def save_grouped_queries(summarized_groups: list[dict], output_path: str):
-    print(f"\n💾 Saving summarized group representatives to {output_path}...")
+    output_file = Path(output_path).joinpath("queries.json")
+    print(f"\n💾 Saving summarized group representatives to {output_file}...")
 
     try:
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             json.dump({"queries": summarized_groups}, f, indent=2, ensure_ascii=False)
         print(f"✅ Data saved")
     except Exception as e:
