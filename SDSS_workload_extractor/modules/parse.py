@@ -77,6 +77,7 @@ def extract_query_info(real_query):
                 select_columns.append("count(*)")
         elif isinstance(token, IdentifierList) or isinstance(token, Identifier):
             identifiers = list(token.get_identifiers()) if isinstance(token, IdentifierList) else [token]
+            identifiers = [i for i in identifiers if not isinstance(i, Comparison)]
             for i in range(len(identifiers)):
                 identifier = identifiers[i]
                 if in_select:
