@@ -9,6 +9,7 @@ from pathlib import Path
 top_regex = re.compile(r'\bTOP\s+(\d+)\b', re.IGNORECASE)
 distinct_regex = re.compile(r'\bDISTINCT\b', re.IGNORECASE)
 match_regex = re.compile(r'\bMATCH\b', re.IGNORECASE)
+type_regex = re.compile(r'\bTYPE\b', re.IGNORECASE)
 
 
 def is_discarded_query(query_text):
@@ -27,7 +28,7 @@ def is_discarded_query(query_text):
         r'delete\s+from\s+mydb\.'  # DELETE FROM MyDB...
     ]
     # Discard also queries using metadata in dbobjects
-    patterns.append('dbobjects')
+    patterns.extend(['dbobjects', 'sqllog', 'dbcolumns'])
 
     for pattern in patterns:
         if re.search(pattern, query_text):
@@ -46,6 +47,7 @@ def preprocess_query_for_match_top_and_distinct(sql_query):
     # This is necessary, because there is a "match" table in SDSS, and it confuses the SQL parser
     # As soon as SQL function "match" is not present in the queries, it should work
     sql_query = match_regex.sub('__MATCH__', sql_query)
+    sql_query = type_regex.sub('__TYPE__', sql_query)
 
     return sql_query, top_value, distinct
 
@@ -99,7 +101,6 @@ def extract_query_info(real_query):
                         select_columns.append(col)
                 elif in_from:
                     name = str(identifier).strip()
-
                     # Try to match "TableName AS alias" or "TableName alias"
                     # Some temporary tables start with "#"
                     match = re.match(r"(#?[a-zA-Z_][\w]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
@@ -111,16 +112,19 @@ def extract_query_info(real_query):
                         alias_mapping[alias] = full_table
                         tables.append(full_table)
                     else:
-                        # It still may be a function call, that optionally starts by "bdo."
-                        match = re.match(r"(?:dbo\.)?([a-zA-Z_][\w]*)\([^)]*\)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
+                        # It still may be a function call with an alias, that optionally starts by "bdo."
+                        match = re.match(r"(?:dbo\.)?([a-zA-Z_][\w]*)\s*\([^)]*\)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
                         if match:
                             _, alias = match.groups()
                             alias_mapping[alias] = "__Function_Call__"
                         else:
-                            if identifier.value == "__MATCH__":
-                                tables.append("Match")
-                            else:
-                                tables.append(identifier.value)
+                            # It could also be a function call without alias
+                            match = re.match(r"(?:dbo\.)?([a-zA-Z_][\w]*)\s*\([^)]*\)\s*", name, flags=re.IGNORECASE)
+                            if not match:
+                                if identifier.value == "__MATCH__":
+                                    tables.append("Match")
+                                else:
+                                    tables.append(identifier.value)
         elif isinstance(token, Where):
             in_from = False
             for i in range(len(token.tokens)):
@@ -131,7 +135,10 @@ def extract_query_info(real_query):
                         if elem.ttype == Token.Operator.Comparison:
                             operator = elem.value
                         elif isinstance(elem, Identifier):
-                            attribute = elem.value
+                            if elem.value == "__TYPE__":
+                                attribute = re.sub(r"__TYPE__", "type", elem.value)
+                            else:
+                                attribute = elem.value
                             for alias, table in alias_mapping.items():
                                 if table == "__Function_Call__":
                                     attribute = re.sub(rf"\b{alias}\.[\w]+", "?", attribute)
@@ -146,9 +153,10 @@ def extract_query_info(real_query):
                     attribute = token.tokens[i-2].value
                     comparisons.append({"attribute": attribute, "operator": operator})
                 elif current.ttype is Keyword:
-                    if current.value.upper() not in ("WHERE", " "):
+                    # TODO: Consider other more complex comparisons
+                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR"):
                         logic_word = current.value
-                        assert logic_word.upper() == "AND", "Non conjunctive query: " + logic_word
+                        assert logic_word.upper() == "AND", "Non conjunctive query: '" + logic_word + f"' in {sql_query}"
 
         elif token.is_group:
             has_nested_queries = True
@@ -220,16 +228,14 @@ def process_input(input_path, output_path):
         for line in tqdm(infile, desc=f"Parsing queries in {input_path}"):
             # Avoid processing the last empty line (or any other line without at least a SELECT)
             if len(line) > 6:
-                # Discarding queries that read or modify MyDB, or use 'dbobjects'
+                # Discarding queries that read or modify MyDB, or use system tables like 'dbobjects'
                 if is_discarded_query(line):
                     discardsfile.write(line)
                     discarded += 1
                 else:
                     query, alias_mapping = extract_query_info(line)
                     # Discard have temporary tables starting with '#' in the FROM, or have an empty SELECT clause
-                    # TODO: Check if it is really necessary to define "table_set"
-                    table_set = [t.split()[0].lower() for t in query.get("pattern", []) if "(" not in t]
-                    if table_set and all(t[0] != '#' for t in table_set) and query.get("project", []):
+                    if query.get("project") and query.get("pattern") and all(t[0] != '#' for t in query.get("pattern")):
                         query = post_processing(query, alias_mapping)
                         all_queries.append(query)
                     else:
