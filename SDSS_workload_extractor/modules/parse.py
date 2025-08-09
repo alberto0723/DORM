@@ -12,6 +12,8 @@ match_regex = re.compile(r'\bMATCH\b', re.IGNORECASE)
 type_regex = re.compile(r'\bTYPE\b', re.IGNORECASE)
 class_regex = re.compile(r'\bCLASS\b', re.IGNORECASE)
 mode_regex = re.compile(r'\bMODE\b', re.IGNORECASE)
+version_regex = re.compile(r'\bVERSION\b', re.IGNORECASE)
+cycle_regex = re.compile(r'\bCYCLE\b', re.IGNORECASE)
 
 
 def is_discarded_query(query_text):
@@ -48,12 +50,15 @@ def preprocess_query_for_match_top_and_distinct(sql_query):
     distinct = bool(distinct_regex.search(sql_query))
     sql_query = distinct_regex.sub('', sql_query)
 
-    # This is necessary, because there is a "match" table in SDSS, and it confuses the SQL parser
-    # As soon as SQL function "match" is not present in the queries, it should work
+    # This is necessary, because there are some table or attribute names in SDSS that coincide with reserved sql keywords, and it confuses the SQL parser
+    # As soon as the keywords are not really present in the queries, this should work
+    # TODO: Change the parsing library
     sql_query = match_regex.sub('__MATCH__', sql_query)
     sql_query = type_regex.sub('__TYPE__', sql_query)
     sql_query = class_regex.sub('__CLASS__', sql_query)
     sql_query = mode_regex.sub('__MODE__', sql_query)
+    sql_query = version_regex.sub('__VERSION__', sql_query)
+    sql_query = cycle_regex.sub('__CYCLE__', sql_query)
 
     return sql_query, top_value, distinct
 
@@ -159,7 +164,7 @@ def extract_query_info(real_query):
                     comparisons.append({"attribute": attribute, "operator": operator})
                 elif current.ttype is Keyword:
                     # TODO: Consider other more complex comparisons not properly treated by sqlparse library
-                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL"):
+                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL", "GO"):
                         logic_word = current.value
                         assert logic_word.upper() == "AND", "Non conjunctive query: '" + logic_word + f"' in {sql_query}"
 
@@ -200,6 +205,8 @@ def post_processing(parsed_query, alias_mapping):
             col = re.sub(r"__TYPE__", "type", col)
             col = re.sub(r"__CLASS__", "class", col)
             col = re.sub(r"__MODE__", "mode", col)
+            col = re.sub(r"__VERSION__", "version", col)
+            col = re.sub(r"__CYCLE__", "cycle", col)
             final_columns.append(col)
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
@@ -217,6 +224,8 @@ def post_processing(parsed_query, alias_mapping):
         comparison["attribute"] = re.sub(r"__TYPE__", "type", comparison["attribute"])
         comparison["attribute"] = re.sub(r"__CLASS__", "class", comparison["attribute"])
         comparison["attribute"] = re.sub(r"__MODE__", "mode", comparison["attribute"])
+        comparison["attribute"] = re.sub(r"__VERSION__", "version", comparison["attribute"])
+        comparison["attribute"] = re.sub(r"__CYCLE__", "cycle", comparison["attribute"])
         final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 
