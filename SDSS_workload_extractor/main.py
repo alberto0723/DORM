@@ -36,9 +36,7 @@ if __name__ == "__main__":
 
     # Group mode
     group_parser = subparsers.add_parser("group", help="Group queries and analyze column patterns")
-    group_parser.add_argument("--input", required=True, help="Path to cleaned queries JSON")
-    group_parser.add_argument("--output", required=True, help="Path to save grouped queries")
-    group_parser.add_argument("--freq_output", default="column_frequencies.json", help="Path to save frequency file")
+    group_parser.add_argument("--folder", required=True, help="Path where input is and output will be generated")
     group_parser.add_argument("--threshold", type=float, default=0.005, help="Frequency threshold (e.g., 0.005)")
     group_parser.add_argument("--jaccard", type=float, default=0.8, help="Jaccard similarity threshold")
     group_parser.add_argument("--modifiers", nargs="*", default=[], choices=["distinct", "groupby", "orderby", "top"],
@@ -48,10 +46,10 @@ if __name__ == "__main__":
     # Auto-prepend "data/" if not already present
     if hasattr(args, "output") and not args.output.startswith("data/"):
         args.output = os.path.join("data", args.output)
-    if hasattr(args, "input") and not args.input.startswith("tmp/"):
+    if hasattr(args, "input") and not args.input.startswith("data/"):
         args.input = os.path.join("data", args.input)
-    if hasattr(args, "freq_output") and not args.freq_output.startswith("data/"):
-        args.freq_output = os.path.join("data", args.freq_output)
+    if hasattr(args, "folder") and not args.folder.startswith("data/"):
+        args.folder = os.path.join("data", args.folder)
 
     try:
         if args.command == "fetch":
@@ -61,10 +59,10 @@ if __name__ == "__main__":
         elif args.command == "parse":
             process_input(args.input, args.output)
         elif args.command == "group":
-            queries = load_parsed_queries(args.input)
+            queries = load_parsed_queries(args.folder)
             grouped = group_queries_by_table(queries, args.modifiers)
             filtered_groups = calculate_column_frequencies(grouped, args.modifiers, args.threshold, args.jaccard)
-            save_grouped_queries(filtered_groups, args.output)
+            save_grouped_queries(filtered_groups, args.folder)
 
     except Exception as e:
         print(f"🚨 Error: {e}")

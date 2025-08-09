@@ -31,4 +31,4 @@ python main.py fetch --year 2025 --month 6 --day 29
 python main.py fetch --year 2025 --month 6 --day 30
 copy /b data\fetched_2025_06_??_all.txt data\2025_06\fetched_2025_06.txt
 python main.py parse --input 2025_06\fetched_2025_06.txt --output 2025_06
-python main.py group --input 2025_06\parsed.json --output 2025_06\queries.json --threshold 0.01 --jaccard 0.8 --modifiers top
+python main.py group --folder 2025_06 --threshold 0.01 --jaccard 0.8 --modifiers top
