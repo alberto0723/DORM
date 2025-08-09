@@ -4,7 +4,6 @@ import os
 from modules.fetch import fetch_logs
 from modules.count import get_total_logs
 from modules.parse import process_input
-from modules.clean import clean_queries
 from modules.group import (
     group_queries_by_table,
     calculate_column_frequencies,
@@ -35,11 +34,6 @@ if __name__ == "__main__":
     parse_parser.add_argument("--input", required=True)
     parse_parser.add_argument("--output", required=True)
 
-    # Clean mode
-    clean_parser = subparsers.add_parser("clean", help="Remove queries involving MyDB")
-    clean_parser.add_argument("--input", required=True)
-    clean_parser.add_argument("--output", required=True)
-
     # Group mode
     group_parser = subparsers.add_parser("group", help="Group queries and analyze column patterns")
     group_parser.add_argument("--input", required=True, help="Path to cleaned queries JSON")
@@ -66,8 +60,6 @@ if __name__ == "__main__":
             get_total_logs(year=args.year, month=getattr(args, "month", None), day=getattr(args, "day", None))
         elif args.command == "parse":
             process_input(args.input, args.output)
-        elif args.command == "clean":
-            clean_queries(args.input, args.output)
         elif args.command == "group":
             queries = load_cleaned_queries(args.input)
             grouped = group_queries_by_table(queries, args.modifiers)
