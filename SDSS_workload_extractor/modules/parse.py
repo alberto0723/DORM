@@ -10,6 +10,7 @@ top_regex = re.compile(r'\bTOP\s+(\d+)\b', re.IGNORECASE)
 distinct_regex = re.compile(r'\bDISTINCT\b', re.IGNORECASE)
 match_regex = re.compile(r'\bMATCH\b', re.IGNORECASE)
 type_regex = re.compile(r'\bTYPE\b', re.IGNORECASE)
+class_regex = re.compile(r'\bCLASS\b', re.IGNORECASE)
 
 
 def is_discarded_query(query_text):
@@ -29,6 +30,8 @@ def is_discarded_query(query_text):
     ]
     # Discard also queries using metadata in dbobjects
     patterns.extend(['dbobjects', 'sqllog', 'dbcolumns'])
+    # Remove also other SQL commands
+    patterns.extend(['exec'])
 
     for pattern in patterns:
         if re.search(pattern, query_text):
@@ -48,6 +51,7 @@ def preprocess_query_for_match_top_and_distinct(sql_query):
     # As soon as SQL function "match" is not present in the queries, it should work
     sql_query = match_regex.sub('__MATCH__', sql_query)
     sql_query = type_regex.sub('__TYPE__', sql_query)
+    sql_query = class_regex.sub('__CLASS__', sql_query)
 
     return sql_query, top_value, distinct
 
@@ -77,6 +81,7 @@ def extract_query_info(real_query):
                 select_columns.append("count(*)")
         elif isinstance(token, IdentifierList) or isinstance(token, Identifier):
             identifiers = list(token.get_identifiers()) if isinstance(token, IdentifierList) else [token]
+            # We need to remove comparisons, because in the case of using "ON" to express a join condition, this appears in the list of identifiers
             identifiers = [i for i in identifiers if not isinstance(i, Comparison)]
             for i in range(len(identifiers)):
                 identifier = identifiers[i]
@@ -191,6 +196,7 @@ def post_processing(parsed_query, alias_mapping):
                 col = re.sub(rf"\b{alias}\.", f"{table}_", col)
         if "__Function_Call__" not in col:
             col = re.sub(r"__TYPE__", "type", col)
+            col = re.sub(r"__CLASS__", "class", col)
             final_columns.append(col)
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
@@ -206,6 +212,7 @@ def post_processing(parsed_query, alias_mapping):
             for alias, table in alias_mapping.items():
                 comparison["attribute"] = re.sub(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
         comparison["attribute"] = re.sub(r"__TYPE__", "type", comparison["attribute"])
+        comparison["attribute"] = re.sub(r"__CLASS__", "class", comparison["attribute"])
         final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 
