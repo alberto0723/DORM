@@ -6,6 +6,8 @@ from sqlparse.tokens import Keyword, DML, Token
 from tqdm import tqdm
 from pathlib import Path
 
+
+select_regex = re.compile(r'\bSELECT\b', re.IGNORECASE)
 top_regex = re.compile(r'\bTOP\s+(\d+)\b', re.IGNORECASE)
 distinct_regex = re.compile(r'\bDISTINCT\b', re.IGNORECASE)
 match_regex = re.compile(r'\bMATCH\b', re.IGNORECASE)
@@ -17,10 +19,10 @@ cycle_regex = re.compile(r'\bCYCLE\b', re.IGNORECASE)
 
 
 def is_discarded_query(query_text):
-    """
-    Returns True if the query should be discarded due to referencing MyDB
-    in a FROM, JOIN, or UPDATE clause. Allows SELECT INTO MyDB.
-    """
+    # Check if it is a single select clause (without subqueries)
+    if len(select_regex.findall(query_text)) != 1:
+        return True
+
     query_text = query_text.lower()
 
     # Keep if it's just SELECT INTO MyDB (public data stored into MyDB)
@@ -164,7 +166,7 @@ def extract_query_info(real_query):
                     comparisons.append({"attribute": attribute, "operator": operator})
                 elif current.ttype is Keyword:
                     # TODO: Consider other more complex comparisons not properly treated by sqlparse library
-                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL", "GO"):
+                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL", "GO", "ABS"):
                         logic_word = current.value
                         assert logic_word.upper() == "AND", "Non conjunctive query: '" + logic_word + f"' in {sql_query}"
 

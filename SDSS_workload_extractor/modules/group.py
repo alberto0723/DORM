@@ -10,7 +10,7 @@ total_queries = 0
 # Step 0: Load the parsed queries from input JSON
 def load_parsed_queries(path: str) -> list:
     input_file = Path(path).joinpath("parsed.json")
-    print(f"📂 Loading cleaned queries from {input_file}...")
+    print(f"📂 Loading filtered and parsed queries from {input_file}...")
     with open(input_file, 'r', encoding='utf-8') as f:
         raw = json.load(f)
         queries = raw["queries"] if isinstance(raw, dict) else raw
@@ -82,6 +82,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
             # After sorting, we generate an auxiliary structure with the count of columns of each query
             pattern_counts = defaultdict(int)
             pattern_representative = {}
+            pattern_conditions = {}
             for query in queries:
                 columns = query.get("all_attributes", [])
                 # Columns need to be previously sorted on parsing
@@ -89,6 +90,9 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                 pattern_counts[column_key] += 1
                 if column_key not in pattern_representative:
                     pattern_representative[column_key] = query
+                    pattern_conditions[column_key] = query.get("filter_clauses")
+                else:
+                    pattern_conditions[column_key] = [c for c in pattern_conditions[column_key] if c in query.get("filter_clauses")]
 
             used = set()
             patterns = list(pattern_counts.items())
@@ -103,7 +107,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                         star_found = False
                         set_i = set(shape_i)
                     merged = set_i.copy()
-                    intersect_conditions = queries[i].get("filter_clauses")
+                    intersect_conditions = pattern_conditions[shape_i]
                     total_count = count_i
 
                     for j in range(i + 1, len(patterns)):
@@ -119,7 +123,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                                 used.add(j)
                                 merged |= set_j
                                 # Keep the intersection of all the conditions of queries in the group
-                                intersect_conditions = [c for c in intersect_conditions if c in queries[j].get("filter_clauses")]
+                                intersect_conditions = [c for c in intersect_conditions if c in pattern_conditions[shape_j]]
                                 total_count += count_j
 
                     filter_clauses = []
@@ -134,7 +138,6 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                     if total_count > min_queries:
                         # We are assuming conjunctive queries in the filter
                         group_summary = {
-                            "group_id": len(summarized_groups)+1,
                             "frequency": total_count / total_queries,
                             "original_query": pattern_representative[shape_i].get("original_query", ""),
                             "pattern": pattern_representative[shape_i].get("pattern", []),
@@ -154,12 +157,22 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
 
 # Step 3: Save summarized representative queries per group
 def save_grouped_queries(summarized_groups: list[dict], output_path: str):
+    # Sort the result by frequencies and generate ids
+    sorted_groups = []
+    for q in sorted(summarized_groups, key=lambda q: q.get("frequency"), reverse=True):
+        q["group_id"] = len(sorted_groups) + 1
+        sorted_groups.append(q)
+
     output_file = Path(output_path).joinpath("queries.json")
     print(f"\n💾 Saving summarized group representatives to {output_file}...")
-
     try:
         with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump({"queries": summarized_groups}, f, indent=2, ensure_ascii=False)
+            json.dump(
+                {
+                    "total_queries": total_queries,
+                    "query_frequency_in_workload": total_queries / (30*24*60*60),  # This assumes a month of 30 days
+                    "queries": sorted_groups
+                }, f, indent=2, ensure_ascii=False)
         print(f"✅ Data saved")
     except Exception as e:
         print(f"❌ Failed to save grouped queries: {e}")
