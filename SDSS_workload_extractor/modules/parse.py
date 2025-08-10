@@ -6,45 +6,42 @@ from sqlparse.tokens import Keyword, DML, Token
 from tqdm import tqdm
 from pathlib import Path
 
+# Keep if it's just SELECT INTO MyDB (public data stored into MyDB)
+# Discard if MyDB is in FROM, JOIN, or UPDATE (private data access)
+discarded_patterns = [
+    r'from\s+mydb\.',  # FROM MyDB...
+    r'join\s+mydb\.',  # JOIN MyDB...
+    r'update\s+mydb\.',  # UPDATE MyDB...
+    r'delete\s+from\s+mydb\.'  # DELETE FROM MyDB...
+]
+# Discard also queries using metadata
+discarded_patterns.extend([r'dbobjects\b', r'\bsqllog\b', r'dbcolumns\b', r'information_schema\b'])
+# Remove also other SQL commands
+discarded_patterns.extend([r'\bexec\b', r'\bcreate\s+table\b'])
+discard_regex = re.compile(r'(' + '|'.join(discarded_patterns) + r')', re.IGNORECASE)
 
+# To check if it is a selection statement without subqueries
 select_regex = re.compile(r'\bSELECT\b', re.IGNORECASE)
+
+# Extract some parts of the query
 top_regex = re.compile(r'\bTOP\s+(\d+)\b', re.IGNORECASE)
 distinct_regex = re.compile(r'\bDISTINCT\b', re.IGNORECASE)
-match_regex = re.compile(r'\bMATCH\b', re.IGNORECASE)
-type_regex = re.compile(r'\bTYPE\b', re.IGNORECASE)
-class_regex = re.compile(r'\bCLASS\b', re.IGNORECASE)
-mode_regex = re.compile(r'\bMODE\b', re.IGNORECASE)
-version_regex = re.compile(r'\bVERSION\b', re.IGNORECASE)
-cycle_regex = re.compile(r'\bCYCLE\b', re.IGNORECASE)
+
+# Provide here the list of SQL keywords that can be used as table or attribute names
+keywords_to_replace = ['MATCH', 'TYPE', 'CLASS', 'MODE', 'VERSION', 'CYCLE', 'SIZE']
+keywords_regex = re.compile(r'\b(' + '|'.join(re.escape(word) for word in keywords_to_replace) + r')\b', re.IGNORECASE)
+encoded_keywords_regex = re.compile(r'__(?P<keyword>' + '|'.join(re.escape(word) for word in keywords_to_replace) + r')__', re.IGNORECASE)
 
 
 def is_discarded_query(query_text):
-    # Check if it is a single select clause (without subqueries)
-    if len(select_regex.findall(query_text)) != 1:
+    # Check if it is a single select clause (without subqueries) and not discardable pattern
+    if len(select_regex.findall(query_text)) != 1 or discard_regex.search(query_text):
         return True
+    else:
+        return False
 
-    query_text = query_text.lower()
-
-    # Keep if it's just SELECT INTO MyDB (public data stored into MyDB)
-    # Discard if MyDB is in FROM, JOIN, or UPDATE (private data access)
-    patterns = [
-        r'from\s+mydb\.',  # FROM MyDB...
-        r'join\s+mydb\.',  # JOIN MyDB...
-        r'update\s+mydb\.',  # UPDATE MyDB...
-        r'delete\s+from\s+mydb\.'  # DELETE FROM MyDB...
-    ]
-    # Discard also queries using metadata
-    patterns.extend(['dbobjects', 'sqllog', 'dbcolumns', 'information_schema'])
-    # Remove also other SQL commands
-    patterns.extend(['exec', r'create\s+table'])
-
-    for pattern in patterns:
-        if re.search(pattern, query_text):
-            return True
-    return False  # Otherwise, keep
 
 def preprocess_query_for_match_top_and_distinct(sql_query):
-    sql_query = sql_query.strip()
     top_match = top_regex.search(sql_query)
     top_value = top_match.group(1) if top_match else None
     sql_query = top_regex.sub('', sql_query)
@@ -54,13 +51,9 @@ def preprocess_query_for_match_top_and_distinct(sql_query):
 
     # This is necessary, because there are some table or attribute names in SDSS that coincide with reserved sql keywords, and it confuses the SQL parser
     # As soon as the keywords are not really present in the queries, this should work
-    # TODO: Change the parsing library
-    sql_query = match_regex.sub('__MATCH__', sql_query)
-    sql_query = type_regex.sub('__TYPE__', sql_query)
-    sql_query = class_regex.sub('__CLASS__', sql_query)
-    sql_query = mode_regex.sub('__MODE__', sql_query)
-    sql_query = version_regex.sub('__VERSION__', sql_query)
-    sql_query = cycle_regex.sub('__CYCLE__', sql_query)
+    # TODO: Replace the parsing library by "sqlglot"
+    sql_query = re.sub(r'\s+', ' ', sql_query).strip()
+    sql_query = keywords_regex.sub(repl=lambda p: '__'+p.group(0)+'__', string=sql_query)
 
     return sql_query, top_value, distinct
 
@@ -204,11 +197,7 @@ def post_processing(parsed_query, alias_mapping):
             for alias, table in alias_mapping.items():
                 col = re.sub(rf"\b{alias}\.", f"{table}_", col)
         if "__Function_Call__" not in col:
-            col = re.sub(r"__TYPE__", "type", col)
-            col = re.sub(r"__CLASS__", "class", col)
-            col = re.sub(r"__MODE__", "mode", col)
-            col = re.sub(r"__VERSION__", "version", col)
-            col = re.sub(r"__CYCLE__", "cycle", col)
+            col = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=col)
             final_columns.append(col)
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
@@ -223,11 +212,7 @@ def post_processing(parsed_query, alias_mapping):
         else:
             for alias, table in alias_mapping.items():
                 comparison["attribute"] = re.sub(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
-        comparison["attribute"] = re.sub(r"__TYPE__", "type", comparison["attribute"])
-        comparison["attribute"] = re.sub(r"__CLASS__", "class", comparison["attribute"])
-        comparison["attribute"] = re.sub(r"__MODE__", "mode", comparison["attribute"])
-        comparison["attribute"] = re.sub(r"__VERSION__", "version", comparison["attribute"])
-        comparison["attribute"] = re.sub(r"__CYCLE__", "cycle", comparison["attribute"])
+        comparison["attribute"] = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=comparison["attribute"])
         final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 

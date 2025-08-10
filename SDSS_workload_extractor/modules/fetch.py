@@ -59,7 +59,7 @@ def fetch_logs(year: int = None, month: int = None, day: int = None, limit: int 
             filename = f"fetched_{datestring}_all.txt"
         else:
             filename = f"fetched_{datestring}_top{limit}.txt"
-        file = path / filename
+        file = path.joinpath(filename)
         with open(file, "w", encoding="utf-8") as f:
             f.write(
                 re.sub(r'\s+', ' ', response.text.replace('"', ''))
