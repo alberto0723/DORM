@@ -15,7 +15,7 @@ discarded_patterns = [
     r'delete\s+from\s+mydb\.'  # DELETE FROM MyDB...
 ]
 # Discard also queries using metadata
-discarded_patterns.extend([r'dbobjects\b', r'\bsqllog\b', r'dbcolumns\b', r'information_schema\b'])
+discarded_patterns.extend([r'\bdbobjects\b', r'\bsqllog\b', r'\bdbcolumns\b', r'\binformation_schema\b'])
 # Remove also other SQL commands
 discarded_patterns.extend([r'\bexec\b', r'\bcreate\s+table\b'])
 discard_regex = re.compile(r'(' + '|'.join(discarded_patterns) + r')', re.IGNORECASE)
@@ -159,10 +159,10 @@ def extract_query_info(real_query):
                     comparisons.append({"attribute": attribute, "operator": operator})
                 elif current.ttype is Keyword:
                     # TODO: Consider other more complex comparisons not properly treated by sqlparse library
-                    if current.value.upper() not in ("WHERE", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL", "GO", "ABS"):
-                        logic_word = current.value
-                        assert logic_word.upper() == "AND", "Non conjunctive query: '" + logic_word + f"' in {sql_query}"
-
+                    #       By now, they are simply ignored and conjuntive query assumed
+                    if current.value.upper() not in ("WHERE", "AND", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL", "GO", "ABS"):
+                        print(f"New unexpected keyword {current.value} detected in {sql_query}")
+                        return None, None
         elif token.is_group:
             has_nested_queries = True
 
@@ -241,8 +241,8 @@ def process_input(input_path, output_path):
                     discarded += 1
                 else:
                     query, alias_mapping = extract_query_info(line)
-                    # Discard have temporary tables starting with '#' in the FROM, or have an empty SELECT clause
-                    if query.get("project") and query.get("pattern") and all(t[0] != '#' for t in query.get("pattern")):
+                    # Discard queries having temporary tables starting with '#' in the FROM, or have an empty SELECT clause
+                    if query is not None and query.get("project") and query.get("pattern") and all(t[0] != '#' for t in query.get("pattern")):
                         query = post_processing(query, alias_mapping)
                         all_queries.append(query)
                     else:
