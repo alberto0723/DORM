@@ -189,7 +189,7 @@ It is assumed that Python 3 and library [HyperNetX](https://github.com/pnnl/Hype
 Tested with Python 3.12.1 and the packages listed in [requirements.txt](requirements.txt).
 
 Some features can be tested with pure files, but full functionalities require a [PostgreSQL](https://www.postgresql.org) database connection.
-We tested with version 14.
+We tested with version 17.
 
 ### Install Dependencies 🔗
 
@@ -318,6 +318,8 @@ options:
 ```
 
 Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.pdf](documents/Diagrams/QueryExecutor.pdf).
+
+The cost can also be estimated in parametrized queries. For this, it internally uses the `PostgreSQL` `GENERIC_COST` flag, which is not available in its older versions.
 
 ---
 ## Demo 💻

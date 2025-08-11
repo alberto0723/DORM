@@ -72,10 +72,11 @@ if __name__ == "__main__":
                     print("Estimated cost: ", cat.get_cost(queries[0]))
                 if args.print_time:
                     print("Estimated time: ", cat.get_time(queries[0]))
-                rows = cat.execute(queries[0])
-                if args.print_rows:
-                    for row in rows:
-                        print(row)
-                if args.print_counter:
-                    print(f"Number of rows: {len(rows)}")
+                if args.print_rows or args.print_counter:
+                    rows = cat.execute(queries[0])
+                    if args.print_rows:
+                        for row in rows:
+                            print(row)
+                    if args.print_counter:
+                        print(f"Number of rows: {len(rows)}")
         logging.info("END")

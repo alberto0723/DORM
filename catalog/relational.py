@@ -494,6 +494,8 @@ class Relational(Catalog, ABC):
         :return: Set of rows resulting from the query execution or 1 (if it was an insertion).
         """
         self.check_execution()
+        if re.search(r"\$\d+", statement):
+            raise ValueError(f"🚨 Cannot execute a parametrized statement '{statement}' (we can get the cost of its generic plan, though)")
         with self.engine.connect() as conn:
             result = conn.execute(sqlalchemy.text(statement))
             if statement.startswith("INSERT "):
@@ -511,14 +513,19 @@ class Relational(Catalog, ABC):
     def get_cost(self, query) -> float:
         """
         Estimates the cost of a query in the engine associated to the catalog.
+        If the query has some parameter of the form "$<number>", then "(GENERIC_PLAN)" flag is used
         :param query: SQL query to be executed.
         :return: Unitless estimated cost.
         """
         self.check_execution()
+        if re.search(r"\$\d+", query):
+            statement = "EXPLAIN (GENERIC_PLAN) " + query
+        else:
+            statement = "EXPLAIN " + query
         with self.engine.connect() as conn:
-            first_row = conn.execute(sqlalchemy.text("EXPLAIN " + query)).fetchone()
+            first_row = conn.execute(sqlalchemy.text(statement)).fetchone()
         assert first_row is not None, "☠️ Empty access plan"
-        # Extract the float (e.g., from "Execution Time: 0.456 ms")
+        # Extract the float (e.g., from "cost=0.00..159.16")
         match = re.search(r'cost=\d+\.\d+\.\.(\d+\.\d+)', str(first_row[0]))
         assert match is not None, f"☠️ Cost not found in the access plan of the query '{first_row}'"
         try:
@@ -534,8 +541,10 @@ class Relational(Catalog, ABC):
         :return: Estimated time in milliseconds.
         """
         self.check_execution()
+        if re.search(r"\$\d+", query):
+            raise ValueError(f"🚨 Cannot get the time of a parametrized statement '{query}' (we can get the cost of its generic plan, though)")
         with self.engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text(f"EXPLAIN (ANALYZE TRUE, SUMMARY TRUE) " + query)).fetchall()
+            result = conn.execute(sqlalchemy.text(f"EXPLAIN (ANALYZE, SUMMARY) " + query)).fetchall()
         assert len(result) > 0, "☠️ Empty access plan"
         last_row = result[-1]
         # Extract the float (e.g., from "Execution Time: 0.456 ms")

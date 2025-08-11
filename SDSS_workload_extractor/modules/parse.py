@@ -159,7 +159,7 @@ def extract_query_info(real_query):
                     comparisons.append({"attribute": attribute, "operator": operator})
                 elif current.ttype is Keyword:
                     # TODO: Consider other more complex comparisons not properly treated by sqlparse library
-                    #       By now, these keywords are simply ignored (not used as attribute or table names) and conjuntive query assumed
+                    #       By now, these keywords are simply ignored (not used as attribute or table names) and conjunctive query assumed
                     if current.value.upper() not in ("WHERE", "AND", "NOT", "IN", "OR", "IS", "NULL", "NOT NULL", "GO", "ABS", "KEY", "INCLUDE"):
                         print(f"New unexpected keyword '{current.value}' detected in {sql_query}")
                         return None, None

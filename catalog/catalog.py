@@ -1097,7 +1097,6 @@ class Catalog(HyperNetXWrapper):
                         for attr in self.get_outbound_class_by_name(edge).itertuples():
                             project_attributes.append(attr.Index[1])
             elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
-                print("Class wildcard", requested)
                 for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
                     project_attributes.append(attr.Index[1])
             else:
