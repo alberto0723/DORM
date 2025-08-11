@@ -1108,6 +1108,8 @@ class Catalog(HyperNetXWrapper):
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
         filter_clause = query.get("filter", "TRUE")
+        if filter_clause == "":
+            filter_clause = "TRUE"
         filter_attributes = drop_duplicates(self.parse_predicate(filter_clause))
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))

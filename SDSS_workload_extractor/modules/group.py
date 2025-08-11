@@ -159,9 +159,9 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
 def save_grouped_queries(summarized_groups: list[dict], output_path: str):
     # Sort the result by frequencies and generate ids
     sorted_groups = []
-    for q in sorted(summarized_groups, key=lambda q: q.get("frequency"), reverse=True):
-        q["group_id"] = len(sorted_groups) + 1
-        sorted_groups.append(q)
+    for group in sorted(summarized_groups, key=lambda g: g.get("frequency"), reverse=True):
+        group["group_id"] = len(sorted_groups) + 1
+        sorted_groups.append(group)
 
     output_file = Path(output_path).joinpath("queries.json")
     print(f"\n💾 Saving summarized group representatives to {output_file}...")
