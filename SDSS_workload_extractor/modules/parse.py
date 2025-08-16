@@ -183,7 +183,10 @@ def extract_query_info(real_query):
 
 def post_processing(parsed_query, alias_mapping):
     # Post process tables list
-    parsed_query["pattern"] = sorted(set(parsed_query["pattern"]))
+    temp_pattern = []
+    for t in sorted(set(parsed_query["pattern"])):
+        temp_pattern.append(encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=t))
+    parsed_query["pattern"] = temp_pattern
 
     # Post process projection (replace alias)
     final_columns = []

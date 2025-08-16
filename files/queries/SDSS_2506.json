@@ -1,0 +1,205 @@
+{
+  "total_queries": 5811411,
+  "query_frequency_in_workload": 2.242056712962963,
+  "queries": [
+    {
+      "frequency": 0.4043666847861905,
+      "original_query": " SELECT DISTINCT s.run2d, s.plate, s.mjd, s.fiberID FROM PhotoObjAll AS p JOIN SpecObjAll AS s ON p.objID = s.bestObjID WHERE (s.plate=1349 AND s.mjd=52797 AND s.fiberid=216)\n",
+      "pattern": [
+        "PhotoObjAll",
+        "SpecObjAll"
+      ],
+      "project": [
+        "SpecObjAll_fiberID",
+        "SpecObjAll_mjd",
+        "SpecObjAll_plate",
+        "SpecObjAll_run2d"
+      ],
+      "filter": "",
+      "has_nested_queries": true,
+      "top_value": null,
+      "group_id": 1
+    },
+    {
+      "frequency": 0.16208249597214858,
+      "original_query": " SELECT p.objid, p.ra, p.dec, p.u, p.g, p.r, p.i, p.z, s.specobjid, s.class, s.z AS redshift FROM PhotoObj AS p JOIN SpecObj AS s ON s.bestobjid = p.objid WHERE p.u BETWEEN 0 AND 19.6 AND p.g BETWEEN 0 AND 20 \n",
+      "pattern": [
+        "PhotoObj",
+        "SpecObj"
+      ],
+      "project": [
+        "PhotoObj_dec",
+        "PhotoObj_g",
+        "PhotoObj_i",
+        "PhotoObj_objid",
+        "PhotoObj_r",
+        "PhotoObj_ra",
+        "PhotoObj_u",
+        "PhotoObj_z",
+        "SpecObj_class",
+        "SpecObj_specobjid",
+        "SpecObj_z"
+      ],
+      "filter": "",
+      "has_nested_queries": true,
+      "top_value": null,
+      "group_id": 2
+    },
+    {
+      "frequency": 0.08580979731084241,
+      "original_query": " SELECT specObjID, plate, mjd, fiberID, z, zErr, ra, dec FROM SpecObjAll WHERE zWarning = 0 AND ra BETWEEN 35.2729492856841 AND 35.274060396795214 AND dec BETWEEN -4.684313928336351 AND -4.68320281722524 \n",
+      "pattern": [
+        "SpecObjAll"
+      ],
+      "project": [
+        "SpecObjAll_dec",
+        "SpecObjAll_fiberID",
+        "SpecObjAll_mjd",
+        "SpecObjAll_plate",
+        "SpecObjAll_ra",
+        "SpecObjAll_specObjID",
+        "SpecObjAll_z",
+        "SpecObjAll_zErr",
+        "SpecObjAll_zWarning"
+      ],
+      "filter": "SpecObjAll_dec BETWEEN $1 AND $2 and SpecObjAll_ra BETWEEN $3 AND $4 and SpecObjAll_zWarning=$5",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 3
+    },
+    {
+      "frequency": 0.053122038692496536,
+      "original_query": " SELECT s.ra, s.dec, s.class, s.subClass, p.u, p.g, p.r, p.i, p.z FROM SpecObj AS s JOIN dbo.fGetNearbySpecObjEq(325.983818807618, 74.2847222157897, 1) AS n ON s.specobjid = n.specobjid JOIN PhotoObj AS p ON s.bestobjid = p.objid WHERE s.class = 'STAR' \n",
+      "pattern": [
+        "PhotoObj",
+        "SpecObj"
+      ],
+      "project": [
+        "PhotoObj_g",
+        "PhotoObj_i",
+        "PhotoObj_r",
+        "PhotoObj_u",
+        "PhotoObj_z",
+        "SpecObj_class",
+        "SpecObj_dec",
+        "SpecObj_ra",
+        "SpecObj_subClass"
+      ],
+      "filter": "",
+      "has_nested_queries": true,
+      "top_value": null,
+      "group_id": 4
+    },
+    {
+      "frequency": 0.051465470261869276,
+      "original_query": " SELECT p.* FROM PhotoObjAll AS p WHERE p.objID IN (1237678619570865296, 1237678619570865301, 1237678598096028224, 1237678619570864453, 1237678598096027885, 1237678620107735377, 1237678598096028269, 1237678598096027893, 1237678598096028722, 1237678619570864281) \n",
+      "pattern": [
+        "PhotoObjAll"
+      ],
+      "project": [
+        "*"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 5
+    },
+    {
+      "frequency": 0.042825916115724734,
+      "original_query": " SELECT TOP 10 * FROM photoprimary WHERE (dered_r-dered_i) < 2 AND cmodelmag_i-extinction_i BETWEEN 17.5 AND 19.9 AND (dered_r-dered_i) - (dered_g-dered_r)/8. > 0.55 AND fiber2mag_i < 21.7 AND devrad_i < 20. AND dered_i < 19.86 + 1.60*((dered_r-dered_i) - (dered_g-dered_r)/8. - 0.80)\n",
+      "pattern": [
+        "photoprimary"
+      ],
+      "project": [
+        "*"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": "10",
+      "group_id": 6
+    },
+    {
+      "frequency": 0.03585428736669976,
+      "original_query": " SELECT TOP 1 p.objid, p.run, p.rerun, p.camcol, p.field, p.obj, p.type, p.ra, p.dec, p.u,p.g,p.r,p.i,p.z, p.Err_u, p.Err_g, p.Err_r,p.Err_i,p.Err_z FROM fGetNearbyObjEq(23.27205,-7.311406,10) n, PhotoPrimary p WHERE n.objID=p.objID AND p.r between 0 AND 20\n",
+      "pattern": [
+        "PhotoPrimary"
+      ],
+      "project": [
+        "PhotoPrimary_Err_g",
+        "PhotoPrimary_Err_i",
+        "PhotoPrimary_Err_r",
+        "PhotoPrimary_Err_u",
+        "PhotoPrimary_Err_z",
+        "PhotoPrimary_camcol",
+        "PhotoPrimary_dec",
+        "PhotoPrimary_field",
+        "PhotoPrimary_g",
+        "PhotoPrimary_i",
+        "PhotoPrimary_obj",
+        "PhotoPrimary_objID",
+        "PhotoPrimary_objid",
+        "PhotoPrimary_r",
+        "PhotoPrimary_ra",
+        "PhotoPrimary_rerun",
+        "PhotoPrimary_run",
+        "PhotoPrimary_type",
+        "PhotoPrimary_u",
+        "PhotoPrimary_z"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": "1",
+      "group_id": 7
+    },
+    {
+      "frequency": 0.03581574251072588,
+      "original_query": " SELECT specobjid, plate, mjd, fiberid FROM SpecObjAll WHERE specobjid = 388440718894458880 \n",
+      "pattern": [
+        "SpecObjAll"
+      ],
+      "project": [
+        "SpecObjAll_fiberid",
+        "SpecObjAll_mjd",
+        "SpecObjAll_plate",
+        "SpecObjAll_specobjid"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 8
+    },
+    {
+      "frequency": 0.0176143108790619,
+      "original_query": " SELECT DISTINCT p.run, p.rerun, p.camcol, p.field, p.obj FROM PhotoObjAll AS p WHERE (p.run=5714 AND p.camcol=6 AND p.rerun=301)\n",
+      "pattern": [
+        "PhotoObjAll"
+      ],
+      "project": [
+        "PhotoObjAll_camcol",
+        "PhotoObjAll_field",
+        "PhotoObjAll_obj",
+        "PhotoObjAll_rerun",
+        "PhotoObjAll_run"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 9
+    },
+    {
+      "frequency": 0.017115464729649994,
+      "original_query": " SELECT objID, ra, dec FROM PhotoObj WHERE (ra between 179.5 and 182.3) and (dec between -1.0 and 1.8) \n",
+      "pattern": [
+        "PhotoObj"
+      ],
+      "project": [
+        "PhotoObj_objID",
+        "PhotoObj_ra"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 10
+    }
+  ]
+}

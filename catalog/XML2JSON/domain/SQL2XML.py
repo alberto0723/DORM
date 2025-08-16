@@ -7,12 +7,12 @@ base_path = Path("data")
 # Some empty design must be generated, type names updated, XML exported and type IDs taken from that XML to the following dictionary
 type_id = {
     "BIGINT": "tpfnXhmFYHAgAQes",
-    "DOUBLE": "NpfnXhmFYHAgAQeq",
+    "FLOAT": "NpfnXhmFYHAgAQeq",
     "TEXT": "tpfnXhmFYHAgAQev",
 }
 type_size = {
     "BIGINT": "8",
-    "DOUBLE": "8",
+    "FLOAT": "8",
     "TEXT": "100",
 }
 
