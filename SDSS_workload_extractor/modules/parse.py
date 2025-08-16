@@ -201,7 +201,7 @@ def post_processing(parsed_query, alias_mapping):
                 col = re.sub(rf"\b{alias}\.", f"{table}_", col)
         if "__Function_Call__" not in col:
             col = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=col)
-            final_columns.append(col)
+            final_columns.append(col.lower())
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
     else:
@@ -216,6 +216,7 @@ def post_processing(parsed_query, alias_mapping):
             for alias, table in alias_mapping.items():
                 comparison["attribute"] = re.sub(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
         comparison["attribute"] = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=comparison["attribute"])
+        comparison["attribute"] = comparison["attribute"].lower()
         final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 
