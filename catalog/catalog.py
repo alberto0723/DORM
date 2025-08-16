@@ -212,7 +212,7 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
         self.H.add_incidences_from(incidences)
 
-    def load_domain(self, file_path, file_format="JSON") -> None:
+    def load_domain(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = str(file_path)
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
@@ -234,7 +234,7 @@ class Catalog(HyperNetXWrapper):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
 
-    def load_design(self, file_path, file_format="JSON") -> None:
+    def load_design(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
         assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'JSON' or 'XML'"
         print(f"Reading {file_format} design")
@@ -246,11 +246,11 @@ class Catalog(HyperNetXWrapper):
         # Open and load the JSON file
         with open(file_path, 'r') as f:
             design = json.load(f)
-        domain_path = str(extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve())
+        domain_path = extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve()
         if "domain" not in self.metadata:
             self.load_domain(domain_path, file_format)
         # Check if the domain in the catalog and that of the design coincide
-        if self.metadata.get("domain", "Non-existent") != domain_path:
+        if self.metadata.get("domain", "Non-existent") != str(domain_path):
             raise ValueError(f"🚨 The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.metadata.get('domain', 'Non-existent')}'")
         self.metadata["design"] = str(file_path)
 
