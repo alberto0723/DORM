@@ -29,8 +29,8 @@ class TxParsing:
     def getDomainReference(self):
         return self.domain_reference
 
-    def loadComponents(self, root: str):
-        if not root or not Path(root).exists():
+    def loadComponents(self, root: Path):
+        if not root or not root.exists():
             raise FileNotFoundError(f"File not found: '{root}'")
 
         try:
@@ -158,7 +158,6 @@ class TxParsing:
         
         self.mapComponents[c.getID()] = c
         self.mapComponentsParent[c.getID()] = parent
-        
 
     
     def loadAssociacions(self, root: ET.Element):
@@ -202,6 +201,8 @@ class TxParsing:
                         break
                     else:
                         name_struct = st.get('Name', '')
+                        if name_struct not in self.mapStructName:
+                            print(f"{name_struct} not found among the structs")
                         struct_elem = self.mapStructName[name_struct]
                         if struct_elem is not None:
                             id_struct = struct_elem.getID()

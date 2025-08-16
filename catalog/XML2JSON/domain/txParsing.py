@@ -22,8 +22,8 @@ class TxParsing:
     def getGeneralizations(self) -> list[Generalization]:
         return self.ListGeneralizations
 
-    def loadElements(self, root: str):
-        if not root or not Path(root).exists():
+    def loadElements(self, root: Path):
+        if not root or not root.exists():
             raise FileNotFoundError(f"File not found: '{root}'")
         try:
             tree = ET.parse(root)

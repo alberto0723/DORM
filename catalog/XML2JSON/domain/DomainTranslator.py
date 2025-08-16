@@ -1,8 +1,10 @@
+from pathlib import Path
+import traceback
 from .txSerialization import TxSerialization
 from .txParsing import TxParsing
 
 
-def translate(root: str) -> str:
+def translate(root: Path) -> str:
     try:
         lector = TxParsing()
         lector.loadElements(root)
@@ -15,4 +17,5 @@ def translate(root: str) -> str:
         return escriptor.createJSON()
     except Exception as e:
         print(f"Error generating JSON: {e}")
+        traceback.print_exc()
                     
