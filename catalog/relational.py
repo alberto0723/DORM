@@ -9,6 +9,7 @@ import hypernetx as hnx
 import json
 import re
 from typing import Type, TypeVar
+from tqdm import tqdm
 
 RelationalType = TypeVar('RelationalType', bound='Relational')
 
@@ -96,6 +97,7 @@ class Relational(Catalog, ABC):
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
+            print("Checking the catalog consistency (this can take a while)")
             if self.is_consistent(design="design" in self.metadata):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
@@ -141,6 +143,7 @@ class Relational(Catalog, ABC):
         # Only needs to run further checks if the basic one succeeded
         if consistent:
             # --------------------------------------------------------------------- ICs about being a relational catalog in PostgreSQL
+            print("    Checking relational constraints")
 
             # IC-Relational1:
             logger.info("Checking IC-Relational1")
@@ -168,7 +171,7 @@ class Relational(Catalog, ABC):
         statements.extend(self.generate_add_fk_statements())
         if self.engine is not None:
             with self.engine.connect() as conn:
-                for statement in statements:
+                for statement in tqdm(statements, desc="Executing SQL statements"):
                     if show_sql:
                         print(statement)
                     conn.execute(sqlalchemy.text(statement))

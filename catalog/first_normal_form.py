@@ -31,6 +31,8 @@ class FirstNormalForm(Relational):
             firstlevel_names = self.get_inbound_firstLevel().index.get_level_values("edges")
 
             # ---------------------------------------------------------------- ICs about being a First Normal Form catalog
+            print("    Checking 1NF constraints")
+
             # IC-FirstNormalForm1: Sets can only appear at the first level
             logger.info("Checking IC-FirstNormalForm1")
             violations7_1 = self.get_sets()[~self.get_sets().index.isin(firstlevel_names)]

@@ -27,6 +27,8 @@ class NonFirstNormalFormJSON(Relational):
         consistent = super().is_consistent(design)
         # Not worth to check anything if the more basic stuff is already not consistent
         if consistent:
+            # print("    Checking NF2_JSON constraints")
+
             pass
         return consistent
 

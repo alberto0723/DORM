@@ -7,6 +7,7 @@ from IPython.display import display
 import pandas as pd
 import sqlparse
 from pathlib import Path
+from tqdm import tqdm
 
 from .config import show_warnings
 from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
@@ -173,7 +174,7 @@ class Catalog(HyperNetXWrapper):
             elif self.is_generalization(elem):
                 pass
             else:
-                raise ValueError(f"🚨 Creating struct '{struct_name}' could not find '{elem}' to place it inside")
+                raise ValueError(f"🚨 Creating struct '{struct_name}' could not find '{elem}' to place it inside (check both domain and design)")
         self.H.add_incidences_from(incidences)
         # Check if the classes and associations in the struct are connected
         restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
@@ -216,34 +217,38 @@ class Catalog(HyperNetXWrapper):
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = str(file_path)
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
-        print(f"Reading {file_format} domain")
         if file_format == "XML":
-            print(f"Generating JSON and storing it in {file_path.with_suffix(".json")}")
-            with open(file_path.with_suffix(".json"), 'w') as f:
+            print(f"Reading XML domain")
+            new_file_path = file_path.with_suffix(".json")
+            print(f"Generating JSON and storing it in {new_file_path}")
+            with open(new_file_path, 'w') as f:
                 f.write(translate_domain(file_path))
-            file_path = file_path.with_suffix(".json")
+            file_path = new_file_path
         # Open and load the JSON file
+        print(f"Loading domain from {file_path}")
         with open(file_path, 'r') as f:
             domain = json.load(f)
         # Create and fill the catalog
-        for cl in domain.get("classes"):
+        for cl in tqdm(domain.get("classes"), desc="Creating classes"):
             self.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
-        for ass in domain.get("associations", []):
+        for ass in tqdm(domain.get("associations", []), desc="Creating associations"):
             self.add_association(ass.get("name"), ass.get("ends"))
-        for gen in domain.get("generalizations", []):
+        for gen in tqdm(domain.get("generalizations", []), desc="Creating generalizations"):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
 
     def load_design(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
         assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'JSON' or 'XML'"
-        print(f"Reading {file_format} design")
         if file_format == "XML":
-            print(f"Generating JSON and storing it in {file_path.with_suffix(".json")}")
-            with open(file_path.with_suffix(".json"), 'w') as f:
+            print(f"Reading XML design")
+            new_file_path = file_path.with_suffix(".json")
+            print(f"Generating JSON and storing it in {new_file_path}")
+            with open(new_file_path, 'w') as f:
                 f.write(translate_design(file_path))
-            file_path = file_path.with_suffix(".json")
+            file_path = new_file_path
         # Open and load the JSON file
+        print(f"Loading design from {file_path}")
         with open(file_path, 'r') as f:
             design = json.load(f)
         domain_path = extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve()
@@ -255,7 +260,7 @@ class Catalog(HyperNetXWrapper):
         self.metadata["design"] = str(file_path)
 
         # Create and fill the catalog
-        for h in design.get("hyperedges"):
+        for h in tqdm(design.get("hyperedges"), desc="Creating design constructs"):
             if h.get("kind") == "Struct":
                 self.add_struct(h.get("name"), h.get("anchor"), h.get("elements"))
             elif h.get("kind") == "Set":
@@ -265,7 +270,7 @@ class Catalog(HyperNetXWrapper):
 
         logger.info("Checking the insertion guards")
         # Check insertion guards
-        for guard in self.guards.itertuples():
+        for guard in tqdm(self.guards.itertuples(), desc="Checking guards"):
             self.get_insertion_alternatives(guard.pattern, guard.data)
 
     @staticmethod
@@ -367,6 +372,8 @@ class Catalog(HyperNetXWrapper):
         setOutbounds = self.get_outbound_sets()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
+        print("    Checking generic domain constraints")
+
         # Pre-check emptiness
         logger.info("Checking emptiness")
         if self.get_nodes().empty or self.get_edges().empty or self.get_incidences().empty:
@@ -435,6 +442,8 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic8: Unused
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
+        print("    Checking constraints on the domain")
+
         # IC-Atoms2: Every ID belongs to one class which is outbound
         logger.info("Checking IC-Atoms2")
         matches2_2 = outbounds.join(classes, on='edges', rsuffix='_edges', how='inner')
@@ -611,6 +620,8 @@ class Catalog(HyperNetXWrapper):
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
             # ---------------------------------------------------------------------------------------------- ICs on sets
+            print("    Checking constraints on sets")
+
             # IC-Sets1: Every set has one phantom
             logger.info("Checking IC-Sets1")
             matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
@@ -673,6 +684,8 @@ class Catalog(HyperNetXWrapper):
                 display(violations4_7)
 
             # ------------------------------------------------------------------------------------------- ICs on structs
+            print("    Checking constraints on structs")
+
             # IC-Structs1: Every struct has one phantom
             logger.info("Checking IC-Structs1")
             matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
@@ -854,6 +867,8 @@ class Catalog(HyperNetXWrapper):
                     restricted_struct.show_textual()
 
             # ----------------------------------------------------------------------------------------- ICs about design
+            print("    Checking generic design constraints")
+
             # IC-Design1: All the first levels must be sets
             logger.info("Checking IC-Design1")
             matches5_1 = self.get_inbound_firstLevel()
