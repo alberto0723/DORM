@@ -1674,114 +1674,114 @@
     ],
   "associations": [
     {
-      "name": "SpecObjAll-zooSpec",
+      "name": "SpecObjAll_zooSpec",
       "ends": [
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll-zooSpec_SpecObjAll", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_zooSpec_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
           ,
         {
           "class": "zooSpec",
-          "prop": {"End_name": "SpecObjAll-zooSpec_zooSpec", "MultiplicityMin": 0, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_zooSpec_R", "MultiplicityMin": 0, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "SpecObjAll-PlateX",
+      "name": "SpecObjAll_PlateX",
       "ends": [
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll-PlateX_SpecObjAll", "MultiplicityMin": 0, "MultiplicityMax": 1000 }
+          "prop": {"End_name": "SpecObjAll_PlateX_L", "MultiplicityMin": 0, "MultiplicityMax": 1000 }
           }
           ,
         {
           "class": "PlateX",
-          "prop": {"End_name": "SpecObjAll-PlateX_PlateX", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_PlateX_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "SpecObjAll-galSpecExtra",
+      "name": "SpecObjAll_galSpecExtra",
       "ends": [
         {
           "class": "galSpecExtra",
-          "prop": {"End_name": "SpecObjAll-galSpecExtra_galSpecExtra", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_galSpecExtra_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
           ,
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll-galSpecExtra_SpecObjAll", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_galSpecExtra_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "SpecObjAll-galSpecIndx",
+      "name": "SpecObjAll_galSpecIndx",
       "ends": [
         {
           "class": "galSpecIndx",
-          "prop": {"End_name": "SpecObjAll-galSpecIndx_galSpecIndx", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_galSpecIndx_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
           ,
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll-galSpecIndx_SpecObjAll", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_galSpecIndx_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "SpecObjAll-PhotoObjAll",
+      "name": "SpecObjAll_PhotoObjAll",
       "ends": [
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll-PhotoObjAll_SpecObjAll", "MultiplicityMin": 0, "MultiplicityMax": 10 }
+          "prop": {"End_name": "SpecObjAll_PhotoObjAll_L", "MultiplicityMin": 0, "MultiplicityMax": 10 }
           }
           ,
         {
           "class": "PhotoObjAll",
-          "prop": {"End_name": "SpecObjAll-PhotoObjAll_PhotoObjAll", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "SpecObjAll_PhotoObjAll_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "PhotoObjAll-Photoz",
+      "name": "PhotoObjAll_Photoz",
       "ends": [
         {
           "class": "Photoz",
-          "prop": {"End_name": "PhotoObjAll-Photoz_Photoz", "MultiplicityMin": 0, "MultiplicityMax": 1 }
+          "prop": {"End_name": "PhotoObjAll_Photoz_R", "MultiplicityMin": 0, "MultiplicityMax": 1 }
           }
           ,
         {
           "class": "PhotoObjAll",
-          "prop": {"End_name": "PhotoObjAll-Photoz_PhotoObjAll", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "PhotoObjAll_Photoz_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "PhotoObjAll-Field",
+      "name": "PhotoObjAll_Field",
       "ends": [
         {
           "class": "PhotoObjAll",
-          "prop": {"End_name": "PhotoObjAll-Field_PhotoObjAll", "MultiplicityMin": 0, "MultiplicityMax": 100 }
+          "prop": {"End_name": "PhotoObjAll_Field_L", "MultiplicityMin": 0, "MultiplicityMax": 100 }
           }
           ,
         {
           "class": "Field",
-          "prop": {"End_name": "PhotoObjAll-Field_Field", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "PhotoObjAll_Field_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
     {
-      "name": "Field-Frame",
+      "name": "Field_Frame",
       "ends": [
         {
           "class": "Field",
-          "prop": {"End_name": "Field-Frame_Field", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "Field_Frame_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
           ,
         {
           "class": "Frame",
-          "prop": {"End_name": "Field-Frame_Frame", "MultiplicityMin": 0, "MultiplicityMax": 100 }
+          "prop": {"End_name": "Field_Frame_R", "MultiplicityMin": 0, "MultiplicityMax": 100 }
           }
         ]
       }
