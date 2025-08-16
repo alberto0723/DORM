@@ -6,10 +6,7 @@ import networkx as nx
 from IPython.display import display
 import pandas as pd
 import sqlparse
-# import os
-# import sys
-# sys.path.append(os.getcwd()+'\\catalog\\XML2JSON\\domain')
-# sys.path.append(os.getcwd()+'\\catalog\\XML2JSON\\design')
+from pathlib import Path
 
 from .config import show_warnings
 from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
@@ -220,12 +217,14 @@ class Catalog(HyperNetXWrapper):
         self.metadata["domain"] = str(file_path)
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'json' or 'xml'"
         print(f"Reading {file_format} domain")
-        if file_format == "JSON":
-            # Open and load the JSON file
-            with open(file_path, 'r') as f:
-                domain = json.load(f)
-        else:
-            domain = json.loads(translate_domain(file_path))
+        if file_format == "XML":
+            print(f"Generating JSON and storing it in {file_path.with_suffix(".json")}")
+            with open(file_path.with_suffix(".json"), 'w') as f:
+                f.write(translate_domain(file_path))
+            file_path = file_path.with_suffix(".json")
+        # Open and load the JSON file
+        with open(file_path, 'r') as f:
+            domain = json.load(f)
         # Create and fill the catalog
         for cl in domain.get("classes"):
             self.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
@@ -461,10 +460,22 @@ class Catalog(HyperNetXWrapper):
             print("🚨 IC-Atoms4 violation: There are attributes with more than one class")
             display(violations2_4[violations2_4 > 1])
 
+        # IC-Atoms5_pre: Missing information provided to check consistency of cardinalities
+        logger.info("Checking IC-Atoms5_pre")
+        matches2_5_pre1 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
+        violations2_5_pre1 = matches2_5_pre1[matches2_5_pre1.apply(lambda r: r["misc_properties"]["DistinctVals"] is None, axis=1)]
+        violations2_5_pre2 = classes[classes.apply(lambda r: r["misc_properties"]["Count"] is None, axis=1)]
+        if not violations2_5_pre2.empty:
+            print(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in classes {list(violations2_5_pre2.index)}")
+        if not violations2_5_pre1.empty:
+            print(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in attributes {list(violations2_5_pre1.index.get_level_values("nodes"))}")
+
         # IC-Atoms5: The number of different values of an attribute must be less or equal than the cardinality of its class
         logger.info("Checking IC-Atoms5")
         matches2_5 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
-        violations2_5 = matches2_5[matches2_5.apply(lambda r: r["misc_properties"]["DistinctVals"] > r["misc_properties_class"]["Count"], axis=1)]
+        violations2_5 = matches2_5[matches2_5.apply(lambda r: r["misc_properties"]["DistinctVals"] is not None
+                                                              and r["misc_properties_class"]["Count"] is not None
+                                                              and r["misc_properties"]["DistinctVals"] > r["misc_properties_class"]["Count"], axis=1)]
         if not violations2_5.empty:
             consistent = False
             print("🚨 IC-Atoms5 violation: The number of different values of an attribute is greater than the cardinality of its class")
