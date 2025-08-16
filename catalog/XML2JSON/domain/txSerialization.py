@@ -88,39 +88,24 @@ class TxSerialization:
             assoc_strs.append("\n".join(block))
         return ',\n'.join(assoc_strs)
 
+    def getEndJSON(self, cls, name, min, max) -> list[str]:
+        lines: list[str] = []
+
+        lines.append("        {")
+        lines.append(f'          "class": "{cls}",')
+        if name is None or len(name) == 0:
+            lines.append(f'          "prop": {{"End_name": null, "MultiplicityMin": {min}, "MultiplicityMax": {max} }}')
+        else:
+            lines.append(f'          "prop": {{"End_name": "{name}", "MultiplicityMin": {min}, "MultiplicityMax": {max} }}')
+        lines.append("          }")
+        return lines
+
     def getEndsJSON(self, ir: Association) -> list[str]:
         lines: list[str] = []
-        
-        lines.append("        {")
-        cls_from = ir.getNameClassFrom()
-        name_from = ir.getNameFrom()
-        min_from = ir.getMulFromMin()
-        max_from = ir.getMulFromMax()
-        
-        lines.append(f'          "class": "{cls_from}",')
-        line_prop = (
-            f'          "prop": {{"End_name": "{name_from}", '
-            f'"MultiplicityMin": {min_from}, '
-            f'"MultiplicityMax": {max_from} }}'
-        )
-        lines.append(line_prop)
-        lines.append("          },")
 
-        lines.append("        {")
-        cls_to = ir.getNameClassTo()
-        name_to = ir.getNameTo()
-        min_to = ir.getMulToMin()
-        max_to = ir.getMulToMax()
-        
-        lines.append(f'          "class": "{cls_to}",')
-        line_prop = (
-            f'          "prop": {{"End_name": "{name_to}", '
-            f'"MultiplicityMin": {min_to}, '
-            f'"MultiplicityMax": {max_to} }}'
-        )
-        lines.append(line_prop)
-        lines.append("          }")
-
+        lines.extend(self.getEndJSON(ir.getNameClassFrom(), ir.getNameFrom(), ir.getMulFromMin(), ir.getMulFromMax()))
+        lines.append('          ,')
+        lines.extend(self.getEndJSON(ir.getNameClassTo(), ir.getNameTo(), ir.getMulToMin(), ir.getMulToMax()))
         return lines
 
     def createJSON_Generalitzacions(self, generals: list[Generalization]) -> str:

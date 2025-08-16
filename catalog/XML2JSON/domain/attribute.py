@@ -27,6 +27,7 @@ class Attribute:
 
     def getSize(self) -> str:
         return self.size
+
     def setSize(self, size: str) -> None:
         self.size = size
 
@@ -34,7 +35,10 @@ class Attribute:
         return self.distinctvals
 
     def setDistinctVals(self, distinctvals: str) -> None:
-        self.distinctvals = distinctvals
+        if distinctvals == "Unspecified":
+            self.distinctvals = "null"
+        else:
+            self.distinctvals = distinctvals
 
     def getIdentifier(self) -> bool:
         return self.identifier

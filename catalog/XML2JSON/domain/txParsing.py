@@ -62,7 +62,7 @@ class TxParsing:
             at.setID(elem.get('Id', ''))
             at.setName(elem.get('Name', '').replace(' ', '_'))
             at.setSize(elem.get('TypeModifier', ''))
-            at.setDistinctVals(elem.get('Multiplicity', ''))
+            at.setDistinctVals(elem.get('Multiplicity', None))
             identifier_flag = elem.get('IsID', 'false').lower() == 'true'
             at.setIdentifier(identifier_flag)
             
@@ -99,15 +99,15 @@ class TxParsing:
 
         for assoc in assoc_list.findall('Association'):
             i = Association()
-            i.setID(   assoc.get('Id', '')     )
-            i.setName(  assoc.get('Name', '')   )
+            i.setID(assoc.get('Id', ''))
+            i.setName(assoc.get('Name', ''))
 
             # FromEnd
             fe = assoc.find('FromEnd/AssociationEnd')
 
             if fe is not None:
-                i.setIdFrom(   fe.get('Id', '')    )
-                i.setNameFrom(  fe.get('Name', '')  )
+                i.setIdFrom(fe.get('Id', ''))
+                i.setNameFrom(fe.get('Name', None))
                 i.setNameClassFrom(self.getClassEnd(fe))
                 minf, maxf = self.getMultiplicities(fe.get('Multiplicity', ''))
                 i.setMulFromMin(minf)
@@ -116,8 +116,8 @@ class TxParsing:
             # ToEnd
             te = assoc.find('ToEnd/AssociationEnd')
             if te is not None:
-                i.setIdTo(     te.get('Id', '')    )
-                i.setNameTo(    te.get('Name', '')  )
+                i.setIdTo(te.get('Id', ''))
+                i.setNameTo(te.get('Name', None))
                 i.setNameClassTo(self.getClassEnd(te))
                 mint, maxt = self.getMultiplicities(te.get('Multiplicity', ''))
                 i.setMulToMin(mint)
@@ -251,8 +251,7 @@ class TxParsing:
             raise ValueError(f"The class with Id={id} does not exist.")
 
     def getNameCount(self, namecount: str) -> (str, str):
-        name = ""
-        count = ""
+        count = "null"
     
         if '#' in namecount:
             name, count = namecount.split('#', 1)

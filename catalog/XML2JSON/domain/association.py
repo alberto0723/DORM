@@ -41,6 +41,7 @@ class Association:
 
     def getIdFrom(self) -> str:
         return self.idFrom
+
     def setIdFrom(self, idFrom: str) -> None:
         self.idFrom = idFrom
 
