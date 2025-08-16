@@ -215,7 +215,7 @@ class Catalog(HyperNetXWrapper):
     def load_domain(self, file_path, file_format="JSON") -> None:
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = str(file_path)
-        assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'json' or 'xml'"
+        assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
         print(f"Reading {file_format} domain")
         if file_format == "XML":
             print(f"Generating JSON and storing it in {file_path.with_suffix(".json")}")
@@ -236,14 +236,16 @@ class Catalog(HyperNetXWrapper):
 
     def load_design(self, file_path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
-        assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'json' or 'xml'"
+        assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'JSON' or 'XML'"
         print(f"Reading {file_format} design")
-        if file_format == "JSON":
-            # Open and load the JSON file
-            with open(file_path, 'r') as f:
-                design = json.load(f)
-        else:
-            design = json.loads(translate_design(file_path))
+        if file_format == "XML":
+            print(f"Generating JSON and storing it in {file_path.with_suffix(".json")}")
+            with open(file_path.with_suffix(".json"), 'w') as f:
+                f.write(translate_design(file_path))
+            file_path = file_path.with_suffix(".json")
+        # Open and load the JSON file
+        with open(file_path, 'r') as f:
+            design = json.load(f)
         domain_path = str(extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve())
         if "domain" not in self.metadata:
             self.load_domain(domain_path, file_format)
