@@ -61,7 +61,7 @@ class TxParsing:
             at = Attribute()
             at.setID(elem.get('Id', ''))
             at.setName(elem.get('Name', '').replace(' ', '_'))
-            at.setSize(elem.get('TypeModifier', ''))
+            at.setSize(elem.get('TypeModifier', None))
             at.setDistinctVals(elem.get('Multiplicity', None))
             identifier_flag = elem.get('IsID', 'false').lower() == 'true'
             at.setIdentifier(identifier_flag)

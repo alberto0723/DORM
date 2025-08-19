@@ -29,7 +29,10 @@ class Attribute:
         return self.size
 
     def setSize(self, size: str) -> None:
-        self.size = size
+        if size is None or size == "":
+            self.size = "null"
+        else:
+            self.size = size
 
     def getDistinctVals(self) -> str:
         return self.distinctvals
