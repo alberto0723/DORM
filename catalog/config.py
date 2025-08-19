@@ -3,6 +3,7 @@ import logging
 # Enable logging
 logging.basicConfig(level=logging.INFO)
 show_warnings = True
+show_progress = True
 
 
 class Config(object):

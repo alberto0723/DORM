@@ -25,6 +25,7 @@ if __name__ == "__main__":
     base_parser.add_argument("--help", help="Shows this help message and exit", action="store_true")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated statements", action="store_true")
+    base_parser.add_argument("--hide_progress", help="Silences progress bars and messages", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--paradigm", type=str, choices=["1NF", "NF2_JSON"], required=True, help="Implementation paradigm for the design (either 1NF or NF2_JSON)", metavar="<prdgm>")
     base_parser.add_argument("--dbconf_file", type=str, help="Filename of the configuration file for DBMS connection", metavar="<conf>")
@@ -39,6 +40,7 @@ if __name__ == "__main__":
     else:
         args = base_parser.parse_args()
         config.show_warnings = not args.hide_warnings
+        config.show_progress = not args.hide_progress
         if args.logging:
             # Enable logging
             logging.basicConfig(level=logging.INFO)

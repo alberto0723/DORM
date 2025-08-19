@@ -4,6 +4,7 @@ import sys
 import argparse
 from pathlib import Path
 import catalog.tools as tools
+import json
 
 import catalog.config as config
 from catalog.first_normal_form import FirstNormalForm
@@ -26,7 +27,9 @@ if __name__ == "__main__":
     subparsers = base_parser.add_subparsers(help="Kind of catalog", dest="command")
     base_parser.add_argument("--help", help="Shows this help message and exit", action="store_true")
     base_parser.add_argument("--logging", help="Enables logging", action="store_true")
+    base_parser.add_argument("--show_metadata", help="Prints the catalog metadata", action="store_true")
     base_parser.add_argument("--show_sql", help="Prints the generated SQL statements", action="store_true")
+    base_parser.add_argument("--hide_progress", help="Silences progress bars and messages", action="store_true")
     base_parser.add_argument("--hide_warnings", help="Silences warnings", action="store_true")
     base_parser.add_argument("--create", help="Creates the catalog (otherwise it would be loaded from either a file or DBMS)", action="store_true")
     base_parser.add_argument("--supersede", help="Overwrites the existing catalog during creation", action="store_true")
@@ -73,6 +76,7 @@ if __name__ == "__main__":
     else:
         args = base_parser.parse_args()
         config.show_warnings = not args.hide_warnings
+        config.show_progress = not args.hide_progress
         if args.logging:
             # Enable logging
             logging.basicConfig(level=logging.INFO)
@@ -108,7 +112,8 @@ if __name__ == "__main__":
                     cat = FirstNormalForm(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema)
                 else:
                     cat = NonFirstNormalFormJSON(dbconf=tools.read_db_conf(args.dbconf_file), dbschema=args.dbschema)
-
+        if args.show_metadata:
+            print(json.dumps(cat.get_metadata(), indent=4))
         if args.text:
             cat.show_textual()
         if args.check and (args.dbconf_file is None):

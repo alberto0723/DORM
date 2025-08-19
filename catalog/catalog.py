@@ -9,7 +9,7 @@ import sqlparse
 from pathlib import Path
 from tqdm import tqdm
 
-from .config import show_warnings
+from . import config
 from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
 from .HyperNetXWrapper import HyperNetXWrapper
 from .XML2JSON.domain.DomainTranslator import translate as translate_domain
@@ -36,6 +36,9 @@ class Catalog(HyperNetXWrapper):
     def __init__(self, *args, **kwargs):
         logger.info("Creating a catalog")
         super().__init__(*args, **kwargs)
+
+    def get_metadata(self) -> dict[str, str]:
+        return self.metadata
 
     def add_class(self, class_name, properties, att_list) -> None:
         """Besides the class name and the number of instances of the class, this method requires
@@ -218,22 +221,25 @@ class Catalog(HyperNetXWrapper):
         self.metadata["domain"] = str(file_path)
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
         if file_format == "XML":
-            print(f"Reading XML domain")
+            if config.show_progress:
+                print(f"Reading XML domain")
             new_file_path = file_path.with_suffix(".json")
-            print(f"Generating JSON and storing it in {new_file_path}")
+            if config.show_progress:
+                print(f"Generating JSON and storing it in {new_file_path}")
             with open(new_file_path, 'w') as f:
                 f.write(translate_domain(file_path))
             file_path = new_file_path
         # Open and load the JSON file
-        print(f"Loading domain from {file_path}")
+        if config.show_progress:
+            print(f"Loading domain from {file_path}")
         with open(file_path, 'r') as f:
             domain = json.load(f)
         # Create and fill the catalog
-        for cl in tqdm(domain.get("classes"), desc="Creating classes"):
+        for cl in tqdm(domain.get("classes"), desc="Creating classes", leave=config.show_progress):
             self.add_class(cl.get("name"), cl.get("prop"), cl.get("attr"))
-        for ass in tqdm(domain.get("associations", []), desc="Creating associations"):
+        for ass in tqdm(domain.get("associations", []), desc="Creating associations", leave=config.show_progress):
             self.add_association(ass.get("name"), ass.get("ends"))
-        for gen in tqdm(domain.get("generalizations", []), desc="Creating generalizations"):
+        for gen in tqdm(domain.get("generalizations", []), desc="Creating generalizations", leave=config.show_progress):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
 
@@ -241,14 +247,17 @@ class Catalog(HyperNetXWrapper):
         logger.info(f"Loading design from '{file_path}'")
         assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'JSON' or 'XML'"
         if file_format == "XML":
-            print(f"Reading XML design")
+            if config.show_progress:
+                print(f"Reading XML design")
             new_file_path = file_path.with_suffix(".json")
-            print(f"Generating JSON and storing it in {new_file_path}")
+            if config.show_progress:
+                print(f"Generating JSON and storing it in {new_file_path}")
             with open(new_file_path, 'w') as f:
                 f.write(translate_design(file_path))
             file_path = new_file_path
         # Open and load the JSON file
-        print(f"Loading design from {file_path}")
+        if config.show_progress:
+            print(f"Loading design from {file_path}")
         with open(file_path, 'r') as f:
             design = json.load(f)
         domain_path = extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve()
@@ -260,7 +269,7 @@ class Catalog(HyperNetXWrapper):
         self.metadata["design"] = str(file_path)
 
         # Create and fill the catalog
-        for h in tqdm(design.get("hyperedges"), desc="Creating design constructs"):
+        for h in tqdm(design.get("hyperedges"), desc="Creating design constructs", leave=config.show_progress):
             if h.get("kind") == "Struct":
                 self.add_struct(h.get("name"), h.get("anchor"), h.get("elements"))
             elif h.get("kind") == "Set":
@@ -270,7 +279,7 @@ class Catalog(HyperNetXWrapper):
 
         logger.info("Checking the insertion guards")
         # Check insertion guards
-        for guard in tqdm(self.guards.itertuples(), desc="Checking guards"):
+        for guard in tqdm(self.guards.itertuples(), desc="Checking guards", leave=config.show_progress):
             self.get_insertion_alternatives(guard.pattern, guard.data)
 
     @staticmethod
@@ -372,7 +381,8 @@ class Catalog(HyperNetXWrapper):
         setOutbounds = self.get_outbound_sets()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
-        print("    Checking generic domain constraints")
+        if config.show_progress:
+            print("    Checking generic domain constraints")
 
         # Pre-check emptiness
         logger.info("Checking emptiness")
@@ -445,7 +455,8 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic8: Unused
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
-        print("    Checking constraints on the domain")
+        if config.show_progress:
+            print("    Checking constraints on the domain")
 
         # IC-Atoms2: Every ID belongs to one class which is outbound
         logger.info("Checking IC-Atoms2")
@@ -623,7 +634,8 @@ class Catalog(HyperNetXWrapper):
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
             # ---------------------------------------------------------------------------------------------- ICs on sets
-            print("    Checking constraints on sets")
+            if config.show_progress:
+                print("    Checking constraints on sets")
 
             # IC-Sets1: Every set has one phantom
             logger.info("Checking IC-Sets1")
@@ -687,7 +699,8 @@ class Catalog(HyperNetXWrapper):
                 display(violations4_7)
 
             # ------------------------------------------------------------------------------------------- ICs on structs
-            print("    Checking constraints on structs")
+            if config.show_progress:
+                print("    Checking constraints on structs")
 
             # IC-Structs1: Every struct has one phantom
             logger.info("Checking IC-Structs1")
@@ -870,7 +883,8 @@ class Catalog(HyperNetXWrapper):
                     restricted_struct.show_textual()
 
             # ----------------------------------------------------------------------------------------- ICs about design
-            print("    Checking generic design constraints")
+            if config.show_progress:
+                print("    Checking generic design constraints")
 
             # IC-Design1: All the first levels must be sets
             logger.info("Checking IC-Design1")
@@ -902,7 +916,7 @@ class Catalog(HyperNetXWrapper):
             if not violations5_3.empty:
                 # consistent = False
                 warnings.warn("⚠️ IC-Design3 violation: Some atoms do not belong to any struct or set")
-                if show_warnings:
+                if config.show_warnings:
                     display(violations5_3)
 
             # IC-Design4: All structs in a set must have the same attributes in the anchor
