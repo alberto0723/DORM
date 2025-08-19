@@ -416,10 +416,13 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic5: Every edge has at least one outbound
         logger.info("Checking IC-Generic5")
         matches1_5 = self.get_outbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
-        violations1_5 = df_difference(edges.reset_index(drop=False)['edges'], matches1_5)
+        # Empty classes temtatively violate the constraint
+        tentative_violations1_5 = df_difference(edges.reset_index(drop=False)['edges'], matches1_5)
+        # Remove those violations that correspond to empty subclasses
+        violations1_5 = df_difference(tentative_violations1_5, self.get_outbound_generalization_subclasses().reset_index(level='nodes', drop=False).merge(self.get_inbound_classes().reset_index(drop=False), on='nodes', how='inner')["edges"])
         if not violations1_5.empty:
             consistent = False
-            print("🚨 IC-Generic4 violation: There are edges without outbound")
+            print("🚨 IC-Generic5 violation: There are edges without outbound (a.k.a. attributes), and they are not specialized classes")
             display(violations1_5)
 
         # IC-Generic6: An edge cannot have more than one inbound
