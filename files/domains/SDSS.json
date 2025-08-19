@@ -1033,7 +1033,9 @@
         { "name": "photoobjall_tai_g", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_tai_r", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_tai_i", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
-        { "name": "photoobjall_tai_z", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}}
+        { "name": "photoobjall_tai_z", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
+        { "name": "photoobjall_discrG1", "prop": {"DataType": "TEXT", "Size": null, "DistinctVals": null, "Identifier": false}},
+        { "name": "photoobjall_discrG2", "prop": {"DataType": "TEXT", "Size": null, "DistinctVals": null, "Identifier": false}}
         ]
       },
     {
@@ -1669,6 +1671,34 @@
         { "name": "field_nbalkans", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "field_loadversion", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}}
         ]
+      },
+    {
+      "name": "PhotoObj",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "PhotoPrimary",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "PhotoObjCompl",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "PhotoPrimaryCompl",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
       }
 
     ],
@@ -1782,6 +1812,52 @@
         {
           "class": "Frame",
           "prop": {"End_name": "Field_Frame_R", "MultiplicityMin": 0, "MultiplicityMax": 100 }
+          }
+        ]
+      }
+    ],
+  "generalizations": [
+      {
+        "name": "G1",
+        "prop": {
+          "Disjoint": true,
+          "Complete": true
+        },
+        "superclass": "PhotoObjAll",
+        "subclasses": [
+          {
+            "class": "PhotoObjCompl",
+            "prop": {
+              "Constraint": "photoobjall_discrG1='photoobjcompl'"
+            }
+          },
+          {
+            "class": "PhotoObj",
+            "prop": {
+              "Constraint": "photoobjall_discrG1='photoobj'"
+            }
+          }
+        ]
+      },
+      {
+        "name": "G2",
+        "prop": {
+          "Disjoint": true,
+          "Complete": true
+        },
+        "superclass": "PhotoObj",
+        "subclasses": [
+          {
+            "class": "PhotoPrimary",
+            "prop": {
+              "Constraint": "='photoprimary'"
+            }
+          },
+          {
+            "class": "PhotoPrimaryCompl",
+            "prop": {
+              "Constraint": "='photoprimarycompl'"
+            }
           }
         ]
       }

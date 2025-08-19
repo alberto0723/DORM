@@ -32,7 +32,8 @@
         {
           "class": "People",
           "prop": {"End_name": "Friends_People", "MultiplicityMin": 0, "MultiplicityMax": 50 }
-          },
+          }
+          ,
         {
           "class": "Workers",
           "prop": {"End_name": "Friends_Workers", "MultiplicityMin": 0, "MultiplicityMax": 50 }
@@ -52,13 +53,13 @@
           {
             "class": "Students",
             "prop": {
-              "Constraint": "P_occupation='studies'"
+              "Constraint": "P_occupation='students'"
             }
           },
           {
             "class": "Workers",
             "prop": {
-              "Constraint": "P_occupation='works'"
+              "Constraint": "P_occupation='workers'"
             }
           }
         ]
