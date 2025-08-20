@@ -147,9 +147,9 @@ class Catalog(HyperNetXWrapper):
         logger.info("Adding struct "+struct_name)
         if self.is_edge(struct_name):
             raise ValueError(f"🚨 The hyperedge '{struct_name}' already exists")
-        for element in anchor:
-            if not self.is_class(element) and not self.is_association(element):
-                raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{element}') must be either a class or an association")
+        for elem in anchor:
+            if not self.is_class(elem) and not self.is_association(elem):
+                raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{elem}') must be either a class or an association")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
@@ -161,17 +161,17 @@ class Catalog(HyperNetXWrapper):
             elif self.is_association(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_class(elem):
+                # Only one element of a hierarchy can be included by the user in the elements of a struct
+                included_superclasses = [c for c in self.get_superclasses_by_class_name(elem) if c in elements]
+                if included_superclasses:
+                    raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{included_superclasses}')")
+                # Add the class to the struct
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 # Add the identifier to the struct
                 incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
-                # Add this and all superclasses to the struct
-                superclasses = self.get_superclasses_by_class_name(elem)
-                for c in superclasses+[elem]:
-                    # Only one element of a hierarchy can be included by the user in the elements of a struct
-                    if c != elem and c in elements:
-                        raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{c}')")
-                    incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+                # TODO: Do we really need the generalizations in the struct?
                 for g in self.get_generalizations_by_class_name(elem, []):
-                    incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+                    incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
             elif self.is_struct(elem) or self.is_set(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_generalization(elem):

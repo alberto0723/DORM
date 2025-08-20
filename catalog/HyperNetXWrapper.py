@@ -100,7 +100,7 @@ class HyperNetXWrapper:
             class_outbounds = self.get_outbound_class_by_name(class_name)
         else:
             # The top of the hierarchy should be the first in the list
-            class_outbounds = self.get_outbound_class_by_name(superclasses[0])
+            class_outbounds = self.get_outbound_class_by_name(superclasses[-1])
         class_id = class_outbounds[class_outbounds["misc_properties"].apply(lambda x: x['Identifier'])]
         if class_id.empty:
             # This should not happen, it will crash, because it is never checked later
