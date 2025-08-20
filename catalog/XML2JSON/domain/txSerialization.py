@@ -28,24 +28,19 @@ class TxSerialization:
         if classes:
             lines.append('  "classes": [')
             lines.append(self.createJSON_Classes(classes))
-            
-        if assocs:
-            lines.append('')
             lines.append('    ],')
+        if assocs:
             lines.append('  "associations": [')
             lines.append(self.createJSON_Associations(assocs))
-            
-        if generals:
             lines.append('    ],')
+        if generals:
             lines.append('  "generalizations": [')
             lines.append(self.createJSON_Generalitzacions(generals))
-
-        lines.append('    ]')
+            lines.append('    ]')
         lines.append('  }')
         return "\n".join(lines)
 
     def createJSON_Classes(self, clases: list[ClassUML]) -> str:
-        lines = []
         class_strs: list[str] = []
         for c in clases:
             cls_block: list[str] = []
@@ -58,7 +53,6 @@ class TxSerialization:
             cls_block.append('        ]')
             cls_block.append('      }')
             class_strs.append("\n".join(cls_block))
-        # TODO: Jo diria que "lines" realment te nomes un element, no? Potser millor retornar un unic strig (igual que a la seguent funcio) per a no confondre
         return ',\n'.join(class_strs)
 
     def createJSON_Atributs(self, c: ClassUML) -> str:

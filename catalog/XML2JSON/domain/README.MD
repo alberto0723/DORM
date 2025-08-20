@@ -76,7 +76,7 @@ The project consists of the following eight Python modules:
     - `namesChildren`: List of the names of all child classes under this generalization.
     - `disjoint`: Boolean flag; if `True`, no two child classes overlap.
     - `complete`: Boolean flag; if `True`, every possible subclass must appear in `namesChildren`.
-    - `discriminator`: Name of the attribute used to distinguish which child class an instance belongs to.
+    - `discriminator`: Name of the attribute used to distinguish which child class an instance belongs to. The attribute must belong to the immediate superclass.
 
   - `GeneralizationSingle`: represents one specific parent–child pair (a single branch of a generalization).
     - `ID`: Unique identifier of the individual generalization.
