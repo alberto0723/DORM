@@ -3,6 +3,7 @@ import warnings
 import pandas as pd
 from IPython.display import display
 import networkx as nx
+from tqdm import tqdm
 
 from . import config
 from .relational import Relational
@@ -99,7 +100,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n"
@@ -151,7 +152,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating primary key declaration statements", leave=config.show_progress):
             logger.info(f"-- Altering table {table_name} to add the PK")
             sentence = "ALTER TABLE " + table_name + " ADD"
             # Create the PK
@@ -178,7 +179,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_referee_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for table_referee_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating foreign key declaration statements", leave=config.show_progress):
             # Get all the attributes in all the structs
             attribute_list = []
             for struct_name in self.get_struct_names_inside_set_name(table_referee_name):

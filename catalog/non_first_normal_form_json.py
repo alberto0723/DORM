@@ -2,7 +2,9 @@ import logging
 import warnings
 import pandas as pd
 from IPython.display import display
+from tqdm import tqdm
 
+from . import config
 from .tools import drop_duplicates
 from .relational import Relational
 
@@ -95,6 +97,7 @@ class NonFirstNormalFormJSON(Relational):
         else:
             return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
                                     source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
+
     def generate_values_clause(self, table_name, data_values) -> str:
         """
         Values generation depends on the concrete implementation strategy.
@@ -121,7 +124,7 @@ class NonFirstNormalFormJSON(Relational):
         """
         statements = []
         # For each table
-        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL PRIMARY KEY,\n  value JSONB\n  );"
@@ -137,7 +140,7 @@ class NonFirstNormalFormJSON(Relational):
         """
         statements = []
         # For each table
-        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating primary key declaration statements", leave=config.show_progress):
             logger.info(f"-- Altering table {table_name} to add the PK (actually just uniqueness)")
             sentence = "CREATE UNIQUE INDEX pk_" + table_name + " ON " + table_name
             # Create the PK

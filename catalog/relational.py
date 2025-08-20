@@ -222,7 +222,7 @@ class Relational(Catalog, ABC):
             warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
         statements = []
         # For each table
-        for table_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating migration statements", leave=config.show_progress):
             logger.info(f"-- Generating data migration for table {table_name}")
             # For each struct in the table, we have to create a different extraction query
             for struct_name in self.get_struct_names_inside_set_name(table_name):
