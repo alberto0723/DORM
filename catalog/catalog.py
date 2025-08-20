@@ -169,7 +169,7 @@ class Catalog(HyperNetXWrapper):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 # Add the identifier to the struct
                 incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
-                # TODO: Do we really need the generalizations in the struct?
+                # We do need to have the generalizations in the struct to generate a restricted struct correctly including superclasses
                 for g in self.get_generalizations_by_class_name(elem, []):
                     incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
             elif self.is_struct(elem) or self.is_set(elem):
@@ -786,17 +786,17 @@ class Catalog(HyperNetXWrapper):
                     if superclasses1:
                         # Check all other classes in the struct
                         for class_name2 in restricted_classes.index.get_level_values("edges"):
-                            if class_name1 != class_name2:
-                                # Get their superclasses
-                                superclasses2 = restricted_struct.get_superclasses_by_class_name(class_name2)
+                            # Get their superclasses
+                            superclasses2 = restricted_struct.get_superclasses_by_class_name(class_name2)
+                            # Check this is not actually itself or an ancestor
+                            if class_name1 != class_name2 and class_name2 not in superclasses1 and class_name1 not in superclasses2:
                                 # Check if they are siblings
                                 if [s for s in superclasses1 if s in superclasses2]:
                                     # Check if the corresponding discriminant attribute is present(this works because we have single inheritance)
                                     discriminants.append(
                                         restricted_struct.get_outbound_generalization_subclasses().reset_index(
                                             level="edges", drop=True).loc[
-                                            self.get_phantom_of_edge_by_name(class_name1)].misc_properties[
-                                            "Constraint"])
+                                            self.get_phantom_of_edge_by_name(class_name1)].misc_properties["Constraint"])
                 attribute_names = drop_duplicates(self.parse_predicate(" AND ".join(discriminants)))
                 for attr in attribute_names:
                     kind = self.H.get_cell_properties(struct_name, attr, "Kind")
