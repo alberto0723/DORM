@@ -93,7 +93,7 @@ def extract_query_info(real_query):
                     if "HREF=HTTP" not in col.upper():
                         # Remove alias (find "AS")
                         if " AS " in col.upper():
-                            col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0]
+                            col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0].strip('[]')
                         # The parser detects sometimes the count as a function and sometimes as an identifier (may depend on having an alias)
                         if "COUNT" in col.upper():
                             col = "count(*)"
@@ -101,14 +101,14 @@ def extract_query_info(real_query):
                         elif col[-1] != '*' and any(op in col for op in ['+', '-', '*', '/']):
                             col_parts = re.split(r'\s*[\+\-\*/]\s*', col)
                             for part in col_parts:
-                                cleaned_part = part.strip(" ()")  # Remove whitespace and parentheses
+                                cleaned_part = part.strip(" ()[]")  # Remove whitespace and parentheses
                                 # Only keep if it looks like a column (no literals like 1.21 or 'text')
                                 if re.match(r'^[a-zA-Z_][\w\.]*$', cleaned_part):
                                     select_columns.append(cleaned_part)
                             continue  # Skip appending the full col again
                         select_columns.append(col)
                 elif in_from:
-                    name = str(identifier).strip()
+                    name = str(identifier).strip(" []")
                     # Try to match "TableName AS alias" or "TableName alias"
                     # Some temporary tables start with "#"
                     match = re.match(r"(#?[a-zA-Z_][\w]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
@@ -194,12 +194,16 @@ def post_processing(parsed_query, alias_mapping):
     for col in sorted(set(parsed_query["project"])):
         if col[-1] == "*":
             star_found = True
+        alias_found = False
         if len(parsed_query["pattern"]) == 1 and "." not in col:
+            alias_found = True
             col = parsed_query["pattern"][0]+"_"+col
         else:
             for alias, table in alias_mapping.items():
-                col = re.sub(rf"\b{alias}\.", f"{table}_", col)
-        if "__Function_Call__" not in col:
+                col, count = re.subn(rf"\b{alias}\.", f"{table}_", col)
+                alias_found = alias_found or (count > 0)
+        # If we cannot find any table or it is a function call, just discard the column
+        if alias_found and "__Function_Call__" not in col:
             col = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=col)
             final_columns.append(col.lower())
     if star_found and len(parsed_query["pattern"]):

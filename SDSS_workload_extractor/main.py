@@ -8,7 +8,8 @@ from modules.group import (
     group_queries_by_table,
     calculate_column_frequencies,
     save_grouped_queries,
-    load_parsed_queries
+    load_parsed_queries,
+    post_process
 )
 
 
@@ -62,7 +63,8 @@ if __name__ == "__main__":
             queries = load_parsed_queries(args.folder)
             grouped = group_queries_by_table(queries, args.modifiers)
             filtered_groups = calculate_column_frequencies(grouped, args.modifiers, args.threshold, args.jaccard)
-            save_grouped_queries(filtered_groups, args.folder)
+            finalized_groups = post_process(filtered_groups)
+            save_grouped_queries(finalized_groups, args.folder)
 
     except Exception as e:
         print(f"🚨 Error: {e}")

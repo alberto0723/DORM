@@ -142,7 +142,7 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
                             "original_query": pattern_representative[shape_i].get("original_query", ""),
                             "pattern": pattern_representative[shape_i].get("pattern", []),
                             "project": sorted(merged) if not star_found else ['*'],
-                            "filter": " and ".join(filter_clauses),
+                            "filter": filter_clauses,
                             "has_nested_queries": pattern_representative[shape_i].get("has_nested_queries"),
                         }
                         # Add only the modifiers used in grouping
@@ -155,7 +155,55 @@ def calculate_column_frequencies(grouped_queries: dict, modifiers: list, thresho
     return summarized_groups
 
 
-# Step 3: Save summarized representative queries per group
+# Step 3: Post-process queries with hardcoded rules
+def post_process(summarized_groups: list[dict]) -> list[dict]:
+    def clean_attr(c):
+        new_c = None
+        for key, value in hierarchy_top.items():
+            if c.startswith(key.lower() + "_"):
+                new_c = c.replace(key.lower(), value.lower(), 1)  # Replace only the first occurrence
+        if new_c is not None:
+            return new_c
+        else:
+            return c
+
+    associations = ["SpecObjAll_galSpecExtra", "SpecObjAll_zooSpec", "SpecObjAll_galSpecIndx", "SpecObjAll_PlateX", "SpecObjAll_PhotoObjAll", "Field_Frame", "PhotoObjAll_Photoz", "PhotoObjAll_Field"]
+    hierarchy_top = {
+        "PhotoObj": "PhotoObjAll",
+        "PrimaryObj": "PhotoObjAll",
+        "SpecObj": "SpecObjAll"
+    }
+    for group in summarized_groups:
+        # Add associations to the pattern
+        for p1 in group["pattern"]:
+            for p2 in group["pattern"]:
+                if p1 in hierarchy_top:
+                    lhs = hierarchy_top[p1]
+                else:
+                    lhs = p1
+                if p2 in hierarchy_top:
+                    rhs = hierarchy_top[p2]
+                else:
+                    rhs = p2
+                if lhs+"_"+rhs in associations:
+                    group["pattern"].append(lhs+"_"+rhs)
+
+        # Change names to the top of the hierarchy in projected attributes
+        translated_projection = []
+        for a in group["project"]:
+            translated_projection.append(clean_attr(a))
+        group["project"] = translated_projection
+
+        # Change names to the top of the hierarchy in filter attributes
+        translated_filter_clauses = []
+        for c in group["filter"]:
+            translated_filter_clauses.append(clean_attr(c))
+        group["filter"] = " and ".join(translated_filter_clauses)
+
+    return summarized_groups
+
+
+# Step 4: Save summarized representative queries per group
 def save_grouped_queries(summarized_groups: list[dict], output_path: str):
     # Sort the result by frequencies and generate ids
     sorted_groups = []
