@@ -216,8 +216,9 @@ This is a flexible scripting tool that allows to manage the catalog, including c
 These can be directly executed in the DBMS.
 
 ```
-usage: catalogAction.py [--help] [--logging] [--show_sql] [--hide_warnings] [--create] [--supersede] [--hg_path <path>]
-                        [--hypergraph <hg>] [--dbconf_file <conf>] [--dbschema <sch>] [--check] [--text] [--graph]
+usage: catalogAction.py [--help] [--logging] [--show_metadata] [--show_sql] [--hide_progress] [--hide_warnings]
+                        [--create] [--supersede] [--hg_path <path>] [--hypergraph <hg>] [--dbconf_file <conf>]
+                        [--dbschema <sch>] [--check] [--text] [--graph]
                         {domain,design} ...
 
 ▶️ Perform basic actions to create and visualize a catalog
@@ -230,7 +231,9 @@ positional arguments:
 options:
   --help                Shows this help message and exit
   --logging             Enables logging
+  --show_metadata       Prints the catalog metadata
   --show_sql            Prints the generated SQL statements
+  --hide_progress       Silences progress bars and messages
   --hide_warnings       Silences warnings
   --create              Creates the catalog (otherwise it would be loaded from either a file or DBMS)
   --supersede           Overwrites the existing catalog during creation
@@ -274,8 +277,8 @@ Its [automatically generated](https://diagram-generator.com) flow chart is in [C
 This is a flexible scripting tool that allows to generate insertions and execute them in a DBMS.
 
 ```
-usage: insertExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>] [--insert_file <path>]
-                         [--print_result]
+usage: insertExecutor.py [--help] [--logging] [--show_sql] [--hide_progress] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>]
+                         [--insert_file <path>] [--print_result]
 
 ➕ Execute insertions over a pre-existing catalog
 
@@ -283,6 +286,7 @@ options:
   --help                Shows this help message and exit
   --logging             Enables logging
   --show_sql            Prints the generated statements
+  --hide_progress       Silences progress bars and messages
   --hide_warnings       Silences warnings
   --paradigm <prdgm>    Implementation paradigm for the design (either 1NF or NF2_JSON)
   --dbconf_file <conf>  Filename of the configuration file for DBMS connection
@@ -297,8 +301,8 @@ Its [automatically generated](https://diagram-generator.com) flow chart is in [I
 This is a flexible scripting tool that allows to generate queries and execute them in a DBMS.
 
 ```
-usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>] [--query_file <path>]
-                        [--print_rows] [--print_counter] [--print_cost] [--print_time]
+usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_progress] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>]
+                        [--query_file <path>] [--print_rows] [--print_counter] [--print_cost] [--print_time]
 
 🔍 Execute queries over a pre-existing catalog
 
@@ -306,6 +310,7 @@ options:
   --help                Shows this help message and exit
   --logging             Enables logging
   --show_sql            Prints the generated statements
+  --hide_progress       Silences progress bars and messages
   --hide_warnings       Silences warnings
   --paradigm <prdgm>    Implementation paradigm for the design (either 1NF or NF2_JSON)
   --dbconf_file <conf>  Filename of the configuration file for DBMS connection
