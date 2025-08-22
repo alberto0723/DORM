@@ -123,7 +123,6 @@ class TxSerialization:
         return ',\n'.join(gen_strs)
 
     def getChildrenJSON(self, g: Generalization) -> str:
-        lines: list[str] = []
         child_strs: list[str] = []
         for child in g.getNamesChildren():
             constraint = f"{g.getDiscriminator()}='{child.lower()}'"

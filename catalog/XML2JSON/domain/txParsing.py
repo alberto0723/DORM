@@ -167,16 +167,8 @@ class TxParsing:
         return gi
 
     def asignarDiscriminator(self, root: ET.Element, gi: Generalization) -> None:
-        class_elem = root.find(f".//Class[@Id='{gi.getIdParent()}']")
-        if class_elem is None:
-            raise ValueError(f"The parent class with Id={gi.getIdParent()} does not exist.")
         found = False
-        
-        model_children = class_elem.find('ModelChildren')
-        if model_children is None:
-            return
-        
-        for at in model_children.findall('Attribute'):
+        for at in root.findall('.//Attribute'):
             for st in at.findall('Stereotypes/Stereotype'):
                 if st.get('Name', '') == gi.getName():
                     gi.setDiscriminator(at.get('Name', ''))

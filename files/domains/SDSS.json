@@ -1842,13 +1842,13 @@
           {
             "class": "PhotoPrimary",
             "prop": {
-              "Constraint": "='photoprimary'"
+              "Constraint": "photoobj_discrG2='photoprimary'"
             }
           },
           {
             "class": "PhotoPrimaryCompl",
             "prop": {
-              "Constraint": "='photoprimarycompl'"
+              "Constraint": "photoobj_discrG2='photoprimarycompl'"
             }
           }
         ]
