@@ -167,24 +167,40 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
         else:
             return c
 
+    right_term = {
+        "photoobjall": "PhotoObjAll",
+        "specobjall": "SpecObjAll",
+        "galspecextra": "galSpecExtra",
+        "galspecindx": "galSpecIndx",
+        "galspecline": "???galSpecLine???",     # Non-existent in our domain
+        "zoospec": "zooSpec",
+        "platex": "PlateX",
+        "frame": "Frame",
+        "field": "Field",
+        "photoz": "Photoz",
+        "photoobj": "PhotoObj",
+        "photoprimary": "PhotoPrimary",
+        "specobj": "SpecObj",
+        "photospec": "SpecObj",              # Non-existent in our domain
+        "galaxy": "Galaxy",
+        "phototag": "???PhotoTag???"            # Non-existent in our domain
+    }
     associations = ["SpecObjAll_galSpecExtra", "SpecObjAll_zooSpec", "SpecObjAll_galSpecIndx", "SpecObjAll_PlateX", "SpecObjAll_PhotoObjAll", "Field_Frame", "PhotoObjAll_Photoz", "PhotoObjAll_Field"]
     hierarchy_top = {
         "PhotoObj": "PhotoObjAll",
-        "PrimaryObj": "PhotoObjAll",
-        "SpecObj": "SpecObjAll"
+        "PhotoPrimary": "PhotoObjAll",
+        "SpecObj": "SpecObjAll",
+        "SpecPhotoAll": "SpecObjAll"
     }
+    # Standardize capitalization of concepts
     for group in summarized_groups:
+        group["pattern"] = [right_term[p.lower()] for p in group["pattern"]]
+
         # Add associations to the pattern
         for p1 in group["pattern"]:
             for p2 in group["pattern"]:
-                if p1 in hierarchy_top:
-                    lhs = hierarchy_top[p1]
-                else:
-                    lhs = p1
-                if p2 in hierarchy_top:
-                    rhs = hierarchy_top[p2]
-                else:
-                    rhs = p2
+                lhs = hierarchy_top[p1] if p1 in hierarchy_top else p1
+                rhs = hierarchy_top[p2] if p2 in hierarchy_top else p2
                 if lhs+"_"+rhs in associations:
                     group["pattern"].append(lhs+"_"+rhs)
 

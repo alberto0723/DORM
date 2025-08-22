@@ -73,10 +73,15 @@ def extract_query_info(real_query):
     for token in parsed.tokens:
         if token.ttype is DML and 'SELECT' in token.value.upper():
             in_select, in_from = True, False
+        elif token.ttype is Keyword and token.value.upper() == 'INTO':
+            in_select = False
         elif token.ttype is Keyword and token.value.upper() == 'FROM':
             in_select, in_from = False, True
         elif token.ttype is Keyword and token.value.upper() == 'GROUP BY':
+            in_from = False
             has_group_by = True
+        elif token.ttype is Keyword and token.value.upper() == 'ORDER BY':
+            in_from = False
         elif isinstance(token, Function) and "COUNT" in token.value.upper():
             # The parser detects sometimes the count as a function and sometimes as an identifier (may depend on having an alias)
             if in_select:
@@ -93,7 +98,7 @@ def extract_query_info(real_query):
                     if "HREF=HTTP" not in col.upper():
                         # Remove alias (find "AS")
                         if " AS " in col.upper():
-                            col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0].strip('[]')
+                            col = re.split(r"\s+AS\s+", col, flags=re.IGNORECASE)[0].strip('')
                         # The parser detects sometimes the count as a function and sometimes as an identifier (may depend on having an alias)
                         if "COUNT" in col.upper():
                             col = "count(*)"
@@ -101,17 +106,19 @@ def extract_query_info(real_query):
                         elif col[-1] != '*' and any(op in col for op in ['+', '-', '*', '/']):
                             col_parts = re.split(r'\s*[\+\-\*/]\s*', col)
                             for part in col_parts:
-                                cleaned_part = part.strip(" ()[]")  # Remove whitespace and parentheses
+                                cleaned_part = part.strip(" ()")  # Remove whitespace and parentheses
                                 # Only keep if it looks like a column (no literals like 1.21 or 'text')
                                 if re.match(r'^[a-zA-Z_][\w\.]*$', cleaned_part):
                                     select_columns.append(cleaned_part)
                             continue  # Skip appending the full col again
-                        select_columns.append(col)
+                        select_columns.append(col.strip("[]"))
                 elif in_from:
-                    name = str(identifier).strip(" []")
+                    name = str(identifier)
                     # Try to match "TableName AS alias" or "TableName alias"
+                    # They could have an optional schema prefix like "dr7"
+                    # Some queries have two dots like "BESTDR7..Galaxy"
                     # Some temporary tables start with "#"
-                    match = re.match(r"(#?[a-zA-Z_][\w]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
+                    match = re.match(r"(?:[a-zA-Z_][\w]*[\.]+)?(#?[a-zA-Z_][\w]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)", name, flags=re.IGNORECASE)
                     if match:
                         # It is a table with alias
                         full_table, alias = match.groups()
@@ -130,9 +137,11 @@ def extract_query_info(real_query):
                             match = re.match(r"(?:dbo\.)?([a-zA-Z_][\w]*)\s*\([^)]*\)\s*", name, flags=re.IGNORECASE)
                             if not match:
                                 if identifier.value == "__MATCH__":
-                                    tables.append("Match")
+                                    full_table = "Match"
                                 else:
-                                    tables.append(identifier.value)
+                                    full_table = name.strip(" []")
+                                alias_mapping[full_table] = full_table
+                                tables.append(full_table)
         elif isinstance(token, Where):
             in_from = False
             for i in range(len(token.tokens)):
@@ -192,19 +201,22 @@ def post_processing(parsed_query, alias_mapping):
     final_columns = []
     star_found = False
     for col in sorted(set(parsed_query["project"])):
-        if col[-1] == "*":
-            star_found = True
-        alias_found = False
-        if len(parsed_query["pattern"]) == 1 and "." not in col:
-            alias_found = True
-            col = parsed_query["pattern"][0]+"_"+col
+        if col != "count(*)":
+            if col[-1] == "*":
+                star_found = True
+            alias_found = False
+            if len(parsed_query["pattern"]) == 1 and "." not in col:
+                alias_found = True
+                col = parsed_query["pattern"][0]+"_"+col
+            else:
+                for alias, table in alias_mapping.items():
+                    col, count = re.subn(rf"\b{alias}\.", f"{table}_", col)
+                    alias_found = alias_found or (count > 0)
+            # If we cannot find any table or it is a function call, just discard the column
+            if alias_found and "__Function_Call__" not in col:
+                col = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=col)
+                final_columns.append(col.lower())
         else:
-            for alias, table in alias_mapping.items():
-                col, count = re.subn(rf"\b{alias}\.", f"{table}_", col)
-                alias_found = alias_found or (count > 0)
-        # If we cannot find any table or it is a function call, just discard the column
-        if alias_found and "__Function_Call__" not in col:
-            col = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=col)
             final_columns.append(col.lower())
     if star_found and len(parsed_query["pattern"]):
         parsed_query["project"] = ["*"]
@@ -214,14 +226,18 @@ def post_processing(parsed_query, alias_mapping):
     # Post process filter clauses
     final_comparisons = []
     for comparison in parsed_query["filter_clauses"]:
+        alias_found = False
         if len(parsed_query["pattern"]) == 1 and "." not in comparison["attribute"]:
+            alias_found = True
             comparison["attribute"] = parsed_query["pattern"][0]+"_"+comparison["attribute"]
         else:
             for alias, table in alias_mapping.items():
-                comparison["attribute"] = re.sub(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
-        comparison["attribute"] = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=comparison["attribute"])
-        comparison["attribute"] = comparison["attribute"].lower()
-        final_comparisons.append(comparison)
+                comparison["attribute"], count = re.subn(rf"\b{alias}\.", f"{table}_", comparison["attribute"])
+                alias_found = alias_found or (count > 0)
+        if alias_found:
+            comparison["attribute"] = encoded_keywords_regex.sub(repl=lambda p: p.group('keyword'), string=comparison["attribute"])
+            comparison["attribute"] = comparison["attribute"].lower()
+            final_comparisons.append(comparison)
     parsed_query["filter_clauses"] = sorted(final_comparisons, key=lambda c: c["attribute"])
 
     if parsed_query["project"] == ["*"]:
@@ -244,18 +260,18 @@ def process_input(input_path, output_path):
             # Avoid processing the last empty line (or any other line without at least a SELECT)
             if len(line) > 6:
                 # Discarding queries that read or modify MyDB, or use system tables like 'dbobjects'
-                if is_discarded_query(line):
-                    discardsfile.write(line)
-                    discarded += 1
-                else:
+                discarded = is_discarded_query(line)
+                if not discarded:
                     query, alias_mapping = extract_query_info(line)
                     # Discard queries having temporary tables starting with '#' in the FROM, or have an empty SELECT clause
-                    if query is not None and query.get("project") and query.get("pattern") and all(t[0] != '#' for t in query.get("pattern")):
+                    if query is not None and query.get("project", []) and query.get("pattern", []) and all(t[0] != '#' for t in query.get("pattern")):
                         query = post_processing(query, alias_mapping)
-                        all_queries.append(query)
-                    else:
-                        discardsfile.write(line)
-                        discarded += 1
+                        if query.get("project", []):
+                            discarded = False
+                            all_queries.append(query)
+                if discarded:
+                    discardsfile.write(line)
+                    discarded += 1
 
     output_file = Path(output_path).joinpath("parsed.json")
     print(f"\n💾 Saving {len(all_queries)} queries to {output_file}")
