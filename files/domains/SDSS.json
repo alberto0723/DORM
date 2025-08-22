@@ -25,7 +25,7 @@
       "name": "PhotoObj",
       "prop": { "Count": null },
       "attr": [
-        { "name": "photoobj_discrG2", "prop": {"DataType": "TEXT", "Size": null, "DistinctVals": null, "Identifier": false}}
+
         ]
       },
     {
@@ -1175,7 +1175,8 @@
         { "name": "photoobjall_tai_r", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_tai_i", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_tai_z", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
-        { "name": "photoobjall_discrG1", "prop": {"DataType": "TEXT", "Size": null, "DistinctVals": null, "Identifier": false}}
+        { "name": "photoobjall_discrG1", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
+        { "name": "photoobj_discrG2", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
         ]
       },
     {
@@ -1841,13 +1842,13 @@
           {
             "class": "PhotoPrimary",
             "prop": {
-              "Constraint": "photoobj_discrG2='photoprimary'"
+              "Constraint": "='photoprimary'"
             }
           },
           {
             "class": "PhotoPrimaryCompl",
             "prop": {
-              "Constraint": "photoobj_discrG2='photoprimarycompl'"
+              "Constraint": "='photoprimarycompl'"
             }
           }
         ]
