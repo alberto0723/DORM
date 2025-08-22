@@ -172,7 +172,7 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
         "specobjall": "SpecObjAll",
         "galspecextra": "galSpecExtra",
         "galspecindx": "galSpecIndx",
-        "galspecline": "???galSpecLine???",     # Non-existent in our domain
+        "galspecline": "???galSpecLine???",  # Non-existent in our domain
         "zoospec": "zooSpec",
         "platex": "PlateX",
         "frame": "Frame",
@@ -182,8 +182,10 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
         "photoprimary": "PhotoPrimary",
         "specobj": "SpecObj",
         "photospec": "SpecObj",              # Non-existent in our domain
+        "specphotoall": "SpecObj",           # Non-existent in our domain
         "galaxy": "Galaxy",
-        "phototag": "???PhotoTag???"            # Non-existent in our domain
+        "phototag": "???PhotoTag???",        # Non-existent in our domain
+        "wise_allsky": "???wise_allsky???"   # Non-existent in our domain
     }
     associations = ["SpecObjAll_galSpecExtra", "SpecObjAll_zooSpec", "SpecObjAll_galSpecIndx", "SpecObjAll_PlateX", "SpecObjAll_PhotoObjAll", "Field_Frame", "PhotoObjAll_Photoz", "PhotoObjAll_Field"]
     hierarchy_top = {

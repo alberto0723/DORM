@@ -31,4 +31,4 @@ python main.py fetch --year 2025 --month 4 --day 29
 python main.py fetch --year 2025 --month 4 --day 30
 copy /b data\fetched_2025_04_??_all.txt data\2025_04\fetched_2025_04.txt
 python main.py parse --input 2025_04\fetched_2025_04.txt --output 2025_04
-python main.py group --folder 2025_04 --threshold 0.01 --jaccard 0.8 --modifiers top
+python main.py group --folder 2025_04 --threshold 0.02 --jaccard 0.8 --modifiers top
