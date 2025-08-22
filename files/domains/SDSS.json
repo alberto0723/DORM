@@ -1696,7 +1696,22 @@
         { "name": "specobjall_elodiedof", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_htmid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_loadversion", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
-        { "name": "specobjall_img", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
+        { "name": "specobjall_img", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
+        { "name": "specobjall_discrG3", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
+        ]
+      },
+    {
+      "name": "SpecObj",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "SpecObjCompl",
+      "prop": { "Count": null },
+      "attr": [
+
         ]
       }
     ],
@@ -1855,6 +1870,28 @@
             "class": "PhotoObj",
             "prop": {
               "Constraint": "photoobjall_discrG1='photoobj'"
+            }
+          }
+        ]
+      },
+      {
+        "name": "G3",
+        "prop": {
+          "Disjoint": false,
+          "Complete": false
+        },
+        "superclass": "SpecObjAll",
+        "subclasses": [
+          {
+            "class": "SpecObj",
+            "prop": {
+              "Constraint": "specobjall_discrG3='specobj'"
+            }
+          },
+          {
+            "class": "SpecObjCompl",
+            "prop": {
+              "Constraint": "specobjall_discrG3='specobjcompl'"
             }
           }
         ]
