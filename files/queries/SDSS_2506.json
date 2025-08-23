@@ -117,13 +117,11 @@
       "project": [
         "photoobjall_camcol",
         "photoobjall_dec",
-        "photoobjall_en",
         "photoobjall_err_g",
         "photoobjall_err_i",
         "photoobjall_err_r",
         "photoobjall_err_u",
         "photoobjall_err_z",
-        "photoobjall_explore",
         "photoobjall_field",
         "photoobjall_g",
         "photoobjall_i",
@@ -133,7 +131,6 @@
         "photoobjall_ra",
         "photoobjall_rerun",
         "photoobjall_run",
-        "photoobjall_tools",
         "photoobjall_type",
         "photoobjall_u",
         "photoobjall_z"

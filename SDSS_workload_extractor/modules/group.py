@@ -194,6 +194,8 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
         "SpecObj": "SpecObjAll",
         "SpecPhotoAll": "SpecObjAll"
     }
+    # The next attributes are discarded, because they are actually specific of the subclass and we do not have the in our SDSS extraction
+    discarded_attributes = ['photoprimary_en', 'photoprimary_explore', 'photoprimary_tools']
     # Standardize capitalization of concepts
     for group in summarized_groups:
         group["pattern"] = [right_term[p.lower()] for p in group["pattern"]]
@@ -207,9 +209,11 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
                     group["pattern"].append(lhs+"_"+rhs)
 
         # Change names to the top of the hierarchy in projected attributes
+        # Also use the loop to filter out attributes we didn't extract from SDSS
         translated_projection = []
         for a in group["project"]:
-            translated_projection.append(clean_attr(a))
+            if a.lower() not in discarded_attributes:
+                translated_projection.append(clean_attr(a))
         group["project"] = translated_projection
 
         # Change names to the top of the hierarchy in filter attributes
