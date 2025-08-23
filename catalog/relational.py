@@ -429,7 +429,7 @@ class Relational(Catalog, ABC):
                 if conditions_internal != [] and conditions_internal != ["TRUE"]:
                     # Replace the domain name by the name in the table in the WHERE clause
                     for dom_attr_name, attr_proj in proj_attr.items():
-                        conditions_internal = [s.replace(dom_attr_name, attr_proj) for s in conditions_internal]
+                        conditions_internal = [re.sub(r'\b' + re.escape(dom_attr_name) + r'\b', attr_proj, s) for s in conditions_internal]
                     sentence += "\nWHERE " + " AND ".join(f"({cond})" for cond in conditions_internal)
                 if conditions_external:
                     sentence_with_filter = "SELECT " + ", ".join(project_attributes)
