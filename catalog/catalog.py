@@ -221,17 +221,14 @@ class Catalog(HyperNetXWrapper):
         self.metadata["domain"] = str(file_path)
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
         if file_format == "XML":
-            if config.show_progress:
-                print(f"Reading XML domain")
+            custom_progress(f"Reading XML domain")
             new_file_path = file_path.with_suffix(".json")
-            if config.show_progress:
-                print(f"Generating JSON and storing it in {new_file_path}")
+            custom_progress(f"Generating JSON and storing it in {new_file_path}")
             with open(new_file_path, 'w') as f:
                 f.write(translate_domain(file_path))
             file_path = new_file_path
         # Open and load the JSON file
-        if config.show_progress:
-            print(f"Loading domain from {file_path}")
+        custom_progress(f"Loading domain from {file_path}")
         with open(file_path, 'r') as f:
             domain = json.load(f)
         # Create and fill the catalog
@@ -247,17 +244,14 @@ class Catalog(HyperNetXWrapper):
         logger.info(f"Loading design from '{file_path}'")
         assert file_format in ["JSON", "XML"], "🚨 The format of the design specification file must be either 'JSON' or 'XML'"
         if file_format == "XML":
-            if config.show_progress:
-                print(f"Reading XML design")
+            custom_progress(f"Reading XML design")
             new_file_path = file_path.with_suffix(".json")
-            if config.show_progress:
-                print(f"Generating JSON and storing it in {new_file_path}")
+            custom_progress(f"Generating JSON and storing it in {new_file_path}")
             with open(new_file_path, 'w') as f:
                 f.write(translate_design(file_path))
             file_path = new_file_path
         # Open and load the JSON file
-        if config.show_progress:
-            print(f"Loading design from {file_path}")
+        custom_progress(f"Loading design from {file_path}")
         with open(file_path, 'r') as f:
             design = json.load(f)
         domain_path = extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve()
@@ -381,8 +375,7 @@ class Catalog(HyperNetXWrapper):
         setOutbounds = self.get_outbound_sets()
 
         # -------------------------------------------------------------------------------------------------- Generic ICs
-        if config.show_progress:
-            print("    Checking generic domain constraints")
+        custom_progress("    Checking generic domain constraints")
 
         # Pre-check emptiness
         logger.info("Checking emptiness")
@@ -455,8 +448,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic8: Unused
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
-        if config.show_progress:
-            print("    Checking constraints on the domain")
+        custom_progress("    Checking constraints on the domain")
 
         # IC-Atoms2: Every ID belongs to one class which is outbound
         logger.info("Checking IC-Atoms2")
@@ -634,8 +626,7 @@ class Catalog(HyperNetXWrapper):
         # Not necessary to check from here on if the catalog only contains the atoms in the domain
         if design:
             # ---------------------------------------------------------------------------------------------- ICs on sets
-            if config.show_progress:
-                print("    Checking constraints on sets")
+            custom_progress("    Checking constraints on sets")
 
             # IC-Sets1: Every set has one phantom
             logger.info("Checking IC-Sets1")
@@ -699,8 +690,7 @@ class Catalog(HyperNetXWrapper):
                 display(violations4_7)
 
             # ------------------------------------------------------------------------------------------- ICs on structs
-            if config.show_progress:
-                print("    Checking constraints on structs")
+            custom_progress("    Checking constraints on structs")
 
             # IC-Structs1: Every struct has one phantom
             logger.info("Checking IC-Structs1")
@@ -883,8 +873,7 @@ class Catalog(HyperNetXWrapper):
                     restricted_struct.show_textual()
 
             # ----------------------------------------------------------------------------------------- ICs about design
-            if config.show_progress:
-                print("    Checking generic design constraints")
+            custom_progress("    Checking generic design constraints")
 
             # IC-Design1: All the first levels must be sets
             logger.info("Checking IC-Design1")

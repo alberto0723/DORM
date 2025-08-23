@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from . import config
 from .relational import Relational
-from .tools import custom_warning, drop_duplicates
+from .tools import custom_warning, custom_progress, drop_duplicates
 
 # Library initialization
 pd.set_option('display.max_columns', None)
@@ -33,8 +33,7 @@ class FirstNormalForm(Relational):
             firstlevel_names = self.get_inbound_firstLevel().index.get_level_values("edges")
 
             # ---------------------------------------------------------------- ICs about being a First Normal Form catalog
-            if config.show_progress:
-                print("    Checking 1NF constraints")
+            custom_progress("    Checking 1NF constraints")
 
             # IC-FirstNormalForm1: Sets can only appear at the first level
             logger.info("Checking IC-FirstNormalForm1")

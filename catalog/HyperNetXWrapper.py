@@ -94,7 +94,7 @@ class HyperNetXWrapper:
         ids = self.get_attributes()[self.get_attributes()["name"].isin(incidences.index)]
         return ids
 
-    def get_class_id_by_name(self, class_name) -> str | None:
+    def get_class_id_by_name(self, class_name) -> str:
         superclasses = self.get_superclasses_by_class_name(class_name)
         if not superclasses:
             class_outbounds = self.get_outbound_class_by_name(class_name)
