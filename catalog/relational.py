@@ -14,7 +14,7 @@ from tqdm import tqdm
 RelationalType = TypeVar('RelationalType', bound='Relational')
 
 from . import config
-from .tools import custom_warning, drop_duplicates
+from .tools import custom_warning, drop_duplicates, custom_progress
 from .catalog import Catalog
 
 # Libraries initialization
@@ -42,8 +42,7 @@ class Relational(Catalog, ABC):
 
     def __init__(self, paradigm_name=None, file_path=None, dbconf=None, dbschema=None, supersede=False):
         # This print is just to avoid silly mistakes while testing, can eventually be removed
-        if config.show_progress:
-            print(f"*********************** {paradigm_name} ***********************")
+        custom_progress(f"*********************** {paradigm_name} ***********************")
 
         if dbconf is None:
             super().__init__(file_path=file_path)
@@ -99,8 +98,7 @@ class Relational(Catalog, ABC):
             super().save(file_path)
         elif self.engine is not None:
             logger.info("Checking the catalog before saving it in the database")
-            if config.show_progress:
-                print("Checking the catalog consistency (this can take a while)")
+            custom_progress("Checking the catalog consistency (this can take a while)")
             if self.is_consistent(design="design" in self.metadata):
                 logger.info("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
@@ -146,8 +144,7 @@ class Relational(Catalog, ABC):
         # Only needs to run further checks if the basic one succeeded
         if consistent:
             # --------------------------------------------------------------------- ICs about being a relational catalog in PostgreSQL
-            if config.show_progress:
-                print("    Checking relational constraints")
+            custom_progress("    Checking relational constraints")
 
             # IC-Relational1:
             logger.info("Checking IC-Relational1")
@@ -376,6 +373,7 @@ class Relational(Catalog, ABC):
         logger.info("Resolving query")
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
+        custom_progress(f"Parsing query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
             schema_name = self.dbschema + "."
@@ -389,6 +387,7 @@ class Relational(Catalog, ABC):
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_classes.empty:
+            custom_progress(f"--Generating combinations of tables to create the query")
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
@@ -396,10 +395,14 @@ class Relational(Catalog, ABC):
                 #       In general, this can be complex to check, because of the exponential number of mappings between classes in the two queries and
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
+                custom_progress(f"----Generating the query with tables {tables_combination}")
+                custom_progress("------Getting aliases")
                 alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
+                custom_progress("------Getting discriminants")
                 conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
                 # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
+                custom_progress("------Preparing filter predicate")
                 conditions_internal = []
                 conditions_external = []
                 for condition in conditions:
@@ -409,6 +412,7 @@ class Relational(Catalog, ABC):
                     else:
                         conditions_internal.append(condition)
                 filter_attributes_external = drop_duplicates(self.parse_predicate(" AND ".join(conditions_external)))
+                custom_progress("------Generating FROM clause")
                 # Simple case of only one table required by the query
                 if len(tables_combination) == 1:
                     # Build the FROM clause
@@ -416,16 +420,19 @@ class Relational(Catalog, ABC):
                 # Case with several tables that require joins
                 else:
                     # Build the FROM clause
+                    custom_progress("--------Generating JOIN clauses")
                     from_clause = "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
                     # Add the alias to all attributes, since there is more than one table now
-                    for dom_attr_name, attr_proj in proj_attr.items():
+                    for dom_attr_name, attr_proj in tqdm(proj_attr.items(), desc="--------Adding table aliases to attributes", leave=config.show_progress):
                         if 'jsonb_array_elements' in attr_proj:
                             proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
                         else:
                             proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
+                custom_progress("------Generating SELECT clause")
                 # Build the SELECT clause
                 sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes + filter_attributes_external]) + from_clause
                 # Add the WHERE clause
+                custom_progress("------Generating WHERE clause")
                 if conditions_internal != [] and conditions_internal != ["TRUE"]:
                     # Replace the domain name by the name in the table in the WHERE clause
                     for dom_attr_name, attr_proj in proj_attr.items():
@@ -440,6 +447,7 @@ class Relational(Catalog, ABC):
                 sentences.append(sentence_with_filter)
         # If some classes are implicitly stored in the current design (i.e. stored only in their subclasses)
         else:
+            custom_progress(f"Query requires UNION")
             # We need to recursively do it one by one, so we only take the first implicit superclass
             superclass_name = implicit_classes.index[0][0]
             superclass_phantom_name = implicit_classes.index[0][1]
@@ -448,6 +456,7 @@ class Relational(Catalog, ABC):
             subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
             subqueries = []
             for subclass_phantom_name in subclasses.index:
+                custom_progress(f"--Generating query for subtable {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom_name) if elem == superclass_name else elem for elem in new_query["pattern"]]

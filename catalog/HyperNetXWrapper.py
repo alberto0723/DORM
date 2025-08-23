@@ -102,11 +102,8 @@ class HyperNetXWrapper:
             # The top of the hierarchy should be the first in the list
             class_outbounds = self.get_outbound_class_by_name(superclasses[-1])
         class_id = class_outbounds[class_outbounds["misc_properties"].apply(lambda x: x['Identifier'])]
-        if class_id.empty:
-            # This should not happen, it will crash, because it is never checked later
-            return None
-        else:
-            return class_id.index[0][1]
+        assert not class_id.empty, f"Class {class_name} does not have an identifier"
+        return class_id.index[0][1]
 
     def get_class_outbounds_by_attribute_name(self, attribute_name) -> pd.DataFrame:
         return self.get_outbound_classes().query('nodes == "' + attribute_name + '"')
@@ -147,10 +144,18 @@ class HyperNetXWrapper:
         return phantoms
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
-        return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
+        # return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
+        incidences = self.get_incidences()
+        phantom_incidences = incidences.xs(phantom_name, level="nodes", drop_level=False)
+        phantom_inbounds = phantom_incidences[phantom_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
+        return phantom_inbounds.index[0][0]
 
     def get_phantom_of_edge_by_name(self, edge_name) -> str:
-        return self.get_inbounds().loc[edge_name].index[0]
+        # return self.get_inbounds().loc[edge_name].index[0]
+        incidences = self.get_incidences()
+        edge_incidences = incidences.xs(edge_name, level="edges", drop_level=False)
+        edge_inbounds = edge_incidences[edge_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
+        return edge_inbounds.index[0][1]
 
     def get_classes(self) -> pd.DataFrame:
         edges = self.get_edges()
@@ -259,20 +264,52 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_association_by_name(self, ass_name) -> pd.DataFrame:
-        elements = self.get_outbound_associations().query('edges == "' + ass_name + '"')
-        return elements
+        # elements = self.get_outbound_associations().query('edges == "' + ass_name + '"')
+        # return elements
+        incidences = self.get_incidences()
+        if incidences.empty:
+            return incidences
+        else:
+            class_incidences = incidences.xs(ass_name, level="edges", drop_level=False)
+            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                             x['Kind'] == 'AssociationIncidence')]
+            return outbounds
 
     def get_outbound_struct_by_name(self, struct_name) -> pd.DataFrame:
-        elements = self.get_outbound_structs().query('edges == "' + struct_name + '"')
-        return elements
+        # elements = self.get_outbound_structs().query('edges == "' + struct_name + '"')
+        # return elements
+        incidences = self.get_incidences()
+        if incidences.empty:
+            return incidences
+        else:
+            class_incidences = incidences.xs(struct_name, level="edges", drop_level=False)
+            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                             x['Kind'] == 'StructIncidence')]
+            return outbounds
 
     def get_outbound_set_by_name(self, set_name) -> pd.DataFrame:
-        elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
-        return elements
+        # elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
+        # return elements
+        incidences = self.get_incidences()
+        if incidences.empty:
+            return incidences
+        else:
+            class_incidences = incidences.xs(set_name, level="edges", drop_level=False)
+            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                             x['Kind'] == 'SetIncidence')]
+            return outbounds
 
     def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
-        elements = self.get_outbound_classes().query('edges == "' + class_name + '"')
-        return elements
+        # elements = self.get_outbound_classes().query('edges == "' + class_name + '"')
+        # return elements
+        incidences = self.get_incidences()
+        if incidences.empty:
+            return incidences
+        else:
+            class_incidences = incidences.xs(class_name, level="edges", drop_level=False)
+            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                             x['Kind'] == 'ClassIncidence')]
+            return outbounds
 
     def get_outbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()

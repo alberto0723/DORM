@@ -10,7 +10,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from . import config
-from .tools import custom_warning, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
+from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
 from .HyperNetXWrapper import HyperNetXWrapper
 from .XML2JSON.domain.DomainTranslator import translate as translate_domain
 from .XML2JSON.design.DesignTranslator import translate as translate_design
@@ -1139,11 +1139,13 @@ class Catalog(HyperNetXWrapper):
             elif requested == '*':
                 for edge in pattern_edges:
                     if self.is_class(edge):
-                        for attr in self.get_outbound_class_by_name(edge).itertuples():
-                            project_attributes.append(attr.Index[1])
+                        project_attributes.extend(self.get_outbound_class_by_name(edge).index.get_level_values('nodes'))
+                        # for attr in self.get_outbound_class_by_name(edge).itertuples():
+                        #     project_attributes.append(attr.Index[1])
             elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
-                for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
-                    project_attributes.append(attr.Index[1])
+                project_attributes.extend(self.get_outbound_class_by_name(requested[:-2]).index.get_level_values('nodes'))
+                # for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
+                #     project_attributes.append(attr.Index[1])
             else:
                 raise ValueError(f"🚨 Projected '{requested}' is neither an attribute, nor an association end, nor an accepted wildcard")
         identifiers = []
@@ -1213,11 +1215,15 @@ class Catalog(HyperNetXWrapper):
                 # If it is a class, it may be vertically partitioned
                 # We need to generate joins of these tables that cover all required attributes one by one
                 # Get the tables independently for every attribute in the class
+                #    First, we precompute the attributes of all sets (which is expensive) to save time
+                attrs_of_set = {}
+                for set_name in first_levels:
+                    attrs_of_set[set_name] = self.get_atoms_including_transitivity_by_edge_name(set_name)
                 for attr in current_attributes:
                     if not self.is_id(attr) or len(current_attributes) == 1:
                         firstlevels_with_attr = []
                         for set_name in first_levels:
-                            if attr in self.get_atoms_including_transitivity_by_edge_name(set_name):
+                            if attr in attrs_of_set[set_name]:
                                 firstlevels_with_attr.append(set_name)
                         if firstlevels_with_attr:
                             buckets.append(firstlevels_with_attr)
@@ -1242,13 +1248,15 @@ class Catalog(HyperNetXWrapper):
             # Determine the aliases of tables and required attributes
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
-                for dom_attr_name, attr_path in self.get_struct_attributes(struct_name):
+                custom_progress(f"--------Processing {struct_name}")
+                for dom_attr_name, attr_path in tqdm(self.get_struct_attributes(struct_name), desc=f"----------Attributes in {struct_name}", leave=config.show_progress):
                     # In case of generalization, the attribute may be overwritten, but they should coincide
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
                     assert dom_attr_name not in location_attr or location_attr[dom_attr_name] != alias_set[set_name] or self.generate_attr_projection_clause(attr_path) == proj_attr[dom_attr_name], f"☠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)"
                     location_attr[dom_attr_name] = alias_set[set_name]
                     proj_attr[dom_attr_name] = self.generate_attr_projection_clause(attr_path)
                     join_attr[dom_attr_name + "@" + set_name] = self.generate_attr_projection_clause(attr_path)
+                custom_progress(f"----------Processing its association ends")
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
                 associations = self.get_inbound_associations()[self.get_inbound_associations().index.get_level_values("nodes").isin(atoms)]

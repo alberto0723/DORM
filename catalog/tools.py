@@ -9,6 +9,11 @@ def custom_warning(message, category, filename, lineno, file=None, line=None):
         print(f"{message} 👉 {os.path.basename(filename)}:{lineno}")
 
 
+def custom_progress(message):
+    if config.show_progress:
+        print(message)
+
+
 def extract_up_to_folder(path_str, folder_name) -> Path:
     path = Path(path_str).resolve()
     parts = path.parts
