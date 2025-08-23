@@ -59,26 +59,46 @@ if __name__ == "__main__":
         # Open and load the JSON file
         with open(args.query_file, 'r') as file:
             query_specs = json.load(file).get("queries")
+        sum_cost = 0
+        sum_frequencies = 0
         for i, spec in enumerate(query_specs):
             if True:
-                print(f"-- Running query specification {i}")
+                print(f"\n-- Running query specification {i+1}")
                 queries = cat.generate_query_statement(spec, explicit_schema=False)
+                min_position = 0
+                if args.print_cost:
+                    cost_vector = []
+                    for q in queries:
+                        cost_vector.append(cat.get_cost(queries[0]))
+                    min_position = cost_vector.index(min(cost_vector))
                 if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
                     if len(queries) > 1:
                         print(f"Number of queries generated: {len(queries)}")
-                        print("First one is:")
-                    print(queries[0]+";")
+                        if args.print_cost:
+                            print("Best one is:")
+                        else:
+                            print("First one is:")
+                    print(queries[min_position]+";")
                     print("--//////////////////////////////////////////")
                 if args.print_cost:
-                    print("Estimated cost: ", cat.get_cost(queries[0]))
+                    current_frec = spec.get("frequency", 1)
+                    sum_frequencies += current_frec
+                    sum_cost += cost_vector[min_position]*current_frec
+                    print("Vector:", cost_vector)
+                    print("Minimum position:", min_position)
+                    print("Estimated cost: ", cost_vector[min_position])
+                    print("Frequency/Weight:", current_frec)
                 if args.print_time:
-                    print("Estimated time: ", cat.get_time(queries[0]))
+                    print("Estimated time: ", cat.get_time(queries[min_position]))
                 if args.print_rows or args.print_counter:
-                    rows = cat.execute(queries[0])
+                    rows = cat.execute(queries[min_position])
                     if args.print_rows:
                         for row in rows:
                             print(row)
                     if args.print_counter:
                         print(f"Number of rows: {len(rows)}")
+        if args.print_cost:
+            print("=======================================")
+            print(f"Average cost: {sum_cost/sum_frequencies:.2f}", )
         logging.info("END")
