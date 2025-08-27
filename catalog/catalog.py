@@ -147,6 +147,8 @@ class Catalog(HyperNetXWrapper):
         logger.info("Adding struct "+struct_name)
         if self.is_edge(struct_name):
             raise ValueError(f"🚨 The hyperedge '{struct_name}' already exists")
+        if not anchor:
+            raise ValueError(f"🚨 Struct '{struct_name}' does not have any anchor")
         for elem in anchor:
             if not self.is_class(elem) and not self.is_association(elem):
                 raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{elem}') must be either a class or an association")
