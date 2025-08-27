@@ -469,7 +469,7 @@
       "name": "Frame",
       "prop": { "Count": null },
       "attr": [
-        { "name": "frame_fieldid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": true}},
+        { "name": "frame_frameid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": true}},
         { "name": "frame_zoom", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "frame_run", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "frame_rerun", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -640,7 +640,6 @@
       "name": "zooSpec",
       "prop": { "Count": null },
       "attr": [
-        { "name": "zoospec_specobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": true}},
         { "name": "zoospec_objid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "zoospec_dr7objid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "zoospec_ra", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -1130,7 +1129,6 @@
         { "name": "photoobjall_nprof_z", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_loadversion", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_htmid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
-        { "name": "photoobjall_fieldid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_parentid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_specobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_u", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -1176,14 +1174,14 @@
         { "name": "photoobjall_tai_i", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_tai_z", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_discrG1", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
-        { "name": "photoobj_discrG2", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
+        { "name": "photoobj_discrG2", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
+        { "name": "photoobjall_discrG6", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
         ]
       },
     {
       "name": "Photoz",
       "prop": { "Count": null },
       "attr": [
-        { "name": "photoz_objid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": true}},
         { "name": "photoz_z", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoz_zerr", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoz_nncount", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -1224,7 +1222,6 @@
       "name": "galSpecIndx",
       "prop": { "Count": null },
       "attr": [
-        { "name": "galspecindx_specobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": true}},
         { "name": "galspecindx_lick_cn1", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "galspecindx_lick_cn1_err", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "galspecindx_lick_cn1_model", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -1455,7 +1452,6 @@
       "name": "galSpecExtra",
       "prop": { "Count": null },
       "attr": [
-        { "name": "galspecextra_specobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": true}},
         { "name": "galspecextra_bptclass", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "galspecextra_oh_p2p5", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "galspecextra_oh_p16", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -1504,10 +1500,8 @@
       "prop": { "Count": null },
       "attr": [
         { "name": "specobjall_specobjid", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": true}},
-        { "name": "specobjall_bestobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_fluxobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_targetobjid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
-        { "name": "specobjall_plateid", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_scienceprimary", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_sdssprimary", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_legacyprimary", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
@@ -1698,7 +1692,9 @@
         { "name": "specobjall_htmid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_loadversion", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_img", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
-        { "name": "specobjall_discrG3", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
+        { "name": "specobjall_discrG3", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
+        { "name": "specobjall_discrG4", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
+        { "name": "specobjall_discrG5", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
         ]
       },
     {
@@ -1714,62 +1710,41 @@
       "attr": [
 
         ]
+      },
+    {
+      "name": "PhotozCompl",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "zooSpecCompl",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "galSpecCompl",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
       }
     ],
   "associations": [
-    {
-      "name": "SpecObjAll_zooSpec",
-      "ends": [
-        {
-          "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll_zooSpec_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
-          }
-          ,
-        {
-          "class": "zooSpec",
-          "prop": {"End_name": "SpecObjAll_zooSpec_R", "MultiplicityMin": 0, "MultiplicityMax": 1 }
-          }
-        ]
-      },
     {
       "name": "SpecObjAll_PlateX",
       "ends": [
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll_PlateX_L", "MultiplicityMin": 0, "MultiplicityMax": 1000 }
+          "prop": {"End_name": "photox_specobjs", "MultiplicityMin": 0, "MultiplicityMax": 1000 }
           }
           ,
         {
           "class": "PlateX",
-          "prop": {"End_name": "SpecObjAll_PlateX_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
-          }
-        ]
-      },
-    {
-      "name": "SpecObjAll_galSpecExtra",
-      "ends": [
-        {
-          "class": "galSpecExtra",
-          "prop": {"End_name": "SpecObjAll_galSpecExtra_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
-          }
-          ,
-        {
-          "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll_galSpecExtra_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
-          }
-        ]
-      },
-    {
-      "name": "SpecObjAll_galSpecIndx",
-      "ends": [
-        {
-          "class": "galSpecIndx",
-          "prop": {"End_name": "SpecObjAll_galSpecIndx_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
-          }
-          ,
-        {
-          "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll_galSpecIndx_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "specobjall_plateid", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
@@ -1778,26 +1753,12 @@
       "ends": [
         {
           "class": "SpecObjAll",
-          "prop": {"End_name": "SpecObjAll_PhotoObjAll_L", "MultiplicityMin": 0, "MultiplicityMax": 10 }
+          "prop": {"End_name": "photoobjall_specobjs", "MultiplicityMin": 0, "MultiplicityMax": 10 }
           }
           ,
         {
           "class": "PhotoObjAll",
-          "prop": {"End_name": "SpecObjAll_PhotoObjAll_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
-          }
-        ]
-      },
-    {
-      "name": "PhotoObjAll_Photoz",
-      "ends": [
-        {
-          "class": "Photoz",
-          "prop": {"End_name": "PhotoObjAll_Photoz_R", "MultiplicityMin": 0, "MultiplicityMax": 1 }
-          }
-          ,
-        {
-          "class": "PhotoObjAll",
-          "prop": {"End_name": "PhotoObjAll_Photoz_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "specobjall_bestobjid", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
@@ -1806,12 +1767,12 @@
       "ends": [
         {
           "class": "PhotoObjAll",
-          "prop": {"End_name": "PhotoObjAll_Field_L", "MultiplicityMin": 0, "MultiplicityMax": 100 }
+          "prop": {"End_name": "field_photoobjallid", "MultiplicityMin": 0, "MultiplicityMax": 100 }
           }
           ,
         {
           "class": "Field",
-          "prop": {"End_name": "PhotoObjAll_Field_R", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "photoobjall_fieldid", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
         ]
       },
@@ -1820,12 +1781,12 @@
       "ends": [
         {
           "class": "Field",
-          "prop": {"End_name": "Field_Frame_L", "MultiplicityMin": 1, "MultiplicityMax": 1 }
+          "prop": {"End_name": "frame_fieldid", "MultiplicityMin": 1, "MultiplicityMax": 1 }
           }
           ,
         {
           "class": "Frame",
-          "prop": {"End_name": "Field_Frame_R", "MultiplicityMin": 0, "MultiplicityMax": 100 }
+          "prop": {"End_name": "field_frames", "MultiplicityMin": 0, "MultiplicityMax": 100 }
           }
         ]
       }
@@ -1862,15 +1823,15 @@
         "superclass": "PhotoObjAll",
         "subclasses": [
           {
-            "class": "PhotoObjCompl",
-            "prop": {
-              "Constraint": "photoobjall_discrG1='photoobjcompl'"
-            }
-          },
-          {
             "class": "PhotoObj",
             "prop": {
               "Constraint": "photoobjall_discrG1='photoobj'"
+            }
+          },
+          {
+            "class": "PhotoObjCompl",
+            "prop": {
+              "Constraint": "photoobjall_discrG1='photoobjcompl'"
             }
           }
         ]
@@ -1893,6 +1854,78 @@
             "class": "SpecObjCompl",
             "prop": {
               "Constraint": "specobjall_discrG3='specobjcompl'"
+            }
+          }
+        ]
+      },
+      {
+        "name": "G4",
+        "prop": {
+          "Disjoint": false,
+          "Complete": true
+        },
+        "superclass": "SpecObjAll",
+        "subclasses": [
+          {
+            "class": "galSpecExtra",
+            "prop": {
+              "Constraint": "specobjall_discrG4='galspecextra'"
+            }
+          },
+          {
+            "class": "galSpecIndx",
+            "prop": {
+              "Constraint": "specobjall_discrG4='galspecindx'"
+            }
+          },
+          {
+            "class": "galSpecCompl",
+            "prop": {
+              "Constraint": "specobjall_discrG4='galspeccompl'"
+            }
+          }
+        ]
+      },
+      {
+        "name": "G5",
+        "prop": {
+          "Disjoint": true,
+          "Complete": false
+        },
+        "superclass": "SpecObjAll",
+        "subclasses": [
+          {
+            "class": "zooSpec",
+            "prop": {
+              "Constraint": "specobjall_discrG5='zoospec'"
+            }
+          },
+          {
+            "class": "zooSpecCompl",
+            "prop": {
+              "Constraint": "specobjall_discrG5='zoospeccompl'"
+            }
+          }
+        ]
+      },
+      {
+        "name": "G6",
+        "prop": {
+          "Disjoint": true,
+          "Complete": true
+        },
+        "superclass": "PhotoObjAll",
+        "subclasses": [
+          {
+            "class": "Photoz",
+            "prop": {
+              "Constraint": "photoobjall_discrG6='photoz'"
+            }
+          },
+          {
+            "class": "PhotozCompl",
+            "prop": {
+              "Constraint": "photoobjall_discrG6='photozcompl'"
             }
           }
         ]
