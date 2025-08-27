@@ -187,14 +187,20 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
         "phototag": "???PhotoTag???",        # Non-existent in our domain
         "wise_allsky": "???wise_allsky???"   # Non-existent in our domain
     }
-    associations = ["SpecObjAll_galSpecExtra", "SpecObjAll_zooSpec", "SpecObjAll_galSpecIndx", "SpecObjAll_PlateX", "SpecObjAll_PhotoObjAll", "Field_Frame", "PhotoObjAll_Photoz", "PhotoObjAll_Field"]
+    associations = ["SpecObjAll_PlateX", "SpecObjAll_PhotoObjAll", "Field_Frame", "PhotoObjAll_Field"]
     hierarchy_top = {
         "PhotoObj": "PhotoObjAll",
         "PhotoPrimary": "PhotoObjAll",
         "SpecObj": "SpecObjAll",
         "SpecPhotoAll": "SpecObjAll"
     }
-    # The next attributes are discarded, because they are actually specific of the subclass and we do not have the in our SDSS extraction
+    ancestors = {
+        "galSpecExtra": "SpecObjAll",
+        "zooSpec": "SpecObjAll",
+        "galSpecIndx": "SpecObjAll",
+        "Photoz": "PhotoObjAll"
+        }
+    # The next attributes are discarded, because they are actually specific of the subclass and we do not have them in our SDSS extraction
     discarded_attributes = ['photoprimary_en', 'photoprimary_explore', 'photoprimary_tools']
     # Standardize capitalization of concepts
     for group in summarized_groups:
@@ -207,6 +213,11 @@ def post_process(summarized_groups: list[dict]) -> list[dict]:
                 rhs = hierarchy_top[p2] if p2 in hierarchy_top else p2
                 if lhs+"_"+rhs in associations:
                     group["pattern"].append(lhs+"_"+rhs)
+
+        # Remove ancestors from the pattern
+        for p in group["pattern"]:
+            if p in ancestors and ancestors[p] in group["pattern"]:
+                group["pattern"].remove(ancestors[p])
 
         # Change names to the top of the hierarchy in projected attributes
         # Also use the loop to filter out attributes we didn't extract from SDSS
