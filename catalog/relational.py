@@ -56,7 +56,7 @@ class Relational(Catalog, ABC):
             self.dbschema = dbschema
             url = f"{self.dbconf['dbms']}://{self.dbconf['user']}:{self.dbconf['password']}@{self.dbconf['ip']}:{self.dbconf['port']}/{self.dbconf['dbname']}"
             logger.info(f"Creating database connection to '{self.dbschema}' at '{url}'")
-            self.engine = sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={self.dbschema}"})
+            self.engine = sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={self.dbschema}"}, pool_pre_ping=True)
             with self.engine.connect() as conn:
                 if supersede:
                     logger.info(f"Creating schema '{dbschema}'")
@@ -101,6 +101,7 @@ class Relational(Catalog, ABC):
             custom_progress("Checking the catalog consistency (this can take a while)")
             if self.is_consistent(design="design" in self.metadata):
                 logger.info("Saving the catalog in the database")
+                custom_progress("Saving the catalog in the database")
                 df_nodes = self.H.nodes.dataframe.copy()
                 df_nodes['misc_properties'] = df_nodes['misc_properties'].apply(json.dumps)
                 df_nodes.to_sql(self.TABLE_NODES, self.engine, if_exists='replace', index=True)

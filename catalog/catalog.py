@@ -485,9 +485,9 @@ class Catalog(HyperNetXWrapper):
         violations2_5_pre1 = matches2_5_pre1[matches2_5_pre1.apply(lambda r: r["misc_properties"]["DistinctVals"] is None, axis=1)]
         violations2_5_pre2 = classes[classes.apply(lambda r: r["misc_properties"]["Count"] is None, axis=1)]
         if not violations2_5_pre2.empty:
-            print(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in classes {list(violations2_5_pre2.index)}")
+            warnings.warn(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in classes {list(violations2_5_pre2.index)}")
         if not violations2_5_pre1.empty:
-            print(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in attributes {list(violations2_5_pre1.index.get_level_values("nodes"))}")
+            warnings.warn(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in attributes {list(violations2_5_pre1.index.get_level_values("nodes"))}")
 
         # IC-Atoms5: The number of different values of an attribute must be less or equal than the cardinality of its class
         logger.info("Checking IC-Atoms5")
