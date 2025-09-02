@@ -31,7 +31,7 @@ for statement in statements:
         table_name = str(table.this)
         print("Table name: ", table_name)
         with open(base_path.joinpath("insertions_"+table_name + ".sql"), "w") as output:
-            output.write(f"INSERT INTO dorm_edbt_baseline.{table_name}(")
+            output.write(f"INSERT INTO dorm_edbt_baseline.{table_name}_table(")
             columns = schema.expressions
             # print(statement.args) # This shows all the content in the statement, with the corresponding nested structure
             source_cols = []
@@ -50,4 +50,4 @@ for statement in statements:
             output.write(", ".join(target_cols))
             output.write(")\nSELECT ")
             output.write(", ".join(source_cols))
-            output.write(f" \nFROM relational2.{table_name};")
+            output.write(f" \nFROM sdss_relational2.{table_name};")
