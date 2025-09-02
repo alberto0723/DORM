@@ -10,3 +10,14 @@ SET photoobjall_discrG1 = CASE WHEN photoobjall_mode = 1 AND photoobjall_clean =
 UPDATE dorm_edbt_baseline.photospecall
 SET specobjall_discrG3 = CASE WHEN specobjall_bestSpec = 1 THEN 'specobj'
 												 ELSE 'specobjcompl';
+
+										DO $$
+DECLARE
+    metadata JSONB;
+BEGIN
+    SELECT d.description::JSONB INTO metadata
+    FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
+    WHERE n.nspname = 'dorm_edbt_baseline';
+
+    EXECUTE format('COMMENT ON SCHEMA dorm_edbt_baseline IS %L', metadata || '{"has_data": true}');
+END $$
