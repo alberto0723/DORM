@@ -60,3 +60,9 @@ END $$
 ```bash
 python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_cost --save_cost --query_file files/queries/SDSS_2505
 ```
+
+## Migrate the database to NF2
+
+```bash
+python catalogAction.py --hide_warnings --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --supersede --create design --paradigm NF2_JSON --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_baseline  --src_sch dorm_edbt_baseline --src_kind 1NF
+```
