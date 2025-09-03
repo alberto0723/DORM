@@ -782,9 +782,7 @@
         { "name": "specobjall_htmid", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_loadversion", "prop": {"DataType": "BIGINT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "specobjall_img", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
-        { "name": "specobjall_discrG3", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
-        { "name": "specobjall_discrG4", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
-        { "name": "specobjall_discrG5", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
+        { "name": "specobjall_discrG3", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
         ]
       },
     {
