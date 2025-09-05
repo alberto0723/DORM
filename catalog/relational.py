@@ -82,7 +82,7 @@ class Relational(Catalog, ABC):
                     super().__init__(hypergraph=H)
                     self.guards = pd.read_sql_table(self.TABLE_GUARDS, con=self.engine)
                     # Get domain and design
-                    result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema})
+                    result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema.lower()})
                     row = result.fetchone()
                     if not row:
                         ValueError(f"🚨 No metadata (in the form of a comment) found in the schema of the database (necessary to check domain and design origin), probably not a DORM schema")
