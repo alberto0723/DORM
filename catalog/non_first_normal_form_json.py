@@ -85,6 +85,7 @@ class NonFirstNormalFormJSON(Relational):
         :param source: The source catalog to get the data from.
         :return: The SQL statement that moves the data from one schema to another.
         """
+        # This is more complex than the 1NF, because we have to generate the paths of attributes inside the JSON
         attr_paths = []
         for struct_name in self.get_struct_names_inside_set_name(table_name):
             attr_paths.extend(self.get_struct_attributes(struct_name))

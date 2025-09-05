@@ -626,6 +626,27 @@ class HyperNetXWrapper:
                 correct = (correct[0] and (self.get_edge_by_phantom_name(path[i+1]) in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(path[i-1]))), correct[1])
         return correct
 
+    def exists_more_generic_struct_in_set(self, struct_name, set_name) -> bool:
+        found = False
+        struct_anchor_classes = []
+        for key in self.get_anchor_end_names_by_struct_name(struct_name):
+            if self.is_class_phantom(key):
+                struct_anchor_classes.append(self.get_edge_by_phantom_name(key))
+        struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_phantom_structs(), on="nodes", how="inner").index
+        for current_struct_phantom in struct_phantom_list:
+            current_struct_name = self.get_edge_by_phantom_name(current_struct_phantom)
+            if current_struct_name != struct_name:
+                current_struct_anchor_classes = []
+                for key in self.get_anchor_end_names_by_struct_name(current_struct_name):
+                    if self.is_class_phantom(key):
+                        current_struct_anchor_classes.append(self.get_edge_by_phantom_name(key))
+                for anchor in struct_anchor_classes:
+                    for current_anchor in current_struct_anchor_classes:
+                        if anchor != current_anchor:
+                            superclasses = self.get_superclasses_by_class_name(anchor)
+                            found = found or (current_anchor in superclasses)
+        return found
+
     def show_textual(self) -> None:
         # Textual display
         print("-----------------------------------------------Nodes: ")
