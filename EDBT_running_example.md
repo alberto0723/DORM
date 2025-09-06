@@ -116,7 +116,7 @@ python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --db
 # Migrate database to an optimized version based on the workload of May 2025
 
 ```bash
-python catalogAction.py --hide_warnings --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_simple_opt202505 --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202505  --src_sch dorm_edbt_baseline --src_kind 1NF
+python catalogAction.py --hide_warnings --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505 --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202505  --src_sch dorm_edbt_baseline --src_kind 1NF
 ```
 
 ## Update the statistics
