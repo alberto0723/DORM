@@ -386,6 +386,7 @@ class Relational(Catalog, ABC):
         sentences = []
         # Check if all classes in the pattern are in some struct
         # Some classes may be stored implicitly in their subclasses
+        # TODO: Test if this considers also the possibility that the class is actually in a superclass
         classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
@@ -458,8 +459,8 @@ class Relational(Catalog, ABC):
             generalization = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[superclass_phantom_name]
             subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
             subqueries = []
-            for subclass_phantom_name in subclasses.index:
-                custom_progress(f"--Generating query for subtable {subclass_phantom_name}")
+            for subclass_phantom_name in subclasses.index.get_level_values("nodes"):
+                custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom_name) if elem == superclass_name else elem for elem in new_query["pattern"]]
