@@ -90,7 +90,7 @@ if __name__ == "__main__":
                     sum_frequencies += current_frec
                     sum_cost += cost_vector[min_position]*current_frec
                     if args.print_cost:
-                        print("Vector:", cost_vector)
+                        print("Vector of costs:", cost_vector)
                         print("Minimum position:", min_position)
                         print(f"Estimated cost: {cost_vector[min_position]:.2f}")
                         print(f"Weighted cost: {cost_vector[min_position]*current_frec:.2f} (for a weight of {current_frec:.2f})")
