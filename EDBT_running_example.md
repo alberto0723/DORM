@@ -37,6 +37,25 @@ SET specobjall_discrG3 = CASE WHEN specobjall_scienceprimary = 1 THEN 'specobj'
 												 ELSE 'specobjcompl' END;
 ```
 
+## Update the statistics
+
+```sql
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'dorm_edbt_baseline'
+          AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
+    END LOOP;
+END;
+$$;
+```
+
 ## Annotate the catalog as containing data
 
 Finally, we need to annotate in the DORM schema that it contains data, so that migration from this is allowed.
@@ -55,14 +74,73 @@ BEGIN
 END $$
 ```
 
-# Test query performance
+## Test query performance
 
 ```bash
 python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_cost --save_cost --query_file files/queries/SDSS_2505
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_cost --save_cost --query_file files/queries/SDSS_2506
 ```
 
-## Migrate the database to NF2
+# Migrate the database to NF2
 
 ```bash
 python catalogAction.py --hide_warnings --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --supersede --create design --paradigm NF2_JSON --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_baseline  --src_sch dorm_edbt_baseline --src_kind 1NF
+```
+
+## Update the statistics
+
+```sql
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'dorm_edbt_baseline_NF2'
+          AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
+    END LOOP;
+END;
+$$;
+```
+
+## Test query performance
+
+```bash
+python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --print_cost --save_cost --query_file files/queries/SDSS_2505
+python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --print_cost --save_cost --query_file files/queries/SDSS_2506
+```
+
+# Migrate database to an optimized version based on the workload of May 2025
+
+```bash
+python catalogAction.py --hide_warnings --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_simple_opt202505 --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202505  --src_sch dorm_edbt_baseline --src_kind 1NF
+```
+
+## Update the statistics
+
+```sql
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'dorm_edbt_opt202505'
+          AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
+    END LOOP;
+END;
+$$;
+```
+
+## Test query performance
+
+```bash
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505 --print_cost --save_cost --query_file files/queries/SDSS_2505
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505 --print_cost --save_cost --query_file files/queries/SDSS_2506
 ```
