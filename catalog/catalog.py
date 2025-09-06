@@ -1130,6 +1130,7 @@ class Catalog(HyperNetXWrapper):
             elif requested == '*':
                 for edge in pattern_edges:
                     if self.is_class(edge):
+                        # TODO: This needs to include the attributes of the superclasses
                         project_attributes.extend(self.get_outbound_class_by_name(edge).index.get_level_values('nodes'))
                         # for attr in self.get_outbound_class_by_name(edge).itertuples():
                         #     project_attributes.append(attr.Index[1])

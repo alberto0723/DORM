@@ -386,7 +386,7 @@ class Relational(Catalog, ABC):
         sentences = []
         # Check if all classes in the pattern are in some struct
         # Some classes may be stored implicitly in their subclasses
-        # TODO: Test if this considers also the possibility that the class is actually in a superclass
+        # TODO: Test if this considers also the possibility that the class is actually implicit in a superclass table
         classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
         implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
@@ -455,15 +455,23 @@ class Relational(Catalog, ABC):
             # We need to recursively do it one by one, so we only take the first implicit superclass
             superclass_name = implicit_classes.index[0][0]
             superclass_phantom_name = implicit_classes.index[0][1]
-            # This deals with multiple generalizations at once. Most probably, it should deal one by one
-            generalization = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[superclass_phantom_name]
-            subclasses = self.get_outbound_generalization_subclasses().loc[generalization.edges]
+            # Double squared bracket in "loc" is used to preserve the dataframe structure, even when there is only one row (otherwise, you get a Series)
+            generalizations = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[[superclass_phantom_name]]
+            generalizations = pd.merge(generalizations, self.get_generalizations(), left_on="edges", right_index=True, suffixes=("_incidence", "_node"), how="inner")
+            complete_generalizations = generalizations[generalizations["misc_properties_node"].apply(lambda r: r.get("Complete"))]
+            if complete_generalizations.empty:
+                subclasses = self.get_outbound_generalization_subclasses().loc[generalizations.edges]
+            else:
+                # TODO: This takes the first complete generalization, but actually it should generate alternative executions with each of them
+                subclasses = self.get_outbound_generalization_subclasses().loc[complete_generalizations.iloc[0].edges]
             subqueries = []
             for subclass_phantom_name in subclasses.index.get_level_values("nodes"):
                 custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
                 new_query["pattern"] = [self.get_edge_by_phantom_name(subclass_phantom_name) if elem == superclass_name else elem for elem in new_query["pattern"]]
+                # Replace the attributes, just in case it was a "*" (all subclasses should return the same for the UNION to be compatible)
+                new_query["project"] = project_attributes
                 subqueries.append(self.generate_query_statement(new_query, explicit_schema))
             # We need to combine it, because a query may be solved in many different ways
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
