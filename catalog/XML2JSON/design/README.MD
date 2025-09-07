@@ -99,6 +99,8 @@ To link your domain file in Visual Paradigm:
 If two classes share no common structure parent, and you need to place their association in a specific structure:
 - Create a stereotype named exactly as the target structure.
 - Assign this stereotype to the association; it will then appear under that structure in the resulting JSON.
+- It could also happen that one of the classes does not exist in the design (this may be because it is a superclass and we decided to explicitely store only its subclasses).
+If this is the case, just point the association to any of the subclasses in the design (as soon as the domain points to the right one, this does not matter).
 
 ---
 
