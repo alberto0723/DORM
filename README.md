@@ -302,7 +302,7 @@ This is a flexible scripting tool that allows to generate queries and execute th
 
 ```
 usage: queryExecutor.py [--help] [--logging] [--show_sql] [--hide_progress] [--hide_warnings] --paradigm <prdgm> [--dbconf_file <conf>] [--dbschema <sch>]
-                        [--query_file <path>] [--print_rows] [--print_counter] [--print_time] [--print_cost] [--save_cost]
+                        [--query_file <path>] [--print_rows] [--print_counter] [--print_time] [--print_cost] [--save_cost] [--cost_file <path>]
 
 🔍 Execute queries over a pre-existing catalog
 
@@ -320,7 +320,8 @@ options:
   --print_counter       Prints the number of rows
   --print_time          Prints the estimated time of each query (in milliseconds)
   --print_cost          Prints the unitless cost estimation of each query
-  --save_cost           Saves the costs of the queries in a CSV file with the same name as that of the queries (just different extension)
+  --save_cost           Saves the costs of the queries in CSV format
+  --cost_file <path>    File name to store the costs (if not provided, it uses that of the queries, just different extension)
 ```
 
 Its [automatically generated](https://diagram-generator.com) flow chart is in [QueryExecutor.pdf](documents/Diagrams/QueryExecutor.pdf).

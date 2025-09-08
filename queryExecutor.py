@@ -36,7 +36,8 @@ if __name__ == "__main__":
     base_parser.add_argument("--print_counter", help="Prints the number of rows", action="store_true")
     base_parser.add_argument("--print_time", help="Prints the estimated time of each query (in milliseconds)", action="store_true")
     base_parser.add_argument("--print_cost", help="Prints the unitless cost estimation of each query", action="store_true")
-    base_parser.add_argument("--save_cost", help="Saves the costs of the queries in a CSV file with the same name as that of the queries (just different extension)", action="store_true")
+    base_parser.add_argument("--save_cost", help="Saves the costs of the queries in CSV format", action="store_true")
+    base_parser.add_argument("--cost_file", type=str, help="File name to store the costs (if not provided, it uses that of the queries, just different extension)", metavar="<path>")
 
     # Manually check for help before full parsing
     if len(sys.argv) == 1 or '--help' in sys.argv or '-h' in sys.argv:
@@ -108,7 +109,11 @@ if __name__ == "__main__":
             print(f"Average cost: {sum_cost/sum_frequencies:.2f}", )
         if args.save_cost:
             # Open and write to CSV
-            with open(args.query_file.with_suffix(".csv"), mode="w", newline="") as result_file:
+            if args.cost_file:
+                output_filename = Path(args.cost_file).with_suffix(".csv")
+            else:
+                output_filename = args.query_file.with_suffix(".csv")
+            with open(output_filename, mode="w", newline="") as result_file:
                 writer = csv.writer(result_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
                 writer.writerows(cost_per_query)
         logging.info("END")

@@ -160,7 +160,8 @@ class Relational(Catalog, ABC):
 
     def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         """
-        Creates the tables according to the design.
+        Creates the tables according to the design, and potentially populates them with data.
+        Finally, it updates the statistics.
         :param migration_source_sch: Name of the database schema to migrate the data from.
         :param migration_source_kind: paradigm used in the database to migrate the data from (either 1NF or NF2_JSON).
         :param show_sql: Whether to print SQL statements or not.
@@ -178,6 +179,23 @@ class Relational(Catalog, ABC):
                         print(statement)
                     conn.execute(sqlalchemy.text(statement))
                 conn.commit()
+                custom_progress("Updating statistics in the database")
+                conn.execute(sqlalchemy.text(f"""
+                    DO $$
+                    DECLARE
+                        r RECORD;
+                    BEGIN
+                        FOR r IN
+                            SELECT table_schema, table_name
+                            FROM information_schema.tables
+                            WHERE table_schema = '{self.dbschema}'
+                              AND table_type = 'BASE TABLE'
+                        LOOP
+                            EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
+                        END LOOP;
+                    END;
+                    $$;
+                """))
 
     @abstractmethod
     def generate_create_table_statements(self) -> list[str]:

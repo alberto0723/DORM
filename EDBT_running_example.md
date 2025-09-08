@@ -77,103 +77,13 @@ END $$
 ## Test query performance
 
 ```bash
-python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_cost --save_cost --query_file files/queries/SDSS_2505
-python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_cost --save_cost --query_file files/queries/SDSS_2506
+mkdir EDBT_running_example_costs
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --save_cost --cost_file EDBT_running_example_costs/baseline_202505 --query_file files/queries/SDSS_2505
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --save_cost --cost_file EDBT_running_example_costs/baseline_202506 --query_file files/queries/SDSS_2506
 ```
 
-# Migrate the database to NF2
+# Run the different designs
 
 ```bash
-python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --supersede --create design --paradigm NF2_JSON --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_baseline  --src_sch dorm_edbt_baseline --src_kind 1NF
-```
-
-## Update the statistics
-
-```sql
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN
-        SELECT table_schema, table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'dorm_edbt_baseline_NF2'
-          AND table_type = 'BASE TABLE'
-    LOOP
-        EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
-    END LOOP;
-END;
-$$;
-```
-
-## Test query performance
-
-```bash
-python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --print_cost --save_cost --query_file files/queries/SDSS_2505
-python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline_NF2 --print_cost --save_cost --query_file files/queries/SDSS_2506
-```
-
-# Migrate database to an optimized version based on the workload of May 2025
-
-```bash
-python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505 --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202505  --src_sch dorm_edbt_baseline --src_kind 1NF
-```
-
-## Update the statistics
-
-```sql
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN
-        SELECT table_schema, table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'dorm_edbt_opt202505'
-          AND table_type = 'BASE TABLE'
-    LOOP
-        EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
-    END LOOP;
-END;
-$$;
-```
-
-## Test query performance
-
-```bash
-python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505 --print_cost --save_cost --query_file files/queries/SDSS_2505
-python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505 --print_cost --save_cost --query_file files/queries/SDSS_2506
-```
-
-
-# Migrate database to an optimized version based on the workload of May 2025, including a list of PhotoObject IDs inside the SpecObj
-
-```bash
-python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_nf2_plus --supersede --create design --paradigm NF2_JSON --dsg_fmt XML --dsg_spec NF2/SDSS_simple_opt202505  --src_sch dorm_edbt_baseline --src_kind 1NF
-```
-
-## Update the statistics
-
-```sql
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN
-        SELECT table_schema, table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'dorm_edbt_opt202505_nf2_plus'
-          AND table_type = 'BASE TABLE'
-    LOOP
-        EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
-    END LOOP;
-END;
-$$;
-```
-
-## Test query performance
-
-```bash
-python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_nf2_plus --print_cost --save_cost --query_file files/queries/SDSS_2505
-python queryExecutor.py --hide_warnings --hide_progress --paradigm NF2_JSON --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_nf2_plus --print_cost --save_cost --query_file files/queries/SDSS_2506
+EDBT_running_example.bat
 ```
