@@ -853,11 +853,14 @@ class Catalog(HyperNetXWrapper):
                 restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
                 if self.is_class_phantom(internal_elem_name):
                     # By IC-Sets7 a set can have at most one class
-                    if internal_elem_name not in restricted_struct.get_association_ends()["nodes"].values:
+                    # It may be that the association is actually inherited from a superclass
+                    superclass_phantoms = [self.get_phantom_of_edge_by_name(s) for s in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(internal_elem_name))]
+                    superclass_phantoms.append(internal_elem_name)
+                    if all([p not in restricted_struct.get_association_ends()["nodes"].values for p in superclass_phantoms]):
                         consistent = False
                         print(f"🚨 IC-Structs-d violation: Class '{internal_elem_name}' included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
                 else:
-                    assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not an attribute, should be a struct, but it is not"
+                    assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not a class, should be a struct, but it is not"
                     for anchor_point in self.get_anchor_points_by_struct_name(internal_elem_name):
                         if self.get_phantom_of_edge_by_name(anchor_point) not in restricted_struct.get_nodes().index:
                             consistent = False
