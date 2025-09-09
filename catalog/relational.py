@@ -375,7 +375,7 @@ class Relational(Catalog, ABC):
         join_clause = schema_name + current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
-                raise ValueError(f"🚨 Tables '{unjoinable}' are not joinable in the query")
+                raise ValueError(f"🚨 Tables {unjoinable} are not joinable in the query with tables {drop_duplicates(visited.values())}")
             join_clause = laterals + "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
