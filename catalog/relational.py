@@ -275,7 +275,7 @@ class Relational(Catalog, ABC):
         """
         pass
 
-    def generate_joins(self, tables, query_classes, query_associations, alias_table, join_attr, schema_name: str = "", visited: dict[str, str] = None) -> str:
+    def generate_joins(self, tables, query_classes, query_associations, alias_table, join_attr, schema_name: str = "", visited: dict[str, str] = None, previous_laterals: list[str] = None) -> str:
         """
         Find the connections between tables, according to the required classes and associations
         end generate the corresponding join clause
@@ -299,6 +299,7 @@ class Relational(Catalog, ABC):
         if visited is None:
             first_table = True
             visited = dict()
+            previous_laterals = []
         else:
             first_table = False
         unjoinable = []
@@ -346,17 +347,26 @@ class Relational(Catalog, ABC):
             laterals = ""
             for plug in plugs:
                 if plug[1] in visited:
-                    # TODO: Two identical lateral joins will be created if the same content of a set is used twice in joins
+                    # TODO: When joining two tables by a multi-valued attributes, a cycle of table references is created with the lateral join (it can be solved by "simply" moving the condition to the WHERE clause, instead of having it in the ON)
+                    # We cannot generate a lateral join in this case, because its table would come afterwards, so the alias would not be defined in time
                     if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
                         # The split is assuming that there is a single parenthesis
-                        laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + alias_table[visited[plug[1]]] + "_" + plug[1] + " ON TRUE\n"
-                        lhs = alias_table[visited[plug[1]]] + "_" + plug[1] + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
+                        lateral_alias = alias_table[visited[plug[1]]] + "_" + plug[1]
+                        # We avoid repetitions of lateral joins
+                        if lateral_alias not in previous_laterals:
+                            laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
+                            previous_laterals.append(lateral_alias)
+                        lhs = lateral_alias + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
                     else:
                         lhs = alias_table[visited[plug[1]]]+"."+join_attr[plug[1]+"@"+visited[plug[1]]]
                     if 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
                         # The split is assuming that there is a single parenthesis
-                        laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + alias_table[current_table] + "_" + plug[1] + " ON TRUE\n"
-                        rhs = alias_table[current_table] + "_" + plug[1] + join_attr[plug[1]+"@"+current_table].split(")")[1]
+                        lateral_alias = alias_table[current_table] + "_" + plug[1]
+                        # We avoid repetitions of lateral joins
+                        if lateral_alias not in previous_laterals:
+                            laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
+                            previous_laterals.append(lateral_alias)
+                        rhs = lateral_alias + join_attr[plug[1]+"@"+current_table].split(")")[1]
                     else:
                         rhs = alias_table[current_table]+"."+join_attr[plug[0]+"@"+current_table]
                     joins.append(lhs + "=" + rhs)
@@ -380,7 +390,7 @@ class Relational(Catalog, ABC):
         if not tables:
             return join_clause
         else:
-            return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited)
+            return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited, previous_laterals)
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
@@ -443,7 +453,7 @@ class Relational(Catalog, ABC):
                 else:
                     # Build the FROM clause
                     custom_progress("--------Generating JOIN clauses")
-                    from_clause = "\nFROM "+self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
+                    from_clause = "\nFROM " + self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
                     # Add the alias to all attributes, since there is more than one table now
                     for dom_attr_name, attr_proj in tqdm(proj_attr.items(), desc="--------Adding table aliases to attributes", leave=config.show_progress):
                         if 'jsonb_array_elements' in attr_proj:
