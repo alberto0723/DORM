@@ -172,7 +172,8 @@ class Relational(Catalog, ABC):
             statements.extend(self.generate_migration_statements(migration_source_sch, migration_source_kind))
         statements.extend(self.generate_add_pk_statements())
         statements.extend(self.generate_add_fk_statements())
-        if self.engine is not None:
+        # It only makes sense to update statistics if data has been migrated
+        if migration_source_sch is not None and migration_source_kind is not None and self.engine is not None:
             with self.engine.connect() as conn:
                 for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
                     if show_sql:
