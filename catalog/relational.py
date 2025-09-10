@@ -347,29 +347,33 @@ class Relational(Catalog, ABC):
             laterals = ""
             for plug in plugs:
                 if plug[1] in visited:
-                    # TODO: When joining two tables by a multi-valued attributes, a cycle of table references is created with the lateral join (it can be solved by "simply" moving the condition to the WHERE clause, instead of having it in the ON)
-                    # We cannot generate a lateral join in this case, because its table would come afterwards, so the alias would not be defined in time
-                    if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
-                        # The split is assuming that there is a single parenthesis
-                        lateral_alias = alias_table[visited[plug[1]]] + "_" + plug[1]
-                        # We avoid repetitions of lateral joins
-                        if lateral_alias not in previous_laterals:
-                            laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
-                            previous_laterals.append(lateral_alias)
-                        lhs = lateral_alias + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
+                    if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]] and 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
+                        # TODO: When joining two tables by a multi-valued attributes, a cycle of table references is created with the lateral join
+                        #       We cannot generate a lateral join in this case, because its table would come afterwards, so the alias would not be defined in time
+                        #       It can be solved by, instead of having the join condition in the ON, "simply" moving this to the WHERE clause, when both aliases already exist
+                        warnings.warn(f"⚠️ A join between two lateral joins should be generated, but this would create a cycle of references to table aliases, which is not implemented, yet (the query might still work, but its behaviour could have been changed)")
                     else:
-                        lhs = alias_table[visited[plug[1]]]+"."+join_attr[plug[1]+"@"+visited[plug[1]]]
-                    if 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
-                        # The split is assuming that there is a single parenthesis
-                        lateral_alias = alias_table[current_table] + "_" + plug[1]
-                        # We avoid repetitions of lateral joins
-                        if lateral_alias not in previous_laterals:
-                            laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
-                            previous_laterals.append(lateral_alias)
-                        rhs = lateral_alias + join_attr[plug[1]+"@"+current_table].split(")")[1]
-                    else:
-                        rhs = alias_table[current_table]+"."+join_attr[plug[0]+"@"+current_table]
-                    joins.append(lhs + "=" + rhs)
+                        if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
+                            # The split is assuming that there is a single parenthesis
+                            lateral_alias = alias_table[visited[plug[1]]] + "_" + plug[1]
+                            # We avoid repetitions of lateral joins
+                            if lateral_alias not in previous_laterals:
+                                laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
+                                previous_laterals.append(lateral_alias)
+                            lhs = lateral_alias + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
+                        else:
+                            lhs = alias_table[visited[plug[1]]]+"."+join_attr[plug[1]+"@"+visited[plug[1]]]
+                        if 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
+                            # The split is assuming that there is a single parenthesis
+                            lateral_alias = alias_table[current_table] + "_" + plug[1]
+                            # We avoid repetitions of lateral joins
+                            if lateral_alias not in previous_laterals:
+                                laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
+                                previous_laterals.append(lateral_alias)
+                            rhs = lateral_alias + join_attr[plug[1]+"@"+current_table].split(")")[1]
+                        else:
+                            rhs = alias_table[current_table]+"."+join_attr[plug[0]+"@"+current_table]
+                        joins.append(lhs + "=" + rhs)
             if not first_table and not joins:
                 unjoinable.append(current_table)
             else:
