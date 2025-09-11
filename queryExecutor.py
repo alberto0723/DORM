@@ -73,7 +73,7 @@ if __name__ == "__main__":
                 if args.print_cost or args.save_cost:
                     cost_vector = []
                     for q in queries:
-                        cost_vector.append(cat.get_cost(queries[0]))
+                        cost_vector.append(cat.get_cost(q))
                     min_position = cost_vector.index(min(cost_vector))
                 if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
