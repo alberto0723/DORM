@@ -172,14 +172,14 @@ class Relational(Catalog, ABC):
             statements.extend(self.generate_migration_statements(migration_source_sch, migration_source_kind))
         statements.extend(self.generate_add_pk_statements())
         statements.extend(self.generate_add_fk_statements())
-        # It only makes sense to update statistics if data has been migrated
-        if migration_source_sch is not None and migration_source_kind is not None and self.engine is not None:
-            with self.engine.connect() as conn:
-                for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
-                    if show_sql:
-                        print(statement)
-                    conn.execute(sqlalchemy.text(statement))
-                conn.commit()
+        with self.engine.connect() as conn:
+            for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
+                if show_sql:
+                    print(statement)
+                conn.execute(sqlalchemy.text(statement))
+            conn.commit()
+            # It only makes sense to update statistics if data has been migrated
+            if migration_source_sch is not None and migration_source_kind is not None:
                 custom_progress("Updating statistics in the database")
                 conn.execute(sqlalchemy.text(f"""
                     DO $$
@@ -492,11 +492,12 @@ class Relational(Catalog, ABC):
             generalizations = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[[superclass_phantom_name]]
             generalizations = pd.merge(generalizations, self.get_generalizations(), left_on="edges", right_index=True, suffixes=("_incidence", "_node"), how="inner")
             complete_generalizations = generalizations[generalizations["misc_properties_node"].apply(lambda r: r.get("Complete"))]
+            # TODO: This takes the first complete generalization, but actually it should generate alternative executions with each of them
             if complete_generalizations.empty:
-                subclasses = self.get_outbound_generalization_subclasses().loc[generalizations.edges]
+                taken_generalization = generalizations.iloc[0]
             else:
-                # TODO: This takes the first complete generalization, but actually it should generate alternative executions with each of them
-                subclasses = self.get_outbound_generalization_subclasses().loc[complete_generalizations.iloc[0].edges]
+                taken_generalization = complete_generalizations.iloc[0]
+            subclasses = self.get_outbound_generalization_subclasses().loc[taken_generalization.edges]
             subqueries = []
             for subclass_phantom_name in subclasses.index.get_level_values("nodes"):
                 custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
@@ -507,8 +508,12 @@ class Relational(Catalog, ABC):
                 new_query["project"] = project_attributes
                 subqueries.append(self.generate_query_statement(new_query, explicit_schema))
             # We need to combine it, because a query may be solved in many different ways
+            if taken_generalization.misc_properties_node.get("Disjoint", False) or complete_generalizations.empty:
+                union_clause = "\nUNION ALL\n"
+            else:
+                union_clause = "\nUNION\n"
             for combination in list(itertools.product(*drop_duplicates(subqueries))):
-                sentences.append("\nUNION\n".join(combination))
+                sentences.append("(" + union_clause.join(combination) + ")")
         return sentences
 
     @abstractmethod
