@@ -182,7 +182,7 @@ class Relational(Catalog, ABC):
                         FOR r IN
                             SELECT table_schema, table_name
                             FROM information_schema.tables
-                            WHERE table_schema = '{self.dbschema}'
+                            WHERE lower(table_schema) = '{self.dbschema.lower()}'
                               AND table_type = 'BASE TABLE'
                         LOOP
                             EXECUTE format('ANALYZE %I.%I;', r.table_schema, r.table_name);
