@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 import logging
 import warnings
@@ -173,16 +174,7 @@ class Relational(Catalog, ABC):
             statements.extend(self.generate_migration_statements(migration_source_sch, migration_source_kind))
         statements.extend(self.generate_add_pk_statements())
         statements.extend(self.generate_add_fk_statements())
-        # We disable transactions by means of autocommit, because DDL should not use them. Moreover, some migration sentences time out
-        with self.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
-                if show_sql:
-                    print(statement)
-                conn.execute(sqlalchemy.text(statement))
-            # It only makes sense to update statistics if data has been migrated
-            if migration_source_sch is not None and migration_source_kind is not None:
-                custom_progress("Updating statistics in the database")
-                conn.execute(sqlalchemy.text(f"""
+        update_statistics_statement = f"""
                     DO $$
                     DECLARE
                         r RECORD;
@@ -197,7 +189,28 @@ class Relational(Catalog, ABC):
                         END LOOP;
                     END;
                     $$;
-                """))
+                """
+        # Safety mechanism in case of migration failure
+        safety_file = "safety_file_for_migration_failure__" + self.dbschema + ".sql"
+        with open(safety_file, mode="w") as outputfile:
+            outputfile.write("-- This file can be used to migrate the data into the DORM schema in case connection fails\n")
+            outputfile.write("-- When this happens it is because some statements take too long and connection fails\n")
+            outputfile.write("-- Only statements not executed yet should be launched (just check the database to identify them)\n\n")
+            outputfile.write("SET search_path TO " + self.dbschema + ";\n\n")
+            for statement in statements:
+                outputfile.write(statement + "\n\n")
+            outputfile.write(update_statistics_statement)
+        # We disable transactions by means of autocommit, because DDL should not use them. Moreover, some migration sentences time out
+        with self.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
+                if show_sql:
+                    print(statement)
+                conn.execute(sqlalchemy.text(statement))
+            # It only makes sense to update statistics if data has been migrated
+            if migration_source_sch is not None and migration_source_kind is not None:
+                custom_progress("Updating statistics in the database")
+                conn.execute(sqlalchemy.text(update_statistics_statement))
+        os.remove(safety_file)
 
     @abstractmethod
     def generate_create_table_statements(self) -> list[str]:

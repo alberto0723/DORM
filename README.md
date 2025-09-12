@@ -213,7 +213,9 @@ There are three tools available to facilitate usage and testing.
 
 ### catalogAction ▶️
 This is a flexible scripting tool that allows to manage the catalog, including creating, storing (either as a serialized hypergraph or in a DBMS), visualizing (both textual and graphically) and translating it into CREATE TABLE statements.
-These can be directly executed in the DBMS.
+These can be directly executed in the DBMS. 
+However, specially in the case of migrating a lot of data, connections may fail in the middle of the (long) process. 
+Thus, to save time, a file with all SQL statements is temporarily generated in the root folder (named `safety_file_for_migration_failure__<schema_name>.sql`), and deleted only if migration succeeds.
 
 ```
 usage: catalogAction.py [--help] [--logging] [--show_metadata] [--show_sql] [--hide_progress] [--hide_warnings]
