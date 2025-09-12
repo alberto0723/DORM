@@ -1222,7 +1222,7 @@ class Catalog(HyperNetXWrapper):
                                 firstlevels_with_attr.append(set_name)
                         if firstlevels_with_attr:
                             buckets.append(firstlevels_with_attr)
-        # Generate combinations of the buckets of each element to get the combinations that cover all of them
+        # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
     def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:

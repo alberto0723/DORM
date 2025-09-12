@@ -44,13 +44,21 @@ def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:
         combinations = []
         for combination in combine_buckets(patterns_list):
             for current_table in current_pattern:
-                if current_table not in combination:
+                if current_table in combination:
+                    combinations.append(combination)
+                else:
                     temp = combination + [current_table]
                     temp.sort()
                     combinations.append(temp)
-                else:
-                    combinations.append(combination)
-        return drop_duplicates(combinations)
+        minimal_combinations = []
+        for c1 in combinations:
+            found = False
+            for c2 in combinations:
+                if c1 != c2 and all([t in c1 for t in c2]):
+                    found = True
+            if not found and c1 not in minimal_combinations:
+                minimal_combinations.append(c1)
+        return minimal_combinations
 
 
 def df_difference(df1, df2):
