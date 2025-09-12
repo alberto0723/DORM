@@ -55,7 +55,7 @@ class NonFirstNormalFormJSON(Relational):
         for dom_attr_name, attr_path in attr_paths:
             current_name = attr_path[0].get("name")
             if len(attr_path) == 1:
-                formatted_pairs.append("('" + current_name + "', to_json(" + dom_attr_name + "))")
+                formatted_pairs.append("('" + current_name + "', to_jsonb(" + dom_attr_name + "))")
                 tmp_grouping.append(dom_attr_name)
             else:
                 if current_name in pending_attributes:
@@ -66,7 +66,7 @@ class NonFirstNormalFormJSON(Relational):
             assert self.is_struct(key) or self.is_set(key), f"☠️ On creating a nested attribute in a JSONB object, '{key}' should be either a struct or a set"
             nested_object, nested_grouping = self.build_jsonb_object(paths)
             if self.is_struct(key):
-                formatted_pairs.append("('" + key + "', to_json(" + nested_object + "))")
+                formatted_pairs.append("('" + key + "', to_jsonb(" + nested_object + "))")
                 final_grouping = nested_grouping
             else:
                 assert not nested_grouping, f"☠️ There is a limitation of PostgreSQL that does not allow to nest 'jsonb_agg', hence, nested sets are not allowed as in '{key}'"
