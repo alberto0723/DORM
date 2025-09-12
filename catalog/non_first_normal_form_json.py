@@ -55,7 +55,7 @@ class NonFirstNormalFormJSON(Relational):
         for dom_attr_name, attr_path in attr_paths:
             current_name = attr_path[0].get("name")
             if len(attr_path) == 1:
-                formatted_pairs.append("('" + current_name + "', to_jsonb(" + dom_attr_name + "))")
+                formatted_pairs.append("('" + current_name + "', to_json(" + dom_attr_name + "))")
                 tmp_grouping.append(dom_attr_name)
             else:
                 if current_name in pending_attributes:
@@ -66,7 +66,7 @@ class NonFirstNormalFormJSON(Relational):
             assert self.is_struct(key) or self.is_set(key), f"☠️ On creating a nested attribute in a JSONB object, '{key}' should be either a struct or a set"
             nested_object, nested_grouping = self.build_jsonb_object(paths)
             if self.is_struct(key):
-                formatted_pairs.append("('" + key + "', to_jsonb(" + nested_object + "))")
+                formatted_pairs.append("('" + key + "', to_json(" + nested_object + "))")
                 final_grouping = nested_grouping
             else:
                 assert not nested_grouping, f"☠️ There is a limitation of PostgreSQL that does not allow to nest 'jsonb_agg', hence, nested sets are not allowed as in '{key}'"
@@ -132,7 +132,7 @@ class NonFirstNormalFormJSON(Relational):
         for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
-            sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL PRIMARY KEY,\n  value JSONB\n  );"
+            sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL,\n  value JSONB\n  );"
             statements.append(sentence)
         return statements
 
@@ -146,7 +146,8 @@ class NonFirstNormalFormJSON(Relational):
         statements = []
         # For each table
         for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating primary key declaration statements", leave=config.show_progress):
-            logger.info(f"-- Altering table {table_name} to add the PK (actually just uniqueness)")
+            logger.info(f"-- Altering table {table_name} to add the surrogate PK and a UNIQUE index for the true PK")
+            statements.append(f"ALTER TABLE {table_name} ADD PRIMARY KEY (key);")
             sentence = "CREATE UNIQUE INDEX pk_" + table_name + " ON " + table_name
             # Create the PK
             # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
