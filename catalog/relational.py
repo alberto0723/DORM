@@ -56,14 +56,15 @@ class Relational(Catalog, ABC):
             self.dbschema = dbschema
             url = f"{self.dbconf['dbms']}://{self.dbconf['user']}:{self.dbconf['password']}@{self.dbconf['ip']}:{self.dbconf['port']}/{self.dbconf['dbname']}"
             logger.info(f"Creating database connection to '{self.dbschema}' at '{url}'")
-            self.engine = sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={self.dbschema}"}, pool_pre_ping=True)
-            with self.engine.connect() as conn:
+            # Most probably pool recycle is not really necessary, but should not hurt, either
+            self.engine = sqlalchemy.create_engine(url, connect_args={"options": f"-csearch_path={self.dbschema}"}, pool_pre_ping=True, pool_recycle=1800)
+            # Using "begin" instead of "connect", a transaction is safely managed automatically
+            with self.engine.begin() as conn:
                 if supersede:
                     logger.info(f"Creating schema '{dbschema}'")
                     conn.execute(sqlalchemy.text(f"DROP SCHEMA IF EXISTS {dbschema} CASCADE;"))
                     conn.execute(sqlalchemy.text(f"CREATE SCHEMA {dbschema};"))
                     conn.execute(sqlalchemy.text(f"COMMENT ON SCHEMA {dbschema} IS '"+"{}';"))
-                    conn.commit()
                     # This creates either an empty hypergraph or reads it from a file
                     super().__init__(file_path=file_path)
                     self.metadata["paradigm"] = paradigm_name
@@ -116,10 +117,10 @@ class Relational(Catalog, ABC):
                 self.metadata["tables_created"] = "design" in self.metadata
                 if migration_source_sch is not None and migration_source_kind is not None:
                     self.metadata["has_data"] = True
-                with (self.engine.connect() as conn):
+                # Using "begin" instead of "connect", a transaction is safely managed automatically
+                with (self.engine.begin() as conn):
                     statement = f"COMMENT ON SCHEMA {self.dbschema} IS '{json.dumps(self.metadata)}';"
                     conn.execute(sqlalchemy.text(statement))
-                    conn.commit()
             else:
                 raise ValueError("🚨 An inconsistent catalog cannot be saved in the DBMS")
         else:
@@ -172,12 +173,12 @@ class Relational(Catalog, ABC):
             statements.extend(self.generate_migration_statements(migration_source_sch, migration_source_kind))
         statements.extend(self.generate_add_pk_statements())
         statements.extend(self.generate_add_fk_statements())
-        with self.engine.connect() as conn:
+        # We disable transactions by means of autocommit, because DDL should not use them. Moreover, some migration sentences time out
+        with self.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
                 if show_sql:
                     print(statement)
                 conn.execute(sqlalchemy.text(statement))
-            conn.commit()
             # It only makes sense to update statistics if data has been migrated
             if migration_source_sch is not None and migration_source_kind is not None:
                 custom_progress("Updating statistics in the database")
