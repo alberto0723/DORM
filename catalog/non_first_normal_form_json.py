@@ -73,7 +73,6 @@ class NonFirstNormalFormJSON(Relational):
                 formatted_pairs.append("('" + key + "', jsonb_agg(DISTINCT " + nested_object + "))")
                 final_grouping = tmp_grouping
 #        return f"jsonb_build_object({', '.join(formatted_pairs)})", final_grouping
-        # TODO: Needs to check what happens when we have lists inside a document, and even if nesting lists into lists is now possible
         return f"(SELECT jsonb_object_agg(k,v) FROM (VALUES {', '.join(formatted_pairs)}) AS __kv__(k,v))", final_grouping
 
     def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:

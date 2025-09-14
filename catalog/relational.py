@@ -632,4 +632,4 @@ class Relational(Catalog, ABC):
             # match.group(1) gives you just the number, without the " ms" suffix  (whatever in the parenthesis in the pattern)
             return float(match.group(1))
         except ValueError:
-            raise ValueError(f"🚨 Cost parsing failed in the access plan of the query '{last_row}'")
+            raise ValueError(f"🚨 Execution time parsing failed in the access plan of the query '{last_row}'")
