@@ -62,7 +62,10 @@ if __name__ == "__main__":
         # Open and load the JSON file
         with open(args.query_file.with_suffix(".json"), 'r') as file:
             query_specs = json.load(file).get("queries")
-        cost_per_query = [["Order", "Group ID", "Weight", "Cost"]]
+        if args.print_time:
+            cost_per_query = [["Order", "Group ID", "Weight", "Cost", "Time"]]
+        else:
+            cost_per_query = [["Order", "Group ID", "Weight", "Cost"]]
         sum_cost = 0
         sum_frequencies = 0
         for i, spec in enumerate(query_specs):
@@ -75,6 +78,8 @@ if __name__ == "__main__":
                     for q in queries:
                         cost_vector.append(cat.get_cost(q))
                     min_position = cost_vector.index(min(cost_vector))
+                if args.print_time:
+                    estimated_time = cat.get_time(queries[min_position])
                 if args.show_sql:
                     print(r"--\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
                     if len(queries) > 1:
@@ -87,7 +92,10 @@ if __name__ == "__main__":
                     print("--//////////////////////////////////////////")
                 if args.print_cost or args.save_cost:
                     current_frec = spec.get("frequency", 1)
-                    cost_per_query.append([i+1, spec.get("group_id", ""), current_frec, cost_vector[min_position]])
+                    if args.print_time:
+                        cost_per_query.append([i + 1, spec.get("group_id", ""), current_frec, cost_vector[min_position], estimated_time])
+                    else:
+                        cost_per_query.append([i + 1, spec.get("group_id", ""), current_frec, cost_vector[min_position]])
                     sum_frequencies += current_frec
                     sum_cost += cost_vector[min_position]*current_frec
                     if args.print_cost:
@@ -96,7 +104,7 @@ if __name__ == "__main__":
                         print(f"Estimated cost: {cost_vector[min_position]:.2f}")
                         print(f"Weighted cost: {cost_vector[min_position]*current_frec:.2f} (for a weight of {current_frec:.2f})")
                 if args.print_time:
-                    print("Estimated time: ", cat.get_time(queries[min_position]))
+                    print("Estimated time: ", estimated_time)
                 if args.print_rows or args.print_counter:
                     rows = cat.execute(queries[min_position])
                     if args.print_rows:
