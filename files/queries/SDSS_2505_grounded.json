@@ -1,0 +1,176 @@
+{
+  "total_queries": 2191734,
+  "query_frequency_in_workload": 0.8455763888888889,
+  "queries": [
+    {
+      "frequency": 0.3338073872103093,
+      "original_query": " SELECT petroRad_r FROM PhotoObj WHERE objID=587739609694339096 \n",
+      "pattern": [
+        "PhotoObj"
+      ],
+      "project": [
+        "photoobjall_objid",
+        "photoobjall_petrorad_r"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 1
+    },
+    {
+      "frequency": 0.11664827939886865,
+      "original_query": " SELECT TOP 10 p.objid, p.run, p.rerun, p.camcol, p.field, p.obj, p.type, p.ra, p.dec, p.u,p.g,p.r,p.i,p.z, p.Err_u, p.Err_g, p.Err_r,p.Err_i,p.Err_z FROM fGetNearbyObjEq(258.25,64.05,3) n, PhotoPrimary p WHERE n.objID=p.objID \n",
+      "pattern": [
+        "PhotoPrimary"
+      ],
+      "project": [
+        "photoobjall_camcol",
+        "photoobjall_dec",
+        "photoobjall_err_g",
+        "photoobjall_err_i",
+        "photoobjall_err_r",
+        "photoobjall_err_u",
+        "photoobjall_err_z",
+        "photoobjall_field",
+        "photoobjall_g",
+        "photoobjall_i",
+        "photoobjall_obj",
+        "photoobjall_objid",
+        "photoobjall_r",
+        "photoobjall_ra",
+        "photoobjall_rerun",
+        "photoobjall_run",
+        "photoobjall_type",
+        "photoobjall_u",
+        "photoobjall_z"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": "10",
+      "group_id": 2
+    },
+    {
+      "frequency": 0.09692827688031486,
+      "original_query": " SELECT top 1 '<a target=INFO href=http://cas.sdss.org/dr6/en/tools/explore/obj.asp?id=' + cast(p.objId as varchar(20)) + '>' + cast(p.objId as varchar(20)) + '</a>' as objID, p.run, p.rerun, p.camcol, p.field, p.obj, p.type, p.ra, p.dec, p.u,p.g,p.r,p.i,p.z, p.Err_u, p.Err_g, p.Err_r,p.Err_i,p.Err_z FROM fGetNearbyObjEq(195,2.5,0.5) n, PhotoPrimary p WHERE n.objID=p.objID \n",
+      "pattern": [
+        "PhotoPrimary"
+      ],
+      "project": [
+        "photoobjall_camcol",
+        "photoobjall_dec",
+        "photoobjall_err_g",
+        "photoobjall_err_i",
+        "photoobjall_err_r",
+        "photoobjall_err_u",
+        "photoobjall_err_z",
+        "photoobjall_field",
+        "photoobjall_g",
+        "photoobjall_i",
+        "photoobjall_obj",
+        "photoobjall_objid",
+        "photoobjall_r",
+        "photoobjall_ra",
+        "photoobjall_rerun",
+        "photoobjall_run",
+        "photoobjall_type",
+        "photoobjall_u",
+        "photoobjall_z"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": "1",
+      "group_id": 3
+    },
+    {
+      "frequency": 0.07242074083807615,
+      "original_query": " SELECT DISTINCT s.instrument, s.run2d, s.plate, s.mjd, s.fiberID FROM PhotoObjAll AS p JOIN SpecObjAll s ON p.objID = s.bestObjID WHERE (s.plate=440 AND s.mjd=51885 AND s.fiberid=451)\n",
+      "pattern": [
+        "PhotoObjAll",
+        "SpecObjAll",
+        "SpecObjAll_PhotoObjAll"
+      ],
+      "project": [
+        "specobjall_fiberid",
+        "specobjall_instrument",
+        "specobjall_mjd",
+        "specobjall_plate",
+        "specobjall_run2d"
+      ],
+      "filter": "",
+      "has_nested_queries": true,
+      "top_value": null,
+      "group_id": 4
+    },
+    {
+      "frequency": 0.06411407588694613,
+      "original_query": " select * from PhotoObjAll where objId=0x082804d7c0ac0312 \n",
+      "pattern": [
+        "PhotoObjAll"
+      ],
+      "project": [
+        "*"
+      ],
+      "filter": "",
+      "has_nested_queries": false,
+      "top_value": null,
+      "group_id": 5
+    },
+    {
+      "frequency": 0.02141135740012246,
+      "original_query": " SELECT p.objid, p.type, p.clean, p.ra, p.dec, p.raErr, p.decErr, p.psfMag_u,p.psfMag_g,p.psfMag_r,p.psfMag_i,p.psfMag_z, p.psfMagErr_u,p.psfMagErr_g,p.psfMagErr_r,p.psfMagErr_i,p.psfMagErr_z, p.petroR50_u,p.petroR50_g,p.petroR50_r,p.petroR50_i,p.petroR50_z, p.psffwhm_u, p.psffwhm_g, p.psffwhm_r, p.psffwhm_i, p.psffwhm_z, p.modelMagErr_u,p.modelMagErr_g,p.modelMagErr_r,p.modelMagErr_i,p.modelMagErr_z, p.modelMag_u, p.modelMag_g, p.modelMag_r, p.modelMag_i, p.modelMag_z, pz.z, pz.zErr, s.z, s.zErr FROM PhotoObj AS p , dbo.fGetNearbyObjEq(120.77858, 33.49508, 1.0) AS n LEFT JOIN SpecPhotoAll s on n.objID=s.objID LEFT JOIN Photoz AS pz ON pz.objID = n.objID WHERE n.objID = p.objID \n",
+      "pattern": [
+        "PhotoObj",
+        "Photoz",
+        "SpecObj",
+        "SpecObjAll_PhotoObjAll"
+      ],
+      "project": [
+        "photoobjall_clean",
+        "photoobjall_dec",
+        "photoobjall_decerr",
+        "photoobjall_modelmag_g",
+        "photoobjall_modelmag_i",
+        "photoobjall_modelmag_r",
+        "photoobjall_modelmag_u",
+        "photoobjall_modelmag_z",
+        "photoobjall_modelmagerr_g",
+        "photoobjall_modelmagerr_i",
+        "photoobjall_modelmagerr_r",
+        "photoobjall_modelmagerr_u",
+        "photoobjall_modelmagerr_z",
+        "photoobjall_objid",
+        "photoobjall_petror50_g",
+        "photoobjall_petror50_i",
+        "photoobjall_petror50_r",
+        "photoobjall_petror50_u",
+        "photoobjall_petror50_z",
+        "photoobjall_psffwhm_g",
+        "photoobjall_psffwhm_i",
+        "photoobjall_psffwhm_r",
+        "photoobjall_psffwhm_u",
+        "photoobjall_psffwhm_z",
+        "photoobjall_psfmag_g",
+        "photoobjall_psfmag_i",
+        "photoobjall_psfmag_r",
+        "photoobjall_psfmag_u",
+        "photoobjall_psfmag_z",
+        "photoobjall_psfmagerr_g",
+        "photoobjall_psfmagerr_i",
+        "photoobjall_psfmagerr_r",
+        "photoobjall_psfmagerr_u",
+        "photoobjall_psfmagerr_z",
+        "photoobjall_ra",
+        "photoobjall_raerr",
+        "photoobjall_type",
+        "photoz_z",
+        "photoz_zerr",
+        "specobjall_z",
+        "specobjall_zerr"
+      ],
+      "filter": "photoobjall_objid=1237663531861868821",
+      "has_nested_queries": true,
+      "top_value": null,
+      "group_id": 6
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+echo off
+echo Starting time is: %TIME%
+mkdir EDBT_running_example_costs
+
+echo ************************************************************************** Design optimized for the workload of May 2025
+echo ========================================================================== In 1NF with an FK for the association
+echo -------------------------------------------------------------------------- Database creation
+REM python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_withFK --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202505_withFK --src_sch dorm_edbt_baseline --src_kind 1NF
+echo .......................................................................... Get query performance for workload of May 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_withFK --print_time --save_cost --cost_file EDBT_running_example_costs/opt202505_withFK_202505 --query_file files/queries/SDSS_2505_grounded
+echo .......................................................................... Get query performance for workload of June 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_withFK --print_time --save_cost --cost_file EDBT_running_example_costs/opt202505_withFK_202506 --query_file files/queries/SDSS_2506_grounded
+
+echo ========================================================================== In 1NF with an intermediate table for the association
+echo -------------------------------------------------------------------------- Database creation
+REM python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_withTable --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202505_withTable --src_sch dorm_edbt_baseline --src_kind 1NF
+echo .......................................................................... Get query performance for workload of May 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_withTable --print_time --save_cost --cost_file EDBT_running_example_costs/opt202505_withTable_202505 --query_file files/queries/SDSS_2505_grounded
+echo .......................................................................... Get query performance for workload of June 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202505_withTable --print_time --save_cost --cost_file EDBT_running_example_costs/opt202505_withTable_202506 --query_file files/queries/SDSS_2506_grounded
+
+echo ************************************************************************** Design optimized for the workload of June 2025
+echo ========================================================================== In 1NF with an FK for the association
+echo -------------------------------------------------------------------------- Database creation
+python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withFK_minimal --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202506_withFK_minimal --src_sch dorm_edbt_baseline --src_kind 1NF
+echo .......................................................................... Get query performance for workload of May 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withFK_minimal --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withFK_minimal_202505 --query_file files/queries/SDSS_2505_grounded
+echo .......................................................................... Get query performance for workload of June 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withFK_minimal --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withFK_minimal_202506 --query_file files/queries/SDSS_2506_grounded
+
+echo ========================================================================== In 1NF with an intermediate table for the association
+echo -------------------------------------------------------------------------- Database creation
+python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withTable_minimal --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202506_withTable_minimal --src_sch dorm_edbt_baseline --src_kind 1NF
+echo .......................................................................... Get query performance for workload of May 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withTable_minimal --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withTable_minimal_202505 --query_file files/queries/SDSS_2505_grounded
+echo .......................................................................... Get query performance for workload of June 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withTable_minimal --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withTable_minimal_202506 --query_file files/queries/SDSS_2506_grounded
+
+echo ************************************************************************** Middle ground design
+echo ========================================================================== In 1NF with an FK for the association
+echo -------------------------------------------------------------------------- Database creation
+python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withFK --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202506_withFK --src_sch dorm_edbt_baseline --src_kind 1NF
+echo .......................................................................... Get query performance for workload of May 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withFK --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withFK_202505 --query_file files/queries/SDSS_2505_grounded
+echo .......................................................................... Get query performance for workload of June 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withFK --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withFK_202506 --query_file files/queries/SDSS_2506_grounded
+
+echo ========================================================================== In 1NF with an intermediate table for the association
+echo -------------------------------------------------------------------------- Database creation
+python catalogAction.py --hide_warnings --hide_progress --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withTable --supersede --create design --paradigm 1NF --dsg_fmt XML --dsg_spec 1NF/SDSS_simple_opt202506_withTable --src_sch dorm_edbt_baseline --src_kind 1NF
+echo .......................................................................... Get query performance for workload of May 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withTable --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withTable_202505 --query_file files/queries/SDSS_2505_grounded
+echo .......................................................................... Get query performance for workload of June 2025
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_opt202506_withTable --print_time --save_cost --cost_file EDBT_running_example_costs/opt202506_withTable_202506 --query_file files/queries/SDSS_2506_grounded
+
+echo Ending time: %TIME%
