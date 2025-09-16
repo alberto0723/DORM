@@ -981,7 +981,7 @@ class Catalog(HyperNetXWrapper):
                                     a, b = j, i
 
             # IC-Design7: Any struct with a class with subclasses must contain the corresponding discriminants
-            #             It is implementing as a warning, because it could be acceptable as soon as the class is not used in the queries
+            #             It is implemented as a warning, because it could be acceptable as soon as the class is not used in the queries
             logger.info("Checking IC-Design7 (produces just warnings)")
             for struct_name in self.get_structs().index:
                 # Get all class names in the current struct
@@ -995,7 +995,7 @@ class Catalog(HyperNetXWrapper):
                             # consistent = False
                             warnings.warn(f"⚠️ IC-Design7 violation: Some discriminant attribute missing in struct '{struct_name}' for '{subclass_name}' subclass of '{class_name}' (it is fine as soon as queries do not use this class)")
 
-            # IC-Design8: All classes must appear linked to at least one anchor with min multiplicitity one.
+            # IC-Design8: All classes must appear linked to at least one anchor with min multiplicity one.
             #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
             #             This is relaxed to be just a warning, as above, just because of generalizations.
             logger.info("Checking IC-Design8 (produces just warnings)")
