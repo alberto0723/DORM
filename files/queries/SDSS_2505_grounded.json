@@ -167,7 +167,7 @@
         "specobjall_z",
         "specobjall_zerr"
       ],
-      "filter": "photoobjall_objid=1237663531861868821",
+      "filter": "photoobjall_objid='1237663531861868821'",
       "has_nested_queries": true,
       "top_value": null,
       "group_id": 6
