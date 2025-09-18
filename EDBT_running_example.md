@@ -40,15 +40,16 @@ These can be generated with the following update SQL statements:
 ```sql
 UPDATE dorm_edbt_baseline.photoobjall_table
 SET photoobjall_discrG1 =   CASE WHEN photoobjall_mode = 1 AND photoobjall_clean = 1 THEN 'photoobj'
-								ELSE 'photoobjcompl' END,
+								 ELSE 'photoobjcompl' END,
 	photoobj_discrG2 =      CASE WHEN photoobjall_mode = 1 AND photoobjall_clean = 1 AND (photoobjall_resolveStatus & 0x01) != 0 THEN 'photoprimary'
-								ELSE 'photoprimarycompl' END,
+		                         WHEN photoobjall_mode = 1 AND photoobjall_clean = 1 AND (photoobjall_resolveStatus & 0x01) = 0 THEN 'photoprimarycompl'
+								 ELSE NULL END,
 	photoobjall_discrG4 =   CASE WHEN photoobjall_objid IN (SELECT photoobjall_objid FROM dorm_edbt_baseline.photoz_table) THEN 'photoz'
-								ELSE 'photozcompl' END;													
+								 ELSE 'photozcompl' END;													
 
 UPDATE dorm_edbt_baseline.specobjall_table
 SET specobjall_discrG3 = CASE WHEN specobjall_scienceprimary = 1 THEN 'specobj'
-												 ELSE 'specobjcompl' END;
+							  ELSE 'specobjcompl' END;
 ```
 
 ## Update the statistics
