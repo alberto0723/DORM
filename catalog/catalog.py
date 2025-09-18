@@ -215,7 +215,7 @@ class Catalog(HyperNetXWrapper):
             elif self.is_set(elem):
                 raise ValueError(f"🚨 Sets cannot contain sets (adding '{elem}' into '{set_name}')")
             else:
-                raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside")
+                raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside (the element may not exist in the domain)")
         self.H.add_incidences_from(incidences)
 
     def load_domain(self, file_path: Path, file_format="JSON") -> None:
@@ -951,7 +951,7 @@ class Catalog(HyperNetXWrapper):
                 # Not really necessary to check if they are generalization, because attributes already coincide
                 elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
                     consistent = False
-                    print(f"🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do coincide: '{anchor_concepts}'")
+                    print(f"🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do exactly coincide and should not: '{anchor_concepts}'")
                 # Check IC-Design6
                 else:
                     # For every pair of structs in the set
