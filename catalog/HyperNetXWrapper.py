@@ -373,6 +373,7 @@ class HyperNetXWrapper:
                 assert self.is_struct(next_edge) or self.is_set(next_edge), f"Edge '{next_edge}' is expected to be either a struct or a set"
                 assert next_edge not in visited, f"☠️ Cycle of edges detected: {next_edge} already in {visited}"
                 atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
+        visited.pop()
         return atom_names
 
     def get_inbound_firstLevel(self) -> pd.DataFrame:
