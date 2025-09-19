@@ -371,7 +371,7 @@ class HyperNetXWrapper:
                 assert self.is_phantom(node_name), f"Node '{node_name}' is expected to be a phantom"
                 next_edge = self.get_edge_by_phantom_name(node_name)
                 assert self.is_struct(next_edge) or self.is_set(next_edge), f"Edge '{next_edge}' is expected to be either a struct or a set"
-                assert next_edge not in visited, f"☠️ Cycle of edges detected: {visited}"
+                assert next_edge not in visited, f"☠️ Cycle of edges detected: {next_edge} already in {visited}"
                 atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
         return atom_names
 
@@ -600,6 +600,7 @@ class HyperNetXWrapper:
                         cyclic = True
                     else:
                         cyclic = cyclic or self.has_cycle(next_edge, visited)
+        visited.pop()
         return cyclic
 
     def check_multiplicities_to_one(self, path) -> (bool, bool):
