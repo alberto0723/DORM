@@ -220,7 +220,7 @@ class Catalog(HyperNetXWrapper):
 
     def load_domain(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading domain from '{file_path}'")
-        self.metadata["domain"] = str(file_path)
+        self.metadata["domain"] = Path(file_path).stem
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
         if file_format == "XML":
             custom_progress(f"Reading XML domain")
@@ -260,9 +260,9 @@ class Catalog(HyperNetXWrapper):
         if "domain" not in self.metadata:
             self.load_domain(domain_path, file_format)
         # Check if the domain in the catalog and that of the design coincide
-        if self.metadata.get("domain", "Non-existent") != str(domain_path):
-            raise ValueError(f"🚨 The domain of the design '{domain_path}' does not coincide with that of the catalog '{self.metadata.get('domain', 'Non-existent')}'")
-        self.metadata["design"] = str(file_path)
+        if self.metadata.get("domain", "Non-existent") != Path(domain_path).stem:
+            raise ValueError(f"🚨 The domain of the design '{Path(domain_path).stem}' does not coincide with that of the catalog '{self.metadata.get('domain', 'Non-existent')}'")
+        self.metadata["design"] = Path(file_path).stem
 
         # Create and fill the catalog
         for h in tqdm(design.get("hyperedges"), desc="Creating design constructs", leave=config.show_progress):
