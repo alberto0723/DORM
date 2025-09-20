@@ -29,7 +29,7 @@ For this, some simple insertions can be used, but due to the high number of attr
 
 This generates a different file for each table under `catalog/XML2JSON/domain/data`.
 Then, the ones corresponding to the tables in the DORM catalog must be executed.
-However, since the insertion statements are generated from the extracted data, if some foreign keys are not used, they should be removed before executing the statements.
+However, since the insertion statements are generated from the extracted data, if some foreign keys are not used, the corresponding attributes should be removed before executing the statements.
 This is the case for `photoobjall_fieldid` and `specobjall_plateid`.
 
 ## Complete the data with discriminants
@@ -38,14 +38,19 @@ Specializations in the domain require a discriminant that indicates the name of 
 These can be generated with the following update SQL statements:
 
 ```sql
-UPDATE dorm_edbt_baseline.photoobjall_table
+UPDATE dorm_edbt_baseline.photoobjall_table pt
 SET photoobjall_discrG1 =   CASE WHEN photoobjall_mode = 1 AND photoobjall_clean = 1 THEN 'photoobj'
 								 ELSE 'photoobjcompl' END,
 	photoobj_discrG2 =      CASE WHEN photoobjall_mode = 1 AND photoobjall_clean = 1 AND (photoobjall_resolveStatus & 0x01) != 0 THEN 'photoprimary'
 		                         WHEN photoobjall_mode = 1 AND photoobjall_clean = 1 AND (photoobjall_resolveStatus & 0x01) = 0 THEN 'photoprimarycompl'
 								 ELSE NULL END,
 	photoobjall_discrG4 =   CASE WHEN photoobjall_objid IN (SELECT photoobjall_objid FROM dorm_edbt_baseline.photoz_table) THEN 'photoz'
-								 ELSE 'photozcompl' END;													
+								 ELSE 'photozcompl' END,
+    photoobjall_discrg5 =   CASE WHEN EXISTS (
+                                        SELECT *
+										FROM dorm_edbt_baseline.specobjall_table st 
+										WHERE st.specobjall_bestobjid = pt.photoobjall_objid) THEN 'photoobjall_withspecobjall'
+								  ELSE 'photoobjall_withoutspecobjall' END;													
 
 UPDATE dorm_edbt_baseline.specobjall_table
 SET specobjall_discrG3 = CASE WHEN specobjall_scienceprimary = 1 THEN 'specobj'

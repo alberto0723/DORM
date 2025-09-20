@@ -542,7 +542,8 @@
         { "name": "photoobjall_tai_z", "prop": {"DataType": "FLOAT", "Size": 8, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobjall_discrG1", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
         { "name": "photoobj_discrG2", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
-        { "name": "photoobjall_discrG4", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
+        { "name": "photoobjall_discrG4", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}},
+        { "name": "photoobjall_discrG5", "prop": {"DataType": "TEXT", "Size": 100, "DistinctVals": null, "Identifier": false}}
         ]
       },
     {
@@ -805,6 +806,20 @@
       "attr": [
 
         ]
+      },
+    {
+      "name": "PhotoObjAll_withSpecObjAll",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
+      },
+    {
+      "name": "PhotoObjAll_withoutSpecObjAll",
+      "prop": { "Count": null },
+      "attr": [
+
+        ]
       }
     ],
   "associations": [
@@ -899,15 +914,37 @@
         "superclass": "PhotoObjAll",
         "subclasses": [
           {
+            "class": "PhotozCompl",
+            "prop": {
+              "Constraint": "photoobjall_discrG4='photozcompl'"
+            }
+          },
+          {
             "class": "Photoz",
             "prop": {
               "Constraint": "photoobjall_discrG4='photoz'"
             }
+          }
+        ]
+      },
+      {
+        "name": "G5",
+        "prop": {
+          "Disjoint": false,
+          "Complete": false
+        },
+        "superclass": "PhotoObjAll",
+        "subclasses": [
+          {
+            "class": "PhotoObjAll_withoutSpecObjAll",
+            "prop": {
+              "Constraint": "photoobjall_discrG5='photoobjall_withoutspecobjall'"
+            }
           },
           {
-            "class": "PhotozCompl",
+            "class": "PhotoObjAll_withSpecObjAll",
             "prop": {
-              "Constraint": "photoobjall_discrG4='photozcompl'"
+              "Constraint": "photoobjall_discrG5='photoobjall_withspecobjall'"
             }
           }
         ]
