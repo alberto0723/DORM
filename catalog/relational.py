@@ -195,11 +195,13 @@ class Relational(Catalog, ABC):
         with open(safety_file, mode="w") as outputfile:
             outputfile.write("-- This file can be used to migrate the data into the DORM schema in case connection fails\n")
             outputfile.write("-- When this happens it is because some statements take too long and connection fails\n")
-            outputfile.write("-- Only statements not executed yet should be launched (just check the database to identify them)\n\n")
+            outputfile.write("-- Only statements not executed yet should be launched (just check the database to identify them)\n")
+            outputfile.write("-- At the end, the metadata of the schema should be added in the form of a comment in JSON format\n\n")
             outputfile.write("SET search_path TO " + self.dbschema + ";\n\n")
             for statement in statements:
                 outputfile.write(statement + "\n\n")
             outputfile.write(update_statistics_statement)
+            outputfile.write("-- Update now the metadata of the schema using 'COMMENT ON SCHEMA'\n")
         # We disable transactions by means of autocommit, because DDL should not use them. Moreover, some migration sentences time out
         with self.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             for statement in tqdm(statements, desc="Executing SQL statements", leave=config.show_progress):
@@ -411,6 +413,28 @@ class Relational(Catalog, ABC):
         else:
             return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited, previous_laterals)
 
+    def find_implicit_class(self, required_attributes, pattern_edges) -> str:
+        subclasses = {}
+        struct_containers_for_class = {}
+        for current_attribute_name in required_attributes:
+            class_name = self.get_class_by_attribute_name(current_attribute_name)
+            # Since the query must be connected, some class must appear in the pattern
+            if class_name not in subclasses:
+                if class_name in pattern_edges:
+                    subclasses[class_name] = [class_name]+self.get_superclasses_by_class_name(class_name)
+                    subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
+                    struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
+                else:
+                    for subclass in self.get_subclasses_by_class_name(class_name):
+                        if subclass in pattern_edges:
+                            subclasses[class_name] = [subclass]+self.get_superclasses_by_class_name(subclass)
+                            subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
+                            struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
+            struct_containers_for_attribute = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes") == current_attribute_name].index.get_level_values('edges'))
+            # Check if there is any struct that contains both the attribute and any one of the classes
+            if not struct_containers_for_attribute.intersection(struct_containers_for_class[class_name]):
+                return subclasses[class_name][0]
+
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
         Generates SQL statements corresponding to the given query.
@@ -432,12 +456,10 @@ class Relational(Catalog, ABC):
         # For each combination of tables, generate an SQL query
         sentences = []
         # Check if all classes in the pattern are in some struct
-        # Some classes may be stored implicitly in their subclasses
-        # TODO: Test if this considers also the possibility that the class is actually implicit in a superclass table
-        classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("edges").isin(pattern_edges)]
-        implicit_classes = classes[~classes.index.get_level_values("nodes").isin(self.get_outbound_structs().index.get_level_values("nodes"))]
+        # Some classes may be stored implicitly in their subclasses, so we take them one by one
+        implicit_class = self.find_implicit_class(required_attributes, pattern_edges)
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
-        if implicit_classes.empty:
+        if implicit_class is None:
             custom_progress(f"--Generating combinations of tables to create the query")
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
             if len(query_alternatives) > 1:
@@ -498,8 +520,8 @@ class Relational(Catalog, ABC):
         else:
             custom_progress(f"Query requires UNION")
             # We need to recursively do it one by one, so we only take the first implicit superclass
-            superclass_name = implicit_classes.index[0][0]
-            superclass_phantom_name = implicit_classes.index[0][1]
+            superclass_name = implicit_class
+            superclass_phantom_name = self.get_phantom_of_edge_by_name(superclass_name)
             # Double squared bracket in "loc" is used to preserve the dataframe structure, even when there is only one row (otherwise, you get a Series)
             generalizations = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[[superclass_phantom_name]]
             generalizations = pd.merge(generalizations, self.get_generalizations(), left_on="edges", right_index=True, suffixes=("_incidence", "_node"), how="inner")
@@ -563,7 +585,7 @@ class Relational(Catalog, ABC):
         if self.engine is None:
             raise ValueError("🚨 Queries cannot be executed without a connection to the DBMS")
         if not self.metadata.get("tables_created", False):
-            print(f"🚨 There are no tables to be queried in the schema '{self.dbschema}'")
+            print(f"🚨 There are no tables to be queried in the schema '{self.dbschema}' (according to its metadata)")
 
     def execute(self, statement) -> sqlalchemy.Sequence[sqlalchemy.Row] | int:
         """
