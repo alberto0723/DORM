@@ -116,12 +116,12 @@ The execution times of the different queries are left in different CSV files und
 EDBT_running_example_withTime.bat
 ```
 
-There is a second much richer batch test that also includes designs in NF2. 
+There is a second faster batch test.
+Since JSON results to be excessively slow when we try to extract hundreds of attributes, this does not use real execution times of queries.
 
 
 ```bash
 EDBT_running_example_withCost.bat
 ```
 
-However, this does not use real execution times of queries, because JSON results to be excessively slow when we try to extract hundreds of attributes, and we end up cancelling after hours of execution.
-Unfortunately, PostgreSQL query optimizer returns weird results on estimating the cost of JSON queries (really far from reality).
+Unfortunately, PostgreSQL query optimizer returns weird results on estimating the cost of JSON queries (really far from reality in some cases).
