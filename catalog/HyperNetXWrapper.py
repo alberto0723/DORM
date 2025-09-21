@@ -105,8 +105,10 @@ class HyperNetXWrapper:
         assert not class_id.empty, f"Class {class_name} does not have an identifier"
         return class_id.index[0][1]
 
-    def get_class_outbounds_by_attribute_name(self, attribute_name) -> pd.DataFrame:
-        return self.get_outbound_classes().query('nodes == "' + attribute_name + '"')
+    def get_class_by_attribute_name(self, attribute_name) -> str:
+        classes = self.get_outbound_classes().query('nodes == "' + attribute_name + '"').index.get_level_values("edges")
+        assert len(classes) == 1, f"Attribute {attribute_name} does not have exactly one class"
+        return classes[0]
 
     def get_phantoms(self) -> pd.DataFrame:
         nodes = self.get_nodes()

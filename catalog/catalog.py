@@ -1200,11 +1200,11 @@ class Catalog(HyperNetXWrapper):
                 buckets.append(first_levels)
             if self.is_class(elem):
                 classes.append(elem)
-                # If it is a class, the id always belongs to the table, hence we add it even if not required
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
                 for class_name in hierarchy:
                     current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').to_list())
+                # If it is a class, the id always belongs to the table, hence we add it even if not required
                 if self.get_class_id_by_name(elem) not in current_attributes:
                     current_attributes.append(self.get_class_id_by_name(elem))
                 # If it is a class, it may be vertically partitioned
@@ -1223,6 +1223,7 @@ class Catalog(HyperNetXWrapper):
                         if firstlevels_with_attr:
                             buckets.append(firstlevels_with_attr)
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
+        # TODO: Actually, it is not guaranteed that all of them are covered. It should be checked
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
     def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
