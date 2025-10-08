@@ -1,6 +1,12 @@
-# Download data from SDSS
+# Download SkyServer data
 
-THIS NEEDS TO BE EXPLAINED
+To facilitate reproducibility, you can directly download a dump of the PostgreSQL database at [this link](https://big.csr.unibo.it/downloads/dorm/skyserver_dorm.dump).
+
+Assuming you have a running PostgreSQL v17 (or higher), you can upload the data with this command.
+
+```bash
+pg_restore -U postgres -d skyserver --create --no-owner --no-privileges skyserver_dorm.dump
+```
 
 # Create and populate DORM baseline
 
@@ -8,7 +14,7 @@ The purpose of the experiment is to compare the performance of different SDSS da
 It will be seen that redesigning, migrating data and rewriting queries is happening automatically behind the scenes.
 Thus, all we will compare are the different query execution times.
 
-## Create an DORM catalog without data
+## Create a DORM catalog without data
 
 First of all, we need to create a DORM catalog corresponding to the baseline database.
 
@@ -24,7 +30,7 @@ This will be used to:
 
 ## Migrate the data
 
-Data downloaded from SDSS and already loaded in the DBMS under schema `relational2`, now needs to be inserted in the tables of DORM under schema `dorm_edbt_baseline`. 
+The SkyServer data, downloaded from the above link and already loaded in the DBMS under schema `relational2`, now needs to be inserted in the tables of DORM under schema `dorm_edbt_baseline`. 
 For this, some simple insertions can be used, but due to the high number of attributes the insertions are generated automatically with [a python script](catalog/XML2JSON/domain/SQL2INSERT.py). 
 
 This generates a different file for each table under `catalog/XML2JSON/domain/data`.
