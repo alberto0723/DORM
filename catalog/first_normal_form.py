@@ -214,6 +214,7 @@ class FirstNormalForm(Relational):
                             assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
                             assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
                             attr_proj = self.generate_attr_projection_clause(attr_path)
+                            # FKs are only generated when they point to a PK of a single attribute
                             if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
                                     and (table_referee_name != table_referred_name or attr_proj != attr_correspondence)):
                                 found = True
