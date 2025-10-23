@@ -5,11 +5,15 @@ import hypernetx as hnx
 import pickle
 from IPython.display import display
 import pandas as pd
+import pandas.testing as pdt
 import matplotlib.pyplot as plt
 import matplotlib
+import duckdb
 
 from .config import Config
 from .tools import drop_duplicates, df_difference
+
+import time
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -25,7 +29,7 @@ class HyperNetXWrapper:
     It uses HyperNetX (https://github.com/pnnl/HyperNetX)
     It implements all the basic stuff and auxiliary, private functions of the catalog to simplify the use of the library.
     """
-    def __init__(self, file_path=None, hypergraph=None):
+    def __init__(self, name, file_path=None, hypergraph=None):
         self.config = Config()
         if hypergraph is not None:
             self.H = hypergraph
@@ -34,7 +38,46 @@ class HyperNetXWrapper:
             with open(file_path, "rb") as f:
                 self.H = pickle.load(f)
         else:
-            self.H = hnx.Hypergraph([])
+            self.H = hnx.Hypergraph([], name=name)
+        duckdb_filename = "temp_"+self.H.name+".duckdb"
+        if os.path.exists(duckdb_filename):
+            os.remove(duckdb_filename)
+        try:
+            self.sql = duckdb.connect(duckdb_filename)
+            logger.info(f"Connection to duckDB '{duckdb_filename}' created successfully")
+        except duckdb.Error as e:
+            raise ValueError(f"🚨 Unable to connect to DuckDB database '{duckdb_filename}':", e)
+        df_nodes = self.H.nodes.to_dataframe.reset_index()
+        df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
+        df_nodes_flattened = pd.concat([df_nodes.drop(columns="misc_properties"), df_nodes_with_json], axis=1)
+        self.sql.register("nodes", df_nodes_flattened)
+        df_edges = self.H.edges.to_dataframe.reset_index()
+        df_edges_with_json = pd.json_normalize(df_edges["misc_properties"])
+        df_edges_flattened = pd.concat([df_edges.drop(columns="misc_properties"), df_edges_with_json], axis=1)
+        self.sql.register("edges", df_edges_flattened)
+        df_incidences = self.H.incidences.to_dataframe.reset_index()
+        df_incidences_with_json = pd.json_normalize(df_incidences["misc_properties"])
+        df_incidences_flattened = pd.concat([df_incidences.drop(columns="misc_properties"), df_incidences_with_json], axis=1)
+        self.sql.register("incidences", df_incidences_flattened)
+        # display(self.query("SELECT * FROM nodes;"))
+        # display(self.query("SELECT * FROM edges;"))
+        # display(self.query("SELECT * FROM incidences;"))
+        self.query("""
+            CREATE TEMP TABLE class_ids AS
+                SELECT edges, nodes
+                FROM incidences
+                WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND Identifier;
+            """)
+
+    def query(self, query) -> pd.DataFrame:
+        return self.sql.execute(query).fetchdf()
+
+    def temp_table_exists(self, table_name) -> bool:
+        return self.sql.execute(f"""
+            SELECT COUNT(*) > 0 AS table_exists
+            FROM information_schema.tables
+            WHERE table_catalog = 'temp' AND table_name = '{table_name}'
+            """).fetchone()[0]
 
     def save(self, file_path=None) -> None:
         if file_path is not None:
@@ -92,18 +135,27 @@ class HyperNetXWrapper:
         outbounds = self.get_outbound_classes()
         incidences = outbounds[outbounds["misc_properties"].apply(lambda x: x['Identifier'])].reset_index(level='edges', drop=True)
         ids = self.get_attributes()[self.get_attributes()["name"].isin(incidences.index)]
+        display(ids)
+        display(self.query("""
+            select *
+            FROM class_ids;
+            """))
         return ids
 
     def get_class_id_by_name(self, class_name) -> str:
         superclasses = self.get_superclasses_by_class_name(class_name)
         if not superclasses:
-            class_outbounds = self.get_outbound_class_by_name(class_name)
+            edge_name = class_name
         else:
             # The top of the hierarchy should be the first in the list
-            class_outbounds = self.get_outbound_class_by_name(superclasses[-1])
-        class_id = class_outbounds[class_outbounds["misc_properties"].apply(lambda x: x['Identifier'])]
+            edge_name = superclasses[-1]
+        class_id = self.query(f"""
+            SELECT nodes
+            FROM class_ids
+            WHERE edges = '{edge_name}';
+            """)
         assert not class_id.empty, f"Class {class_name} does not have an identifier"
-        return class_id.index[0][1]
+        return class_id.iat[0, 0]
 
     def get_class_by_attribute_name(self, attribute_name) -> str:
         classes = self.get_outbound_classes().query('nodes == "' + attribute_name + '"').index.get_level_values("edges")
@@ -469,7 +521,7 @@ class HyperNetXWrapper:
                     edge_names.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(elem)))
                     edge_names.extend(self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(elem)))
         # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
-        result = HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
+        result = HyperNetXWrapper(name="restricted_"+self.H.name, hypergraph=self.H.restrict_to_edges(edge_names))
         to_be_removed = []
         for attr_name in result.get_attributes().index:
             if attr_name not in outbounds:
@@ -512,15 +564,28 @@ class HyperNetXWrapper:
         """
         if visited is None:
             visited = []
-        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
-            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
-            suffixes=("_superclass", "_subclass"), how="inner")
-        direct_superclass = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
+        if not self.temp_table_exists("sub_super_pairs"):
+            self.query("""
+                CREATE TEMP TABLE sub_super_pairs AS
+                    SELECT sub_phantom.edges as subclass, super_phantom.edges as superclass
+                    FROM incidences super
+                        JOIN incidences super_phantom ON super.nodes = super_phantom.nodes
+                        JOIN incidences sub ON super.edges = sub.edges
+                        JOIN incidences sub_phantom ON sub.nodes = sub_phantom.nodes
+                    WHERE super_phantom.Direction = 'Inbound' AND sub_phantom.Direction = 'Inbound'
+                        AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
+                        AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
+                """)
+        direct_superclass = self.query(f"""
+                    SELECT superclass
+                    FROM sub_super_pairs
+                    WHERE subclass = '{class_name}';
+                    """)
         if direct_superclass.empty:
             return []
         else:
             # This means there is one superclass (multiple-inheritance is not allowed)
-            superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
+            superclass = direct_superclass.iat[0, 0]
             assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
             return [superclass]+self.get_superclasses_by_class_name(superclass, visited + [class_name])
 
@@ -545,49 +610,49 @@ class HyperNetXWrapper:
             self.get_phantom_of_edge_by_name(class_name)].misc_properties.get("Constraint", None)
 
     def is_attribute(self, name) -> bool:
-        return name in self.get_attributes().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid = '{name}' AND Kind='Attribute';").empty
 
     def is_association_end(self, name) -> bool:
-        return name in self.get_association_ends().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM incidences WHERE End_name='{name}' AND Kind='AssociationIncidence' AND Direction='Outbound';").empty
 
     def is_id(self, name) -> bool:
-        return name in self.get_ids().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM class_ids WHERE nodes='{name}';").empty
 
     def is_class(self, name) -> bool:
-        return name in self.get_classes().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Class';").empty
 
     def is_phantom(self, name) -> bool:
-        return name in self.get_phantoms().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom';").empty
 
     def is_class_phantom(self, name) -> bool:
-        return name in self.get_phantom_classes().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Class';").empty
 
     def is_association_phantom(self, name) -> bool:
-        return name in self.get_phantom_associations().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Association';").empty
 
     def is_generalization_phantom(self, name) -> bool:
-        return name in self.get_phantom_generalizations().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Generalization';").empty
 
     def is_struct_phantom(self, name) -> bool:
-        return name in self.get_phantom_structs().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Struct';").empty
 
     def is_set_phantom(self, name) -> bool:
-        return name in self.get_phantom_sets().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Set';").empty
 
     def is_edge(self, name) -> bool:
-        return name in self.get_edges().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}';").empty
 
     def is_association(self, name) -> bool:
-        return name in self.get_associations().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Association';").empty
 
     def is_generalization(self, name) -> bool:
-        return name in self.get_generalizations().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Generalization';").empty
 
     def is_struct(self, name) -> bool:
-        return name in self.get_structs().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Struct';").empty
 
     def is_set(self, name) -> bool:
-        return name in self.get_sets().index.to_list()
+        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Set';").empty
 
     def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:

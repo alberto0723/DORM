@@ -15,6 +15,8 @@ from .HyperNetXWrapper import HyperNetXWrapper
 from .XML2JSON.domain.DomainTranslator import translate as translate_domain
 from .XML2JSON.design.DesignTranslator import translate as translate_design
 
+import time
+
 # Libraries initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
@@ -1096,17 +1098,26 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 Some attributes {missing_attributes.values.tolist()} in the request are not covered by the elements in the pattern {pattern_edges}")
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
+        time_before = time.time()
         # Check if the hypergraph contains all the projected attributes
         non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+        time_after = time.time()
+        print(f"Checking hypergraph contains all the projected attributes time: {time_after - time_before:.4f} seconds")
 
+        time_before = time.time()
         # Check if the hypergraph contains all the filter attributes
         non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+        time_after = time.time()
+        print(f"Checking hypergraph contains all the filter attributes time: {time_after - time_before:.4f} seconds")
 
+        time_before = time.time()
         self.check_basic_request_structure(pattern_edges, required_attributes)
+        time_after = time.time()
+        print(f"Checking basic request time: {time_after - time_before:.4f} seconds")
 
     def parse_predicate(self, predicate) -> list[str]:
         attributes = []
@@ -1134,6 +1145,7 @@ class Catalog(HyperNetXWrapper):
             raise ValueError("🚨 Empty projection is not allowed in a query")
         project_attributes = []
         for requested in requested_project_attributes:
+            time_before = time.time()
             if self.is_attribute(requested) or self.is_association_end(requested):
                 project_attributes.append(requested)
             elif requested == '*':
@@ -1149,12 +1161,17 @@ class Catalog(HyperNetXWrapper):
                 #     project_attributes.append(attr.Index[1])
             else:
                 raise ValueError(f"🚨 Projected '{requested}' is neither an attribute, nor an association end, nor an accepted wildcard")
+            time_after = time.time()
+            print(f"Getting projected attribute time: {time_after - time_before:.4f} seconds")
         identifiers = []
         for e in pattern_edges:
+            time_before = time.time()
             if not (self.is_class(e) or self.is_association(e)):
                 raise ValueError(f"🚨 Chosen edge '{e}' is neither a class nor an association")
             if self.is_class(e):
                 identifiers.append(self.get_class_id_by_name(e))
+            time_after = time.time()
+            print(f"Getting identifier time: {time_after - time_before:.4f} seconds")
         filter_clause = query.get("filter", "TRUE")
         if filter_clause == "":
             filter_clause = "TRUE"
@@ -1162,7 +1179,10 @@ class Catalog(HyperNetXWrapper):
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 
+        time_before = time.time()
         self.check_query_structure(project_attributes, filter_attributes, pattern_edges, required_attributes)
+        time_after = time.time()
+        print(f"Checking query structure time: {time_after - time_before:.4f} seconds")
         return project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause
 
     def parse_insert(self, insert) -> tuple[dict[str, str], list[str]]:

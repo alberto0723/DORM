@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from abc import ABC, abstractmethod
 import logging
 import warnings
@@ -11,6 +12,8 @@ import json
 import re
 from typing import Type, TypeVar
 from tqdm import tqdm
+
+import time
 
 RelationalType = TypeVar('RelationalType', bound='Relational')
 
@@ -46,7 +49,7 @@ class Relational(Catalog, ABC):
         custom_progress(f"*********************** {paradigm_name} ***********************")
 
         if dbconf is None:
-            super().__init__(file_path=file_path)
+            super().__init__(name=Path(file_path).stem, file_path=file_path)
             self.metadata["paradigm"] = paradigm_name
         else:
             if not ("dbms" in dbconf and "ip" in dbconf and "port" in dbconf and "user" in dbconf and "password" in dbconf and "dbname" in dbconf):
@@ -67,7 +70,7 @@ class Relational(Catalog, ABC):
                     conn.execute(sqlalchemy.text(f"CREATE SCHEMA {dbschema};"))
                     conn.execute(sqlalchemy.text(f"COMMENT ON SCHEMA {dbschema} IS '"+"{}';"))
                     # This creates either an empty hypergraph or reads it from a file
-                    super().__init__(file_path=file_path)
+                    super().__init__(name=dbschema, file_path=file_path)
                     self.metadata["paradigm"] = paradigm_name
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES, self.TABLE_GUARDS]
@@ -78,10 +81,10 @@ class Relational(Catalog, ABC):
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
                     df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
                     # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
-                    H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
+                    H = hnx.Hypergraph(df_incidences, name=dbschema, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
                                        node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
                                        edge_properties=df_edges, edge_weight_prop_col="weight")
-                    super().__init__(hypergraph=H)
+                    super().__init__(name=dbschema, hypergraph=H)
                     self.guards = pd.read_sql_table(self.TABLE_GUARDS, con=self.engine)
                     # Get domain and design
                     result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema.lower()})
@@ -449,7 +452,10 @@ class Relational(Catalog, ABC):
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
         custom_progress(f"Parsing query")
+        time_before = time.time()
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
+        time_after = time.time()
+        print(f"Parsing time: {time_after - time_before:.4f} seconds")
         if explicit_schema:
             schema_name = self.dbschema + "."
         else:
