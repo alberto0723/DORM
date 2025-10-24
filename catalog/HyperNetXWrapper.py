@@ -9,6 +9,7 @@ import pandas.testing as pdt
 import matplotlib.pyplot as plt
 import matplotlib
 import duckdb
+import uuid
 
 from .config import Config
 from .tools import drop_duplicates, df_difference
@@ -31,42 +32,81 @@ class HyperNetXWrapper:
     """
     def __init__(self, name, file_path=None, hypergraph=None):
         self.config = Config()
+        os.makedirs("temp_duckdb", exist_ok=True)
+        self.duckdb_filename = "temp_duckdb\\"+name+".duckdb"
+        if os.path.exists(self.duckdb_filename):
+            os.remove(self.duckdb_filename)
+        try:
+            self.sql = duckdb.connect(self.duckdb_filename)
+            logger.info(f"Connection to duckDB '{self.duckdb_filename}' created successfully")
+        except duckdb.Error as e:
+            raise ValueError(f"🚨 Unable to connect to DuckDB database '{self.duckdb_filename}':", e)
         if hypergraph is not None:
             self.H = hypergraph
+            self.fill_duckDB()
+            self.create_temp_tables()
         elif file_path is not None:
             logger.info(f"Loading hypergraph from '{file_path}'")
             with open(file_path, "rb") as f:
                 self.H = pickle.load(f)
+            self.fill_duckDB()
+            self.create_temp_tables()
         else:
-            self.H = hnx.Hypergraph([], name=name)
-        duckdb_filename = "temp_"+self.H.name+".duckdb"
-        if os.path.exists(duckdb_filename):
-            os.remove(duckdb_filename)
-        try:
-            self.sql = duckdb.connect(duckdb_filename)
-            logger.info(f"Connection to duckDB '{duckdb_filename}' created successfully")
-        except duckdb.Error as e:
-            raise ValueError(f"🚨 Unable to connect to DuckDB database '{duckdb_filename}':", e)
+            self.H = hnx.Hypergraph([])
+            self.fill_duckDB()
+
+    def __del__(self):
+        # Remove the temporal DuckDB file
+        if os.path.exists(self.duckdb_filename):
+            self.sql.close()
+            os.remove(self.duckdb_filename)
+
+    def fill_duckDB(self):
+        #self.H.add_nodes_from([("Fake", {'Kind': None, 'Subkind': None, 'DataType': None, 'Size': None})])
+        #self.H.add_edges_from([("Fake", {'Kind': None})])
+        #self.H.add_incidences_from([("Fake", "Fake", {'Kind': None, 'Direction': None, 'DistinctVals': None, 'Identifier': None, 'Anchor': None})])
         df_nodes = self.H.nodes.to_dataframe.reset_index()
         df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
         df_nodes_flattened = pd.concat([df_nodes.drop(columns="misc_properties"), df_nodes_with_json], axis=1)
+        for required in ['Kind']:
+            if required not in df_nodes_flattened.columns:
+                df_nodes_flattened[required] = None
         self.sql.register("nodes", df_nodes_flattened)
         df_edges = self.H.edges.to_dataframe.reset_index()
         df_edges_with_json = pd.json_normalize(df_edges["misc_properties"])
         df_edges_flattened = pd.concat([df_edges.drop(columns="misc_properties"), df_edges_with_json], axis=1)
+        for required in ['Kind']:
+            if required not in df_edges_flattened.columns:
+                df_edges_flattened[required] = None
         self.sql.register("edges", df_edges_flattened)
         df_incidences = self.H.incidences.to_dataframe.reset_index()
         df_incidences_with_json = pd.json_normalize(df_incidences["misc_properties"])
         df_incidences_flattened = pd.concat([df_incidences.drop(columns="misc_properties"), df_incidences_with_json], axis=1)
+        for required in ['Kind', 'Subkind', 'Direction', 'End_name', 'MultiplicityMin', 'MultiplicityMax', 'Identifier']:
+            if required not in df_incidences_flattened.columns:
+                df_incidences_flattened[required] = None
         self.sql.register("incidences", df_incidences_flattened)
         # display(self.query("SELECT * FROM nodes;"))
         # display(self.query("SELECT * FROM edges;"))
         # display(self.query("SELECT * FROM incidences;"))
+        if self.temp_table_exists('class_ids'):
+            self.query("DROP TABLE class_ids;")
         self.query("""
             CREATE TEMP TABLE class_ids AS
                 SELECT edges, nodes
                 FROM incidences
                 WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND Identifier;
+            """)
+
+    def create_temp_tables(self):
+        # The query requires and outer join to deal with restricted hypergraphs
+        self.query("""
+            CREATE TEMP TABLE association_ends AS
+                SELECT a.edges AS association, a.End_name as end_name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
+                FROM incidences a
+                    LEFT OUTER JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
+                WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
+                    AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
             """)
 
     def query(self, query) -> pd.DataFrame:
@@ -111,8 +151,7 @@ class HyperNetXWrapper:
         return attributes
 
     def get_attribute_by_name(self, attr_name) -> pd.Series:
-        attribute = self.get_attributes().query('nodes == "' + attr_name + '"')
-        return attribute.iloc[0]
+        return self.query(f"SELECT uid AS name, DataType, Size FROM nodes WHERE uid='{attr_name}' AND Kind='Attribute';").iloc[0]
 
     def get_association_ends(self) -> pd.DataFrame:
         ends = self.get_outbound_associations()
@@ -124,23 +163,13 @@ class HyperNetXWrapper:
         return ends
 
     def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
-        ends = self.get_association_ends().query('edges == "' + association_name + '"')
-        return ends
+        return self.query(f"SELECT * FROM association_ends WHERE association='{association_name}';")
 
     def get_class_name_by_end_name(self, end_name) -> str:
-        association_end = self.get_association_ends()[self.get_association_ends()["misc_properties"].apply(lambda x: x["End_name"] == end_name)]
-        return self.get_edge_by_phantom_name(association_end.iloc[0].nodes)
+        return self.query(f"SELECT class FROM association_ends WHERE end_name='{end_name}';").iloc[0, 0]
 
     def get_ids(self) -> pd.DataFrame:
-        outbounds = self.get_outbound_classes()
-        incidences = outbounds[outbounds["misc_properties"].apply(lambda x: x['Identifier'])].reset_index(level='edges', drop=True)
-        ids = self.get_attributes()[self.get_attributes()["name"].isin(incidences.index)]
-        display(ids)
-        display(self.query("""
-            select *
-            FROM class_ids;
-            """))
-        return ids
+        return self.query("SELECT nodes as name FROM class_ids;")
 
     def get_class_id_by_name(self, class_name) -> str:
         superclasses = self.get_superclasses_by_class_name(class_name)
@@ -521,7 +550,7 @@ class HyperNetXWrapper:
                     edge_names.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(elem)))
                     edge_names.extend(self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(elem)))
         # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
-        result = HyperNetXWrapper(name="restricted_"+self.H.name, hypergraph=self.H.restrict_to_edges(edge_names))
+        result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
         to_be_removed = []
         for attr_name in result.get_attributes().index:
             if attr_name not in outbounds:
@@ -686,12 +715,11 @@ class HyperNetXWrapper:
                 assert i < len(path)-1, f"☠️ Path '{path}' cannot end with a relationship"
                 assert self.is_phantom(path[i-1]) and self.is_phantom(path[i+1]), f"☠️ Path '{path}' must alternate relationships and phantoms"
             if self.is_association(current):
-                ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
+                ends_ahead = self.get_association_ends_by_name(current).query('phantom != "' + path[i-1] + '"')
                 assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
-                properties = ends_ahead.iloc[0].misc_properties
-                assert "MultiplicityMin" in properties, f"☠️ MultiplicityMin not provided for association end '{ends_ahead.iloc[0].name}'"
-                assert "MultiplicityMax" in properties, f"☠️ MultiplicityMax not provided for association end '{ends_ahead.iloc[0].name}'"
-                correct = (correct[0] and (properties.get("MultiplicityMin") >= 1), correct[1] and (properties.get("MultiplicityMax") <= 1))
+                assert not pd.isnull(ends_ahead.iloc[0]["MultiplicityMin"]), f"☠️ MultiplicityMin not provided for association end '{ends_ahead.iloc[0].end}'"
+                assert not pd.isnull(ends_ahead.iloc[0]["MultiplicityMax"]), f"☠️ MultiplicityMax not provided for association end '{ends_ahead.iloc[0].end}'"
+                correct = (correct[0] and (ends_ahead.iloc[0]["MultiplicityMin"] >= 1), correct[1] and (ends_ahead.iloc[0]["MultiplicityMax"] <= 1))
             # If it is not an association it still can be a generalization
             elif self.is_generalization(current):
                 # Max is always to-one independently of the direction

@@ -82,6 +82,7 @@ class Catalog(HyperNetXWrapper):
         self.H.add_nodes_from(nodes)
         self.H.add_edges_from(edges)
         self.H.add_incidences_from(incidences)
+        self.fill_duckDB()
 
     def add_association(self, association_name, ends_list) -> None:
         """Besides the association name, this method requires
@@ -113,6 +114,7 @@ class Catalog(HyperNetXWrapper):
             end['prop']['Direction'] = 'Outbound'
             incidences.append((association_name, self.get_phantom_of_edge_by_name(end['class']), end['prop']))
         self.H.add_incidences_from(incidences)
+        self.fill_duckDB()
 
     def add_generalization(self, generalization_name, properties, superclass, subclasses_list) -> None:
         """ Besides the generalization name, this method requires some properties (expected to be two booleans) for
@@ -144,6 +146,7 @@ class Catalog(HyperNetXWrapper):
             sub['prop']['Direction'] = 'Outbound'
             incidences.append((generalization_name, self.get_phantom_of_edge_by_name(sub['class']), sub['prop']))
         self.H.add_incidences_from(incidences)
+        self.fill_duckDB()
 
     def add_struct(self, struct_name, anchor, elements) -> None:
         logger.info("Adding struct "+struct_name)
@@ -195,6 +198,7 @@ class Catalog(HyperNetXWrapper):
         # Check if the associations in the anchor are connected (this should consider inheritance of associations)
         if not restricted_struct.H.restrict_to_edges(anchor).is_connected():
             raise ValueError(f"🚨 The anchor of struct '{struct_name}' is not connected")
+        self.fill_duckDB()
 
     def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
@@ -219,6 +223,7 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside (the element may not exist in the domain)")
         self.H.add_incidences_from(incidences)
+        self.fill_duckDB()
 
     def load_domain(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading domain from '{file_path}'")
@@ -243,6 +248,7 @@ class Catalog(HyperNetXWrapper):
         for gen in tqdm(domain.get("generalizations", []), desc="Creating generalizations", leave=config.show_progress):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
+        self.fill_duckDB()
 
     def load_design(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
@@ -279,6 +285,7 @@ class Catalog(HyperNetXWrapper):
         # Check insertion guards
         for guard in tqdm(self.guards.itertuples(), desc="Checking guards", leave=config.show_progress):
             self.get_insertion_alternatives(guard.pattern, guard.data)
+        self.fill_duckDB()
 
     @staticmethod
     def get_domain_attribute_from_path(attr_path: list[dict[str, str]]) -> str:
@@ -362,6 +369,8 @@ class Catalog(HyperNetXWrapper):
         :param design: Whether the catalog contains a design, or just a domain (more or less ICs will be checked)
         :return: If the catalog is honors all integrity constraints
         """
+        self.fill_duckDB()
+        self.create_temp_tables()
         consistent = True
         edges = self.get_edges()
         incidences = self.get_incidences()
@@ -513,7 +522,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms7: Every association has two ends (Definition 4)
         logger.info("Checking IC-Atoms7")
-        matches2_7 = incidences.join(ids, on='nodes', rsuffix='_nodes', how='inner').join(associations, on='edges', rsuffix='_edges', how='inner').groupby(['edges']).size()
+        matches2_7 = incidences.join(ids.set_index('name').rename_axis('nodes'), on='nodes', rsuffix='_nodes', how='inner').join(associations, on='edges', rsuffix='_edges', how='inner').groupby(['edges']).size()
         violations2_7 = matches2_7[matches2_7 != 2]
         if not violations2_7.empty:
             consistent = False
@@ -565,7 +574,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms13: Every class has one ID or belongs to a generalization hierarchy
         logger.info("Checking IC-Atoms13")
-        matches2_13 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        matches2_13 = outbounds.join(ids.set_index('name').rename_axis('nodes'), on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_13 = classes[~classes["name"].isin((matches2_13.reset_index(drop=False))["edges"])]
         for class_name in possible_violations2_13.index:
             superclasses = self.get_superclasses_by_class_name(class_name)
@@ -575,7 +584,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms14: Not two classes in a hierarchy can have ID
         logger.info("Checking IC-Atoms14")
-        matches2_14 = outbounds.join(ids, on='nodes', rsuffix='_nodes', how='inner')
+        matches2_14 = outbounds.join(ids.set_index('name').rename_axis('nodes'), on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_14 = classes[classes["name"].isin((matches2_14.reset_index(drop=False))["edges"])]
         for class_name in possible_violations2_14.index:
             superclasses = self.get_superclasses_by_class_name(class_name)
@@ -1058,7 +1067,6 @@ class Catalog(HyperNetXWrapper):
                                     if pair_i[0] == pair_j[0] and pair_i[1] != pair_j[1]:
                                         consistent = False
                                         print(f"🚨 IC-Design9 violation: Attribute '{pair_i[0]}' has a different path depending on the struct inside '{set_name}': {pair_i[1]} vs {pair_j[1]}")
-
         return consistent
 
     def check_basic_request_structure(self, pattern_edges: list[str], required_attributes: list[str]) -> None:
