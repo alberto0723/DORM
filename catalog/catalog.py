@@ -377,9 +377,11 @@ class Catalog(HyperNetXWrapper):
         ids = self.get_ids()
         phantoms = self.get_phantoms()
         attributes = self.get_attributes().set_index("name", drop=False)
-        attributes.index.name="nodes"
-        classes = self.get_classes()
-        associations = self.get_associations()
+        attributes.index.name = "nodes"
+        classes = self.get_classes().set_index("name", drop=False)
+        classes.index.name = "edges"
+        associations = self.get_associations().set_index("name", drop=False)
+        associations.index.name = "edges"
         generalizations = self.get_generalizations()
         structs = self.get_structs()
         sets = self.get_sets()
@@ -495,7 +497,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms5_pre")
         matches2_5_pre1 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
         violations2_5_pre1 = matches2_5_pre1[matches2_5_pre1.apply(lambda r: r["misc_properties"]["DistinctVals"] is None, axis=1)]
-        violations2_5_pre2 = classes[classes.apply(lambda r: r["misc_properties"]["Count"] is None, axis=1)]
+        violations2_5_pre2 = classes[classes["Count"].isna()]
         if not violations2_5_pre2.empty:
             warnings.warn(f"⚠️ IC-Atoms5_pre violation: Cardinalities are missing in classes {list(violations2_5_pre2.index)}")
         if not violations2_5_pre1.empty:
@@ -504,9 +506,9 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms5: The number of different values of an attribute must be less or equal than the cardinality of its class
         logger.info("Checking IC-Atoms5")
         matches2_5 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
-        violations2_5 = matches2_5[matches2_5.apply(lambda r: r["misc_properties"]["DistinctVals"] is not None
-                                                              and r["misc_properties_class"]["Count"] is not None
-                                                              and r["misc_properties"]["DistinctVals"] > r["misc_properties_class"]["Count"], axis=1)]
+        violations2_5 = matches2_5[matches2_5.apply(lambda r: pd.notna(r["Count"])
+                                                              and pd.notna(r["misc_properties"]["DistinctVals"])
+                                                              and r["misc_properties"]["DistinctVals"] > r["Count"], axis=1)]
         if not violations2_5.empty:
             consistent = False
             print("🚨 IC-Atoms5 violation: The number of different values of an attribute is greater than the cardinality of its class")
@@ -533,10 +535,12 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms8: The number of different values of an identifier must coincide with the cardinality of its class
         logger.info("Checking IC-Atoms8")
         matches2_8 = outbounds.join(classes, on='edges', rsuffix='_class', how='inner')
-        violations2_8 = matches2_8[matches2_8.apply(lambda r: r["misc_properties"]["Identifier"] and r["misc_properties"]["DistinctVals"] != r["misc_properties_class"]["Count"], axis=1)]
+        violations2_8 = matches2_8[matches2_8.apply(lambda r: pd.notna(r["Count"])
+                                                              and r["misc_properties"]["Identifier"]
+                                                              and r["misc_properties"]["DistinctVals"] != r["Count"], axis=1)]
         if not violations2_8.empty:
             consistent = False
-            print("🚨 IC-Atoms5 violation: The number of different values of an identified must coincide with the cardinality of its class")
+            print("🚨 IC-Atoms8 violation: The number of different values of an identified must coincide with the cardinality of its class")
             display(violations2_8)
 
         # IC-Atoms9: One class cannot have more than one direct superclass
@@ -784,12 +788,12 @@ class Catalog(HyperNetXWrapper):
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 restricted_classes = restricted_struct.get_classes()
                 # Foll all classes in the current struct
-                for class_name1 in restricted_classes.index.get_level_values("edges"):
+                for class_name1 in restricted_classes["name"]:
                     superclasses1 = restricted_struct.get_superclasses_by_class_name(class_name1)
                     # If it has superclasses
                     if superclasses1:
                         # Check all other classes in the struct
-                        for class_name2 in restricted_classes.index.get_level_values("edges"):
+                        for class_name2 in restricted_classes["name"]:
                             # Get their superclasses
                             superclasses2 = restricted_struct.get_superclasses_by_class_name(class_name2)
                             # Check this is not actually itself or an ancestor
@@ -1017,7 +1021,7 @@ class Catalog(HyperNetXWrapper):
             #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
             #             This is relaxed to be just a warning, as above, just because of generalizations.
             logger.info("Checking IC-Design8 (produces just warnings)")
-            for class_name in self.get_classes().index:
+            for class_name in self.get_classes()["name"]:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
                 for struct_name in self.get_structs().index:
@@ -1076,8 +1080,9 @@ class Catalog(HyperNetXWrapper):
         :param pattern_edges:
         :param required_attributes:
         """
+        # TODO: Optimize this!!!
         # Check if the hypergraph contains all the pattern hyperedges
-        non_existing_associations = df_difference(pd.DataFrame(pattern_edges), pd.concat([self.get_classes(), self.get_associations()])["name"].reset_index(drop=True))
+        non_existing_associations = df_difference(pd.DataFrame(pattern_edges), self.get_class_and_association_names()["name"])
         if not non_existing_associations.empty:
             raise ValueError(f"🚨 Some class or association in the pattern does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 

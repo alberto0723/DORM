@@ -243,14 +243,13 @@ class HyperNetXWrapper:
         return edge_inbounds.index[0][1]
 
     def get_classes(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
-        return classes
+        return self.query("SELECT uid AS name, Count FROM edges WHERE Kind='Class';")
 
     def get_associations(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        associations = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Association')]
-        return associations
+        return self.query("SELECT uid AS name FROM edges WHERE Kind='Association';")
+
+    def get_class_and_association_names(self) -> pd.DataFrame:
+        return self.query("SELECT uid AS name FROM edges WHERE Kind IN ('Class','Association');")
 
     def get_generalizations(self) -> pd.DataFrame:
         edges = self.get_edges()
