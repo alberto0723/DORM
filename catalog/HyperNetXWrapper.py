@@ -68,7 +68,7 @@ class HyperNetXWrapper:
         df_nodes = self.H.nodes.to_dataframe.reset_index()
         df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
         df_nodes_flattened = pd.concat([df_nodes.drop(columns="misc_properties"), df_nodes_with_json], axis=1)
-        for required in ['Kind']:
+        for required in ['Kind', 'DataType', 'Size']:
             if required not in df_nodes_flattened.columns:
                 df_nodes_flattened[required] = None
         self.sql.register("nodes", df_nodes_flattened)
@@ -97,16 +97,26 @@ class HyperNetXWrapper:
                 FROM incidences
                 WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND Identifier;
             """)
-
-    def create_temp_tables(self):
+        if self.temp_table_exists('association_ends'):
+            self.query("DROP TABLE association_ends;")
         # The query requires and outer join to deal with restricted hypergraphs
         self.query("""
             CREATE TEMP TABLE association_ends AS
-                SELECT a.edges AS association, a.End_name as end_name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
+                SELECT a.edges AS association, a.End_name as name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
                 FROM incidences a
                     LEFT OUTER JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
                 WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
                     AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
+            """)
+
+    def create_temp_tables(self):
+        self.query("""
+            CREATE TEMP TABLE struct_attributes AS
+                SELECT i.edges AS struct, n.uid AS attribute
+                FROM incidences i 
+                    JOIN nodes n ON i.nodes=n.uid
+                WHERE i.Direction='Outbound' AND i.Kind='StructIncidence'
+                    AND n.kind='Attribute';
             """)
 
     def query(self, query) -> pd.DataFrame:
@@ -146,27 +156,19 @@ class HyperNetXWrapper:
         return incidences
 
     def get_attributes(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
-        return attributes
+        return self.query("SELECT uid AS name, DataType, Size FROM nodes WHERE Kind='Attribute';")
 
     def get_attribute_by_name(self, attr_name) -> pd.Series:
         return self.query(f"SELECT uid AS name, DataType, Size FROM nodes WHERE uid='{attr_name}' AND Kind='Attribute';").iloc[0]
 
     def get_association_ends(self) -> pd.DataFrame:
-        ends = self.get_outbound_associations()
-        if not ends.empty:
-            ends.reset_index(drop=False, inplace=True)
-            ends["name"] = ends.apply(lambda x: x["misc_properties"]["End_name"], axis=1)
-            ends.set_index('name', drop=False, inplace=True)
-            ends.drop(columns=['weight'], inplace=True)
-        return ends
+        return self.query("""SELECT * FROM association_ends;""")
 
     def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
         return self.query(f"SELECT * FROM association_ends WHERE association='{association_name}';")
 
     def get_class_name_by_end_name(self, end_name) -> str:
-        return self.query(f"SELECT class FROM association_ends WHERE end_name='{end_name}';").iloc[0, 0]
+        return self.query(f"SELECT class FROM association_ends WHERE name='{end_name}';").iloc[0, 0]
 
     def get_ids(self) -> pd.DataFrame:
         return self.query("SELECT nodes as name FROM class_ids;")
@@ -552,14 +554,14 @@ class HyperNetXWrapper:
         # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
         result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
         to_be_removed = []
-        for attr_name in result.get_attributes().index:
+        for attr_name in result.get_attributes()["name"].to_list():
             if attr_name not in outbounds:
                 to_be_removed.append(attr_name)
         result.H.remove_nodes(to_be_removed, inplace=True)
         return result
 
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
-        return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.to_list()
+        return self.query(f"SELECT attribute FROM struct_attributes WHERE struct='{struct_name}';")["attribute"].to_list()
 
     def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """
@@ -642,7 +644,7 @@ class HyperNetXWrapper:
         return not self.query(f"SELECT 'Found' FROM nodes WHERE uid = '{name}' AND Kind='Attribute';").empty
 
     def is_association_end(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM incidences WHERE End_name='{name}' AND Kind='AssociationIncidence' AND Direction='Outbound';").empty
+        return not self.query(f"SELECT 'Found' FROM association_ends WHERE name='{name}';").empty
 
     def is_id(self, name) -> bool:
         return not self.query(f"SELECT 'Found' FROM class_ids WHERE nodes='{name}';").empty

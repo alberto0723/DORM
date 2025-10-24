@@ -191,7 +191,7 @@ class Catalog(HyperNetXWrapper):
         if not restricted_struct.H.is_connected():
             raise ValueError(f"🚨 Struct '{struct_name}' is not connected")
         # Check if attributes in the struct are connected
-        connected_attributes = restricted_struct.get_attributes().index
+        connected_attributes = restricted_struct.get_attributes()["name"].to_list()
         for elem in elements:
             if self.is_attribute(elem) and elem not in connected_attributes:
                 raise ValueError(f"🚨 Attribute '{elem}' in struct '{struct_name}' is not connected")
@@ -376,7 +376,8 @@ class Catalog(HyperNetXWrapper):
         incidences = self.get_incidences()
         ids = self.get_ids()
         phantoms = self.get_phantoms()
-        attributes = self.get_attributes()
+        attributes = self.get_attributes().set_index("name", drop=False)
+        attributes.index.name="nodes"
         classes = self.get_classes()
         associations = self.get_associations()
         generalizations = self.get_generalizations()
@@ -661,7 +662,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets3: Sets cannot directly contain attributes
             logger.info("Checking IC-Sets3")
-            violations4_3 = pd.merge(self.get_outbound_sets(), self.get_attributes(), on='nodes', suffixes=('_setOutbounds', '_attributes'),
+            violations4_3 = pd.merge(self.get_outbound_sets(), attributes, on='nodes', suffixes=('_setOutbounds', '_attributes'),
                                      how='inner')
             if not violations4_3.empty:
                 consistent = False
@@ -867,7 +868,7 @@ class Catalog(HyperNetXWrapper):
                     # It may be that the association is actually inherited from a superclass
                     superclass_phantoms = [self.get_phantom_of_edge_by_name(s) for s in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(internal_elem_name))]
                     superclass_phantoms.append(internal_elem_name)
-                    if all([p not in restricted_struct.get_association_ends()["nodes"].values for p in superclass_phantoms]):
+                    if all([p not in restricted_struct.get_association_ends()["phantom"].values for p in superclass_phantoms]):
                         consistent = False
                         print(f"🚨 IC-Structs-d violation: Class '{internal_elem_name}' included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
                 else:
@@ -912,7 +913,7 @@ class Catalog(HyperNetXWrapper):
             matches5_2 = []
             for set_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
                 matches5_2.extend(self.get_atoms_including_transitivity_by_edge_name(set_name))
-            atoms5_2 = pd.concat([self.get_attributes(), self.get_phantom_associations()])
+            atoms5_2 = pd.concat([attributes, self.get_phantom_associations()])
             violations5_2 = atoms5_2[~atoms5_2.index.isin(matches5_2)]
             if not violations5_2.empty:
                 consistent = False
@@ -1091,7 +1092,7 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes and association ends
-        attributes = pd.merge(restricted_domain.nodes.dataframe, self.get_attributes(), left_index=True, right_index=True, how="inner")["name"]
+        attributes = pd.merge(restricted_domain.nodes.dataframe, self.get_attributes().set_index(["name"], drop=False), left_index=True, right_index=True, how="inner")["name"]
         hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_associations().reset_index(drop=False), left_index=True, right_on="nodes", suffixes=('_associationPhantoms', '_inbounds'), how="inner")
         hop2 = pd.merge(hop1, self.get_outbound_associations().reset_index(drop=False), left_on="edges", right_on="edges", suffixes=('_inbounds', '_outbounds'), how="inner")
         association_ends = hop2.apply(lambda row: row["misc_properties"]["End_name"], axis=1)
@@ -1108,7 +1109,7 @@ class Catalog(HyperNetXWrapper):
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
         time_before = time.time()
         # Check if the hypergraph contains all the projected attributes
-        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
+        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
         time_after = time.time()
@@ -1116,7 +1117,7 @@ class Catalog(HyperNetXWrapper):
 
         time_before = time.time()
         # Check if the hypergraph contains all the filter attributes
-        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_ids(), self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
+        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
         if not non_existing_attributes.empty:
             raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
         time_after = time.time()
@@ -1329,11 +1330,9 @@ class Catalog(HyperNetXWrapper):
                             if table_class_name in pattern_superclasses:
                                 discriminant = self.get_discriminant_by_class_name(pattern_class_name)
                                 assert discriminant is not None, f"☠️ No discriminant for '{pattern_class_name}'"
-                                found = True
-                                for attribute_name in self.parse_predicate(discriminant):
-                                    found = found and attribute_name in self.get_attribute_names_by_struct_name(struct_name)
-                                if not found:
-                                    raise ValueError(f"🚨 Some discriminant attribute missing in struct '{struct_name}' of table '{set_name}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
+                                missing_discriminants = [a for a in self.parse_predicate(discriminant) if a not in self.get_attribute_names_by_struct_name(struct_name)]
+                                if missing_discriminants:
+                                    raise ValueError(f"🚨 Some discriminant attribute '{missing_discriminants}' missing in struct '{struct_name}' of table '{set_name}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
                                 # Add the corresponding discriminant (this works because we have single inheritance)
                                 discriminants.append(discriminant)
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
@@ -1388,7 +1387,7 @@ class Catalog(HyperNetXWrapper):
                                 # If the attribute is an ID, -2 is its class, -3 is its phantom and -4 is the association
                                 if len(paths[0]) > 3 and self.is_id(table_attribute):
                                     # If it is an association end, we take note of the replacement
-                                    alternative = self.get_association_ends().query(f"edges=='{paths[0][-4]}' and nodes=='{paths[0][-3]}'").iloc[0]["name"]
+                                    alternative = self.get_association_ends().query(f"association=='{paths[0][-4]}' and phantom=='{paths[0][-3]}'").iloc[0]["name"]
                                     if alternative in provided_attributes:
                                         replacements[alternative] = table_attribute
                                 else:
