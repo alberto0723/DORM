@@ -1080,7 +1080,6 @@ class Catalog(HyperNetXWrapper):
         :param pattern_edges:
         :param required_attributes:
         """
-        # TODO: Optimize this!!!
         # Check if the hypergraph contains all the pattern hyperedges
         non_existing_associations = df_difference(pd.DataFrame(pattern_edges), self.get_class_and_association_names()["name"])
         if not non_existing_associations.empty:
@@ -1096,6 +1095,7 @@ class Catalog(HyperNetXWrapper):
         if not restricted_domain.is_connected(s=1):
             raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
+        # TODO: Optimize this!!!
         # Check if the restricted domain contains all the required attributes and association ends
         attributes = pd.merge(restricted_domain.nodes.dataframe, self.get_attributes().set_index(["name"], drop=False), left_index=True, right_index=True, how="inner")["name"]
         hop1 = pd.merge(restricted_domain.nodes.dataframe, self.get_inbound_associations().reset_index(drop=False), left_index=True, right_on="nodes", suffixes=('_associationPhantoms', '_inbounds'), how="inner")

@@ -118,6 +118,17 @@ class HyperNetXWrapper:
                 WHERE i.Direction='Outbound' AND i.Kind='StructIncidence'
                     AND n.kind='Attribute';
             """)
+        self.query("""
+            CREATE TEMP TABLE sub_super_pairs AS
+                SELECT sub_phantom.edges AS subclass, super.edges AS generalization, super_phantom.edges AS superclass
+                FROM incidences super
+                    JOIN incidences super_phantom ON super.nodes = super_phantom.nodes
+                    JOIN incidences sub ON super.edges = sub.edges
+                    JOIN incidences sub_phantom ON sub.nodes = sub_phantom.nodes
+                WHERE super_phantom.Direction = 'Inbound' AND sub_phantom.Direction = 'Inbound'
+                    AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
+                    AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
+            """)
 
     def query(self, query) -> pd.DataFrame:
         return self.sql.execute(query).fetchdf()
@@ -594,18 +605,6 @@ class HyperNetXWrapper:
         """
         if visited is None:
             visited = []
-        if not self.temp_table_exists("sub_super_pairs"):
-            self.query("""
-                CREATE TEMP TABLE sub_super_pairs AS
-                    SELECT sub_phantom.edges as subclass, super_phantom.edges as superclass
-                    FROM incidences super
-                        JOIN incidences super_phantom ON super.nodes = super_phantom.nodes
-                        JOIN incidences sub ON super.edges = sub.edges
-                        JOIN incidences sub_phantom ON sub.nodes = sub_phantom.nodes
-                    WHERE super_phantom.Direction = 'Inbound' AND sub_phantom.Direction = 'Inbound'
-                        AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
-                        AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
-                """)
         direct_superclass = self.query(f"""
                     SELECT superclass
                     FROM sub_super_pairs
@@ -622,16 +621,17 @@ class HyperNetXWrapper:
     def get_generalizations_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         if visited is None:
             visited = []
-        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
-            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
-            suffixes=("_superclass", "_subclass"), how="inner")
-        direct_superclass = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
+        direct_superclass = self.query(f"""
+                    SELECT generalization, superclass
+                    FROM sub_super_pairs
+                    WHERE subclass = '{class_name}';
+                    """)
         if direct_superclass.empty:
             return []
         else:
             # This means there is one superclass (multiple-inheritance is not allowed)
-            superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
-            generalization = direct_superclass.index[0]
+            generalization = direct_superclass.iat[0, 0]
+            superclass = direct_superclass.iat[0, 1]
             assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
             return [generalization]+self.get_generalizations_by_class_name(superclass, visited + [class_name])
 
