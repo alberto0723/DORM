@@ -129,6 +129,23 @@ class HyperNetXWrapper:
                     AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
                     AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
             """)
+        self.query("""
+            CREATE TEMP TABLE containments AS
+                SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge
+                FROM nodes n
+                    JOIN incidences incomming ON n.uid=incomming.nodes
+                    JOIN incidences outgoing ON n.uid=outgoing.nodes
+                WHERE n.Kind='Phantom'  
+                    AND incomming.Direction = 'Inbound'
+                    AND outgoing.Direction = 'Outbound' AND outgoing.Kind IN ('SetIncidence', 'StructIncidence')
+            """)
+
+    def get_parents(self, edge_name):
+        return self.query(f"""
+            SELECT parent_edge
+            FROM containments
+            WHERE child_edge='{edge_name}';
+            """)
 
     def get_attribute_names_from_hypergraph(self, temp_H):
         df_nodes = temp_H.nodes.to_dataframe.reset_index()
@@ -464,15 +481,14 @@ class HyperNetXWrapper:
             visited = visited + edge_list
         firstLevels = []
         next_edge_list = []
-        hops = pd.merge(pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).reset_index(level="edges", drop=False), self.get_inbounds()[self.get_inbounds().index.get_level_values("edges").isin(edge_list)].reset_index(level="edges", drop=False), on='nodes', how='inner', suffixes=('_parent', '_child'))
         for edge_name in edge_list:
-            parents = hops.query(f"edges_child == '{edge_name}'")["edges_parent"]
+            parents = self.get_parents(edge_name)
             if parents.empty:
                 # It may happen that some classes are not actually present in the design (because of generalizations)
                 if self.is_set(edge_name):
                     firstLevels.append(edge_name)
             else:
-                next_edge_list.extend([edge for edge in parents.to_list() if edge not in visited])
+                next_edge_list.extend([edge for edge in parents["parent_edge"] if edge not in visited])
         if next_edge_list:
             firstLevels.extend(self.get_transitive_firstLevels(next_edge_list, visited))
         return firstLevels
