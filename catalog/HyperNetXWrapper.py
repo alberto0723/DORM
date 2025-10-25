@@ -102,7 +102,7 @@ class HyperNetXWrapper:
         # The query requires and outer join to deal with restricted hypergraphs
         self.query("""
             CREATE TEMP TABLE association_ends AS
-                SELECT a.edges AS association, a.End_name as name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
+                SELECT a.edges AS association, a.End_name AS name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
                 FROM incidences a
                     LEFT OUTER JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
                 WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
@@ -128,6 +128,33 @@ class HyperNetXWrapper:
                 WHERE super_phantom.Direction = 'Inbound' AND sub_phantom.Direction = 'Inbound'
                     AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
                     AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
+            """)
+
+    def get_attribute_names_from_hypergraph(self, temp_H):
+        df_nodes = temp_H.nodes.to_dataframe.reset_index()
+        df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
+        df_nodes_flattened = pd.concat([df_nodes.drop(columns="misc_properties"), df_nodes_with_json], axis=1)
+        for required in ['Kind']:
+            if required not in df_nodes_flattened.columns:
+                df_nodes_flattened[required] = None
+        self.sql.register("tmp_nodes", df_nodes_flattened)
+        df_incidences = temp_H.incidences.to_dataframe.reset_index()
+        df_incidences_with_json = pd.json_normalize(df_incidences["misc_properties"])
+        df_incidences_flattened = pd.concat([df_incidences.drop(columns="misc_properties"), df_incidences_with_json], axis=1)
+        for required in ['Kind', 'Direction', 'End_name']:
+            if required not in df_incidences_flattened.columns:
+                df_incidences_flattened[required] = None
+        self.sql.register("tmp_incidences", df_incidences_flattened)
+        return self.query("""
+            SELECT uid AS name
+            FROM tmp_nodes 
+            WHERE Kind='Attribute'
+            UNION ALL
+            SELECT a.End_name AS name
+            FROM tmp_incidences a
+                LEFT OUTER JOIN tmp_incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
+            WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
+                AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
             """)
 
     def query(self, query) -> pd.DataFrame:

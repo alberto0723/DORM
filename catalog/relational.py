@@ -452,10 +452,7 @@ class Relational(Catalog, ABC):
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
         custom_progress(f"Parsing query")
-        time_before = time.time()
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
-        time_after = time.time()
-        print(f"Parsing time: {time_after - time_before:.4f} seconds")
         if explicit_schema:
             schema_name = self.dbschema + "."
         else:
@@ -468,7 +465,10 @@ class Relational(Catalog, ABC):
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_class is None:
             custom_progress(f"--Generating combinations of tables to create the query")
+            time_before = time.time()
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
+            time_after_partial = time.time()
+            print(f"Create_bucket_combinations time: {time_after_partial - time_before:.4f} seconds")
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 query_alternatives = sorted(query_alternatives, key=len)
@@ -523,6 +523,8 @@ class Relational(Catalog, ABC):
                 else:
                     sentence_with_filter = sentence
                 sentences.append(sentence_with_filter)
+            time_after = time.time()
+            print(f"Generating combinations of tables to create the query time: {time_after - time_before:.4f} seconds")
         # If some classes are implicitly stored in the current design (i.e. stored only in their subclasses)
         else:
             custom_progress(f"Query requires UNION")
