@@ -284,11 +284,13 @@ class HyperNetXWrapper:
         return phantoms
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
-        # return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
-        incidences = self.get_incidences()
-        phantom_incidences = incidences.xs(phantom_name, level="nodes", drop_level=False)
-        phantom_inbounds = phantom_incidences[phantom_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
-        return phantom_inbounds.index[0][0]
+        phantom_inbounds = self.query(f"""
+            SELECT edges
+            FROM incidences
+            WHERE Direction = 'Inbound' AND nodes='{phantom_name}';
+            """)
+        return phantom_inbounds.iat[0, 0]
+
 
     def get_phantom_of_edge_by_name(self, edge_name) -> str:
         # return self.get_inbounds().loc[edge_name].index[0]
@@ -363,6 +365,13 @@ class HyperNetXWrapper:
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
             return outbounds
+
+    def get_outbounds_by_name(self, edge_name) -> pd.DataFrame:
+        return self.query(f"""
+                    SELECT nodes
+                    FROM incidences
+                    WHERE Direction = 'Outbound' AND edges='{edge_name}';
+                    """)
 
     def get_outbound_associations(self) -> pd.DataFrame:
         incidences = self.get_incidences()
@@ -492,7 +501,7 @@ class HyperNetXWrapper:
         else:
             visited.append(edge_name)
         atom_names = []
-        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+        for node_name in self.get_outbounds_by_name(edge_name)["nodes"]:
             if self.is_attribute(node_name) or self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                 atom_names.append(node_name)
             elif self.is_generalization_phantom(node_name):
