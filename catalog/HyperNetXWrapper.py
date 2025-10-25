@@ -89,24 +89,31 @@ class HyperNetXWrapper:
         # display(self.query("SELECT * FROM nodes;"))
         # display(self.query("SELECT * FROM edges;"))
         # display(self.query("SELECT * FROM incidences;"))
-        if self.temp_table_exists('class_ids'):
-            self.query("DROP TABLE class_ids;")
         self.query("""
-            CREATE TEMP TABLE class_ids AS
+            CREATE OR REPLACE TEMP TABLE class_ids AS
                 SELECT edges, nodes
                 FROM incidences
                 WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND Identifier;
             """)
-        if self.temp_table_exists('association_ends'):
-            self.query("DROP TABLE association_ends;")
-        # The query requires and outer join to deal with restricted hypergraphs
+        # This query requires and outer join to deal with restricted hypergraphs (which may be incomplete)
         self.query("""
-            CREATE TEMP TABLE association_ends AS
+            CREATE OR REPLACE TEMP TABLE association_ends AS
                 SELECT a.edges AS association, a.End_name AS name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
                 FROM incidences a
                     LEFT OUTER JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
                 WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
                     AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
+            """)
+        self.query("""
+            CREATE OR REPLACE TEMP TABLE sub_super_pairs AS
+                SELECT sub_phantom.edges AS subclass, super.edges AS generalization, super_phantom.edges AS superclass
+                FROM incidences super
+                    JOIN incidences super_phantom ON super.nodes = super_phantom.nodes
+                    JOIN incidences sub ON super.edges = sub.edges
+                    JOIN incidences sub_phantom ON sub.nodes = sub_phantom.nodes
+                WHERE super_phantom.Direction = 'Inbound' AND sub_phantom.Direction = 'Inbound'
+                    AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
+                    AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
             """)
 
     def create_temp_tables(self):
@@ -117,17 +124,6 @@ class HyperNetXWrapper:
                     JOIN nodes n ON i.nodes=n.uid
                 WHERE i.Direction='Outbound' AND i.Kind='StructIncidence'
                     AND n.kind='Attribute';
-            """)
-        self.query("""
-            CREATE TEMP TABLE sub_super_pairs AS
-                SELECT sub_phantom.edges AS subclass, super.edges AS generalization, super_phantom.edges AS superclass
-                FROM incidences super
-                    JOIN incidences super_phantom ON super.nodes = super_phantom.nodes
-                    JOIN incidences sub ON super.edges = sub.edges
-                    JOIN incidences sub_phantom ON sub.nodes = sub_phantom.nodes
-                WHERE super_phantom.Direction = 'Inbound' AND sub_phantom.Direction = 'Inbound'
-                    AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
-                    AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
             """)
         self.query("""
             CREATE TEMP TABLE containments AS
@@ -439,16 +435,11 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
-        # elements = self.get_outbound_classes().query('edges == "' + class_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(class_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'ClassIncidence')]
-            return outbounds
+        return self.query(f"""
+                SELECT nodes AS attribute
+                FROM incidences
+                WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';
+            """)
 
     def get_outbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()

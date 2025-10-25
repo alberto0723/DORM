@@ -333,8 +333,9 @@ class Catalog(HyperNetXWrapper):
             elif self.is_class_phantom(elem_name):
                 # Add the class identifier if there is not any other attribute of the same class
                 class_name = self.get_edge_by_phantom_name(elem_name)
-                if not self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(elem_names).any():
-                    attribute_list.append((self.get_class_id_by_name(class_name), [{"kind": "Attribute", "name": self.get_class_id_by_name(class_name)}]))
+                if not self.get_outbound_class_by_name(class_name)["attribute"].isin(elem_names).any():
+                    id_attribute = self.get_class_id_by_name(class_name)
+                    attribute_list.append((id_attribute, [{"kind": "Attribute", "name": id_attribute}]))
             elif self.is_association_phantom(elem_name):
                 ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem_name))
                 for end in ends.itertuples():
@@ -1146,11 +1147,11 @@ class Catalog(HyperNetXWrapper):
                 for edge in pattern_edges:
                     if self.is_class(edge):
                         # TODO: This needs to include the attributes of the superclasses
-                        project_attributes.extend(self.get_outbound_class_by_name(edge).index.get_level_values('nodes'))
+                        project_attributes.extend(self.get_outbound_class_by_name(edge)["attribute"])
                         # for attr in self.get_outbound_class_by_name(edge).itertuples():
                         #     project_attributes.append(attr.Index[1])
             elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
-                project_attributes.extend(self.get_outbound_class_by_name(requested[:-2]).index.get_level_values('nodes'))
+                project_attributes.extend(self.get_outbound_class_by_name(requested[:-2])["attribute"])
                 # for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
                 #     project_attributes.append(attr.Index[1])
             else:
@@ -1216,10 +1217,13 @@ class Catalog(HyperNetXWrapper):
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
                 for class_name in hierarchy:
-                    current_attributes.extend(self.get_outbound_class_by_name(class_name)[self.get_outbound_class_by_name(class_name).index.get_level_values('nodes').isin(required_attributes)].index.get_level_values('nodes').to_list())
+                    current_attributes.extend([a for a in self.get_outbound_class_by_name(class_name)["attribute"] if a in required_attributes])
+                time_after = time.time()
+                print(f"partial time processing class {elem} time: {time_after - time_before:.4f} seconds")
                 # If it is a class, the id always belongs to the table, hence we add it even if not required
-                if self.get_class_id_by_name(elem) not in current_attributes:
-                    current_attributes.append(self.get_class_id_by_name(elem))
+                class_id = self.get_class_id_by_name(elem)
+                if class_id not in current_attributes:
+                    current_attributes.append(class_id)
                 # If it is a class, it may be vertically partitioned
                 # We need to generate joins of these tables that cover all required attributes one by one
                 # Get the tables independently for every attribute in the class
