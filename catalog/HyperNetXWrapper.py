@@ -127,13 +127,21 @@ class HyperNetXWrapper:
             """)
         self.query("""
             CREATE TEMP TABLE containments AS
-                SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge
+                SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge, n.Subkind AS child_kind
                 FROM nodes n
                     JOIN incidences incomming ON n.uid=incomming.nodes
                     JOIN incidences outgoing ON n.uid=outgoing.nodes
                 WHERE n.Kind='Phantom'  
                     AND incomming.Direction = 'Inbound'
                     AND outgoing.Direction = 'Outbound' AND outgoing.Kind IN ('SetIncidence', 'StructIncidence')
+            """)
+        self.query("""
+            CREATE TEMP TABLE outgoing_atoms AS
+                SELECT i.edges AS edge, n.uid AS atom
+                FROM incidences i 
+                    JOIN nodes n ON i.nodes=n.uid
+                WHERE i.Direction='Outbound'
+                    AND (n.Kind='Attribute' OR (n.Kind='Phantom' AND n.SubKind IN ('Class', 'Association')));
             """)
 
     def get_parents(self, edge_name):
@@ -373,6 +381,20 @@ class HyperNetXWrapper:
                     WHERE Direction = 'Outbound' AND edges='{edge_name}';
                     """)
 
+    def get_outbound_atoms_by_name(self, edge_name) -> pd.DataFrame:
+        return self.query(f"""
+            SELECT atom
+            FROM outgoing_atoms
+            WHERE edge='{edge_name}';
+            """)
+
+    def get_outbound_design_edges_by_name(self, edge_name) -> pd.DataFrame:
+        return self.query(f"""
+            SELECT child_edge AS design_edge
+            FROM containments
+            WHERE parent_edge='{edge_name}' AND child_kind IN ('Set', 'Struct');
+            """)
+
     def get_outbound_associations(self) -> pd.DataFrame:
         incidences = self.get_incidences()
         if incidences.empty:
@@ -500,19 +522,10 @@ class HyperNetXWrapper:
             visited = [edge_name]
         else:
             visited.append(edge_name)
-        atom_names = []
-        for node_name in self.get_outbounds_by_name(edge_name)["nodes"]:
-            if self.is_attribute(node_name) or self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
-                atom_names.append(node_name)
-            elif self.is_generalization_phantom(node_name):
-                pass
-            # This should only be either a set or struct phantom
-            else:
-                assert self.is_phantom(node_name), f"Node '{node_name}' is expected to be a phantom"
-                next_edge = self.get_edge_by_phantom_name(node_name)
-                assert self.is_struct(next_edge) or self.is_set(next_edge), f"Edge '{next_edge}' is expected to be either a struct or a set"
-                assert next_edge not in visited, f"☠️ Cycle of edges detected: {next_edge} already in {visited}"
-                atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
+        atom_names = self.get_outbound_atoms_by_name(edge_name)["atom"].tolist()
+        for next_edge in self.get_outbound_design_edges_by_name(edge_name)["design_edge"]:
+            assert next_edge not in visited, f"☠️ Cycle of edges detected: {next_edge} already in {visited}"
+            atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
         visited.pop()
         return atom_names
 

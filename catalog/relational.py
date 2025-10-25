@@ -465,17 +465,18 @@ class Relational(Catalog, ABC):
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_class is None:
             custom_progress(f"--Generating combinations of tables to create the query")
-            time_before = time.time()
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
-            time_after_partial = time.time()
-            print(f"Create_bucket_combinations time: {time_after_partial - time_before:.4f} seconds")
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 query_alternatives = sorted(query_alternatives, key=len)
+            time_before = time.time()
             for tables_combination in query_alternatives:
                 custom_progress(f"----Generating the query with tables {tables_combination}")
                 custom_progress("------Getting aliases")
+                time_before1 = time.time()
                 alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
+                time_after1 = time.time()
+                print(f"get_aliases time: {time_after1 - time_before1:.4f} seconds")
                 custom_progress("------Getting discriminants")
                 conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause

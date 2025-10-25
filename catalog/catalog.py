@@ -1212,7 +1212,6 @@ class Catalog(HyperNetXWrapper):
                 # If the element is an association, any table containing it is an option
                 buckets.append(first_levels)
             if self.is_class(elem):
-                time_before = time.time()
                 classes.append(elem)
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
@@ -1229,8 +1228,6 @@ class Catalog(HyperNetXWrapper):
                 attrs_of_set = {}
                 for set_name in first_levels:
                     attrs_of_set[set_name] = self.get_atoms_including_transitivity_by_edge_name(set_name)
-                time_after = time.time()
-                print(f"partial time processing class {elem} time: {time_after - time_before:.4f} seconds")
                 for attr in current_attributes:
                     if not self.is_id(attr) or len(current_attributes) == 1:
                         firstlevels_with_attr = []
@@ -1239,8 +1236,6 @@ class Catalog(HyperNetXWrapper):
                                 firstlevels_with_attr.append(set_name)
                         if firstlevels_with_attr:
                             buckets.append(firstlevels_with_attr)
-            time_after = time.time()
-            print(f"processing class {elem} time: {time_after - time_before:.4f} seconds")
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
         # TODO: Actually, it is not guaranteed that all of them are covered. It should be checked
         return combine_buckets(drop_duplicates(buckets)), classes, associations
