@@ -68,7 +68,7 @@ class HyperNetXWrapper:
         df_nodes = self.H.nodes.to_dataframe.reset_index()
         df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
         df_nodes_flattened = pd.concat([df_nodes.drop(columns="misc_properties"), df_nodes_with_json], axis=1)
-        for required in ['Kind', 'DataType', 'Size']:
+        for required in ['Kind', 'DataType', 'Size', 'Subkind']:
             if required not in df_nodes_flattened.columns:
                 df_nodes_flattened[required] = None
         self.sql.register("nodes", df_nodes_flattened)
@@ -82,7 +82,7 @@ class HyperNetXWrapper:
         df_incidences = self.H.incidences.to_dataframe.reset_index()
         df_incidences_with_json = pd.json_normalize(df_incidences["misc_properties"])
         df_incidences_flattened = pd.concat([df_incidences.drop(columns="misc_properties"), df_incidences_with_json], axis=1)
-        for required in ['Kind', 'Subkind', 'Direction', 'End_name', 'MultiplicityMin', 'MultiplicityMax', 'Identifier']:
+        for required in ['Kind', 'Subkind', 'Direction', 'End_name', 'MultiplicityMin', 'MultiplicityMax', 'Identifier', 'Anchor']:
             if required not in df_incidences_flattened.columns:
                 df_incidences_flattened[required] = None
         self.sql.register("incidences", df_incidences_flattened)
@@ -341,13 +341,6 @@ class HyperNetXWrapper:
             WHERE Direction = 'Inbound' AND Kind='GeneralizationIncidence';
             """)
 
-    def get_inbound_structs(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT edges, nodes
-            FROM incidences
-            WHERE Direction = 'Inbound' AND Kind='StructIncidence';
-            """)
-
     def get_inbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()
         inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
@@ -361,13 +354,6 @@ class HyperNetXWrapper:
         else:
             outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
             return outbounds
-
-    def get_outbounds_by_name(self, edge_name) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT nodes
-            FROM incidences
-            WHERE Direction = 'Outbound' AND edges='{edge_name}';
-            """)
 
     def get_outbound_atoms_by_name(self, edge_name) -> pd.DataFrame:
         return self.query(f"""
@@ -384,13 +370,11 @@ class HyperNetXWrapper:
             """)
 
     def get_outbound_associations(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'AssociationIncidence')]
-            return outbounds
+        return self.query(f"""
+            SELECT edges, nodes, End_name, MultiplicityMax, MultiplicityMin
+            FROM incidences
+            WHERE Direction = 'Outbound' AND Kind='AssociationIncidence';
+            """)
 
     def get_outbound_generalization_superclasses(self) -> pd.DataFrame:
         incidences = self.get_incidences()
@@ -434,16 +418,18 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_struct_by_name(self, struct_name) -> pd.DataFrame:
-        # elements = self.get_outbound_structs().query('edges == "' + struct_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(struct_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'StructIncidence')]
-            return outbounds
+        return self.query(f"""
+            SELECT nodes, Anchor
+            FROM incidences
+            WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';
+            """)
+
+    def get_anchors_by_struct_name(self, struct_name) -> pd.DataFrame:
+        return self.query(f"""
+            SELECT nodes
+            FROM incidences
+            WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;
+            """)
 
     def get_outbound_set_by_name(self, set_name) -> pd.DataFrame:
         # elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
@@ -524,8 +510,7 @@ class HyperNetXWrapper:
         return firstLevel_incidences
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
-        elements = self.get_outbound_struct_by_name(struct_name)
-        anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        anchor_elements = self.get_anchors_by_struct_name(struct_name).set_index("nodes", drop=True)
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
         anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].to_list()
@@ -533,44 +518,52 @@ class HyperNetXWrapper:
 
     def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
         # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
-        elements = self.get_outbound_struct_by_name(struct_name)
-        elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        elements = self.get_anchors_by_struct_name(struct_name).set_index("nodes", drop=True)
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
         associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
         outbounds = self.get_outbound_associations()
-        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
         loose_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].to_list()
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.to_list()
         anchor_points = drop_duplicates(loose_ends+classes)
         return anchor_points
 
     def get_anchor_end_names_by_struct_name(self, struct_name) -> list[str]:
-        elements = self.get_outbound_struct_by_name(struct_name)
-        elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
+        elements = self.get_anchors_by_struct_name(struct_name).set_index("nodes", drop=True)
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
         associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
         outbounds = self.get_outbound_associations()
-        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
         association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
         loose_ends = association_ends[~association_ends["nodes"].isin(classes.index)]
         if loose_ends.empty:
             return classes.index.to_list()
         else:
-            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).to_list()
+            end_names = loose_ends["End_name"].to_list()
             return classes.index.to_list()+end_names
 
     def get_loose_association_end_names_by_struct_name(self, struct_name) -> list[str]:
-        elements = self.get_outbound_struct_by_name(struct_name)
+        print(struct_name)
+        elements = self.get_outbound_struct_by_name(struct_name).set_index("nodes", drop=True)
+        print("---------------- Elements ----------------")
+        #display(elements)
         inbounds = self.get_inbound_associations()
         inbounds["edges"] = inbounds.index.get_level_values("edges")
+        print("---------------- Inbounds----------------")
+        #display(inbounds)
         associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
+        print("---------------- Associations ----------------")
+        #display(associations)
         outbounds = self.get_outbound_associations()
-        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
+        print("---------------- Outbounds ----------------")
+        #display(outbounds)
         association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
+        print("---------------- Association_ends ----------------")
+        #display(association_ends)
         classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
+        print("---------------- Classes ----------------")
+        #display(classes)
         tight_ends = []
         for elem_phantom_name in elements.index.get_level_values("nodes"):
             if self.is_struct_phantom(elem_phantom_name):
@@ -587,11 +580,12 @@ class HyperNetXWrapper:
             superclass_phantoms.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(class_phantom_name)))
         superclasses = [self.get_phantom_of_edge_by_name(p) for p in superclass_phantoms]
         loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.to_list()+superclasses+tight_ends)]
-
+        print("---------------- Loose_ends ----------------")
+        #display(loose_ends)
         if loose_ends.empty:
             return []
         else:
-            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).to_list()
+            end_names = loose_ends["End_name"].to_list()
             return end_names
 
     def get_restricted_struct_hypergraph(self, struct_name, only_anchor=False) -> Self:
@@ -599,7 +593,7 @@ class HyperNetXWrapper:
         if only_anchor:
             outbounds = [self.get_phantom_of_edge_by_name(ass) for ass in self.get_anchor_associations_by_struct_name(struct_name)]
         else:
-            outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+            outbounds = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
         edge_names = []
         for elem in drop_duplicates(outbounds + anchor_points):
             if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):

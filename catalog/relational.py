@@ -266,13 +266,13 @@ class Relational(Catalog, ABC):
                 if not self.exists_more_generic_struct_in_set(struct_name, table_name):
                     project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
                     pattern = []
-                    node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                    node_list = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
                     # The node_list is extended inside the loop itself (kind of a recursive call)
                     for node_name in node_list:
                         if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                             pattern.append(self.get_edge_by_phantom_name(node_name))
                         if self.is_struct_phantom(node_name):
-                            node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
+                            node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name))["nodes"].to_list())
                         if self.is_set_phantom(node_name):
                             node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
                     sentence = self.generate_migration_insert_statement(table_name, project, pattern, source)
@@ -323,7 +323,7 @@ class Relational(Catalog, ABC):
         else:
             first_table = False
         unjoinable = []
-        associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
+        associations = self.get_outbound_associations()[self.get_outbound_associations()["edges"].isin(query_associations)]
         query_superclasses = query_classes.copy()
         for class_name in query_classes:
             query_superclasses.extend(self.get_superclasses_by_class_name(class_name))
@@ -336,7 +336,7 @@ class Relational(Catalog, ABC):
             # For every struct in the table
             struct_name_list = self.get_struct_names_inside_set_name(current_table)
             for struct_name in struct_name_list:
-                node_name_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                node_name_list = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
                 for node_name in node_name_list:
                     if self.is_struct_phantom(node_name):
                         struct_name_list.append(self.get_edge_by_phantom_name(node_name))
@@ -350,18 +350,18 @@ class Relational(Catalog, ABC):
                             plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
                             # Also, it can connect to a loose end if it participates in an association
                             for ass in associations.itertuples():
-                                if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name):
-                                    plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
+                                if self.get_edge_by_phantom_name(ass.nodes) in [class_name]+self.get_superclasses_by_class_name(class_name):
+                                    plugs.append((self.get_class_id_by_name(class_name), ass.End_name))
                 for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
                     for ass in associations.itertuples():
-                        if end_name == ass.misc_properties["End_name"]:
+                        if end_name == ass.End_name:
                             # Loose end can connect to a class id
                             plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
                             # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
-                            if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
+                            if self.get_edge_by_phantom_name(ass.nodes) not in query_classes:
                                 for ass2 in associations.itertuples():
-                                    if ass.Index[1] == ass2.Index[1]:
-                                        plugs.append((end_name, ass2.misc_properties["End_name"]))
+                                    if ass.nodes == ass2.nodes:
+                                        plugs.append((end_name, ass2.End_name))
             # Check if the other ends of any of the connection points has been visited before
             joins = []
             laterals = ""

@@ -71,7 +71,7 @@ class Catalog(HyperNetXWrapper):
                                     'DistinctVals': att['prop'].pop('DistinctVals'),
                                     'Identifier': att['prop'].pop('Identifier', False)}
             incidences.append((class_name, att['name'], incidence_properties))
-            if att['name'] in self.get_nodes()["name"]:
+            if att['name'] in self.get_nodes()["name"].values:
                 if att['prop']['DataType'] != self.H.get_properties(att['name'], level=1, prop_name="DataType"):
                     raise ValueError(f"🚨 Some node called '{att['name']}' already exists, but its DataType does not coincide")
                 if att['prop']['Size'] != self.H.get_properties(att['name'], level=1, prop_name="Size"):
@@ -186,6 +186,7 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"🚨 Creating struct '{struct_name}' could not find '{elem}' to place it inside (check both domain and design)")
         self.H.add_incidences_from(incidences)
+        self.fill_duckDB()
         # Check if the classes and associations in the struct are connected
         restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
         if not restricted_struct.H.is_connected():
@@ -198,11 +199,10 @@ class Catalog(HyperNetXWrapper):
         # Check if the associations in the anchor are connected (this should consider inheritance of associations)
         if not restricted_struct.H.restrict_to_edges(anchor).is_connected():
             raise ValueError(f"🚨 The anchor of struct '{struct_name}' is not connected")
-        self.fill_duckDB()
 
     def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
-        if set_name in self.get_edges()["name"]:
+        if set_name in self.get_edges()["name"].values:
             raise ValueError(f"🚨 The hyperedge '{set_name}' already exists")
         if len(elements) == 0:
             raise ValueError(f"🚨 The set '{set_name}' should have some elements, but has {len(elements)}")
@@ -325,7 +325,7 @@ class Catalog(HyperNetXWrapper):
         attribute_list = []
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the struct
-        elem_names = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes")
+        elem_names = self.get_outbound_struct_by_name(struct_name)["nodes"]
         for elem_name in elem_names:
             assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
             if self.is_attribute(elem_name):
@@ -626,18 +626,18 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms17: Every association end has name and multiplicities
         logger.info("Checking IC-Atoms17")
-        matches2_17 = self.get_outbound_associations()["misc_properties"]
-        for end_properties in matches2_17:
-            if end_properties.get("End_name", None) is None:
+        matches2_17 = self.get_outbound_associations()
+        for end in matches2_17.itertuples():
+            if end.End_name is None:
                 consistent = False
                 print(f"🚨 IC-Atoms17 violation: Some association end does not have 'End_name' defined")
             else:
-                if end_properties.get("MultiplicityMax", None) is None:
+                if end.MultiplicityMax is None:
                     consistent = False
-                    print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get('End_name')}' does not have 'MultiplicityMax' defined")
-                if end_properties.get("MultiplicityMin", None) is None:
+                    print(f"🚨 IC-Atoms17 violation: The association end '{end.End_name}' does not have 'MultiplicityMax' defined")
+                if end.MultiplicityMin is None:
                     consistent = False
-                    print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get('End_name')}' does not have 'MultiplicityMin' defined")
+                    print(f"🚨 IC-Atoms17 violation: The association end '{end.End_name}' does not have 'MultiplicityMin' defined")
                 # if end_properties.get("MultiplicityAvg", None) is None:
                 #     consistent = False
                 #     print(f"🚨 IC-Atoms17 violation: The association end '{end_properties.get("End_name")}' does not have MultiplicityAvg defined")
@@ -752,7 +752,7 @@ class Catalog(HyperNetXWrapper):
             for struct in self.get_structs().index:
                 edge_names = []
                 struct_outbounds = self.get_outbound_struct_by_name(struct)
-                for elem in struct_outbounds[struct_outbounds["misc_properties"].apply(lambda x: x['Kind'] == 'StructIncidence' and x.get('Anchor', False))].reset_index(level='edges', drop=True).index:
+                for elem in struct_outbounds[struct_outbounds["Anchor"]]["nodes"]:
                     if self.is_class_phantom(elem) or self.is_association_phantom(elem):
                         edge_names.append(self.get_edge_by_phantom_name(elem))
                 restricted_struct = self.H.restrict_to_edges(edge_names)
@@ -766,12 +766,16 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Structs6")
             inbound_classes = self.get_inbound_classes()
             inbound_classes["classname"] = inbound_classes.index.get_level_values("edges")
-            struct_outbound_classes = pd.merge(structOutbounds, inbound_classes, on="nodes", how="inner")
-            for elem in struct_outbound_classes["classname"]:
-                for superclass in self.get_superclasses_by_class_name(elem):
-                    if superclass in struct_outbound_classes["classname"]:
+            temp_structOutbounds = structOutbounds
+            temp_structOutbounds["structname"] = temp_structOutbounds.index.get_level_values("edges")
+            struct_outbound_classes = pd.merge(temp_structOutbounds, inbound_classes, on="nodes", how="inner")
+            display(struct_outbound_classes)
+            for row in struct_outbound_classes.itertuples():
+                current_struct_classes = struct_outbound_classes[struct_outbound_classes["structname"] == row.structname]["classname"].values
+                for superclass in self.get_superclasses_by_class_name(row.classname):
+                    if superclass in current_struct_classes:
                         consistent = False
-                        print(f"🚨 IC-Structs-6 violation: Both '{elem}' and its superclass '{superclass}' cannot belong to the same struct")
+                        print(f"🚨 IC-Structs-6 violation: Both '{row.classname}' and its superclass '{superclass}' cannot belong to the same struct '{row.structname}'")
 
             # IC-Structs7: Loose association ends in the anchor must still be loose ends in the whole struct
             logger.info("Checking IC-Structs7")
@@ -837,7 +841,7 @@ class Catalog(HyperNetXWrapper):
             #               Also need to check that max multiplicity is one (otherwise, it should be a set)
             logger.info("Checking IC-Structs-c")
             for external_struct_name in self.get_structs().index:
-                for elem_name in self.get_outbound_struct_by_name(external_struct_name).index.get_level_values("nodes"):
+                for elem_name in self.get_outbound_struct_by_name(external_struct_name)["nodes"]:
                     if self.is_phantom(elem_name):
                         edge_name = self.get_edge_by_phantom_name(elem_name)
                         if self.is_struct(edge_name):
@@ -1008,7 +1012,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Design7 (produces just warnings)")
             for struct_name in self.get_structs().index:
                 # Get all class names in the current struct
-                class_names = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)].index.get_level_values("edges")
+                class_names = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])].index.get_level_values("edges")
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
                 for class_name in class_names:
                     for subclass_name in self.get_subclasses_by_class_name(class_name):
@@ -1027,7 +1031,7 @@ class Catalog(HyperNetXWrapper):
                 found = False
                 for struct_name in self.get_structs().index:
                     # Check if the class is in this struct
-                    if class_phantom in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                    if class_phantom in self.get_outbound_struct_by_name(struct_name)["nodes"].values:
                         dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
                         restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                         bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
@@ -1273,17 +1277,17 @@ class Catalog(HyperNetXWrapper):
                 associations = self.get_inbound_associations()[self.get_inbound_associations().index.get_level_values("nodes").isin(atoms)]
                 classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(atoms)]
                 association_ends = self.get_outbound_associations()[
-                    (self.get_outbound_associations().index.get_level_values("edges").isin(
+                    (self.get_outbound_associations()["edges"].isin(
                         associations.index.get_level_values("edges"))) & (
-                        self.get_outbound_associations().index.get_level_values("nodes").isin(
+                        self.get_outbound_associations()["nodes"].isin(
                             classes.index.get_level_values("nodes")))]
                 # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
                 for end in association_ends.itertuples():
-                    location_attr[end.misc_properties["End_name"]] = alias_set[set_name]
-                    dom_attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))
+                    location_attr[end.End_name] = alias_set[set_name]
+                    dom_attr_name = self.get_class_id_by_name(self.get_edge_by_phantom_name(end.nodes))
                     assert dom_attr_name in proj_attr and dom_attr_name + "@" + set_name in join_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
-                    proj_attr[end.misc_properties["End_name"]] = proj_attr[dom_attr_name]
-                    join_attr[end.misc_properties["End_name"] + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
+                    proj_attr[end.End_name] = proj_attr[dom_attr_name]
+                    join_attr[end.End_name + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
                 time_after = time.time()
                 print(f"Processing {struct_name} time: {time_after - time_before:.4f} seconds")
 
@@ -1306,7 +1310,7 @@ class Catalog(HyperNetXWrapper):
                 for set_name in sets_combination:
                     for struct_name in self.get_struct_names_inside_set_name(set_name):
                         # Get all classes in the current struct of the current table
-                        table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner").index)]
+                        table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]
                         # For all classes in the table
                         for table_class_name in table_classes.index.get_level_values("edges"):
                             # Check if they are siblings

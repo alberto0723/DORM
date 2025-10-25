@@ -67,7 +67,7 @@ class FirstNormalForm(Relational):
             for set_name in firstlevel_names:
                 for struct_phantom in self.get_outbound_set_by_name(set_name).index.get_level_values("nodes"):
                     struct_name = self.get_edge_by_phantom_name(struct_phantom)
-                    members = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                    members = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                     dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
                     restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
@@ -196,7 +196,7 @@ class FirstNormalForm(Relational):
                         # Get the classes in the struct that provide the ID
                         hierarchies = []
                         for struct_name in self.get_struct_names_inside_set_name(table_referee_name):
-                            for elem in self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes"):
+                            for elem in self.get_outbound_struct_by_name(struct_name)["nodes"]:
                                 if self.is_class_phantom(elem):
                                     class_name = self.get_edge_by_phantom_name(elem)
                                     if dom_attr_name == self.get_class_id_by_name(class_name):
