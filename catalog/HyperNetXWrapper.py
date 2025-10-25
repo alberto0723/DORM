@@ -127,7 +127,11 @@ class HyperNetXWrapper:
             """)
         self.query("""
             CREATE TEMP TABLE containments AS
-                SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge, n.Subkind AS child_kind
+                SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge, n.Subkind AS child_kind, 
+                    CASE WHEN outgoing.Kind='SetIncidence' THEN 'Set'
+                         WHEN outgoing.Kind='StructIncidence' THEN 'Set'
+                         ELSE NULL
+                    END AS parent_kind
                 FROM nodes n
                     JOIN incidences incomming ON n.uid=incomming.nodes
                     JOIN incidences outgoing ON n.uid=outgoing.nodes
@@ -178,15 +182,8 @@ class HyperNetXWrapper:
                 AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
             """)
 
-    def query(self, query) -> pd.DataFrame:
+    def query(self, query: str) -> pd.DataFrame:
         return self.sql.execute(query).fetchdf()
-
-    def temp_table_exists(self, table_name) -> bool:
-        return self.sql.execute(f"""
-            SELECT COUNT(*) > 0 AS table_exists
-            FROM information_schema.tables
-            WHERE table_catalog = 'temp' AND table_name = '{table_name}'
-            """).fetchone()[0]
 
     def save(self, file_path=None) -> None:
         if file_path is not None:
@@ -208,7 +205,11 @@ class HyperNetXWrapper:
         return edges
 
     def get_struct_names_inside_set_name(self, set_name) -> list[str]:
-        return pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs().reset_index("edges", drop=False), on="nodes", how="inner")["edges"].to_list()
+        return self.query(f"""
+            SELECT child_edge
+            FROM containments
+            WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}'
+            """)["child_edge"]
 
     def get_incidences(self) -> pd.DataFrame:
         incidences = self.H.incidences.dataframe
@@ -262,22 +263,10 @@ class HyperNetXWrapper:
         return phantoms
 
     def get_phantom_classes(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Class')]
-        return phantoms
+        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Class';")
 
     def get_phantom_associations(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Association')]
-        return phantoms
-
-    def get_phantom_generalizations(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Generalization')]
-        return phantoms
+        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Association';")
 
     def get_phantom_structs(self) -> pd.DataFrame:
         nodes = self.get_nodes()
@@ -285,11 +274,8 @@ class HyperNetXWrapper:
                                                                   x['Subkind'] == 'Struct')]
         return phantoms
 
-    def get_phantom_sets(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Set')]
-        return phantoms
+    def get_phantom_design_edges(self) -> pd.DataFrame:
+        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind IN ('Set', 'Struct');")
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
         phantom_inbounds = self.query(f"""
@@ -349,16 +335,18 @@ class HyperNetXWrapper:
         return inbounds
 
     def get_inbound_generalizations(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'GeneralizationIncidence')]
-        return inbounds
+        return self.query(f"""
+            SELECT nodes
+            FROM incidences
+            WHERE Direction = 'Inbound' AND Kind='GeneralizationIncidence';
+            """)
 
     def get_inbound_structs(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'StructIncidence')]
-        return inbounds
+        return self.query(f"""
+            SELECT edges, nodes
+            FROM incidences
+            WHERE Direction = 'Inbound' AND Kind='StructIncidence';
+            """)
 
     def get_inbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()
@@ -376,10 +364,10 @@ class HyperNetXWrapper:
 
     def get_outbounds_by_name(self, edge_name) -> pd.DataFrame:
         return self.query(f"""
-                    SELECT nodes
-                    FROM incidences
-                    WHERE Direction = 'Outbound' AND edges='{edge_name}';
-                    """)
+            SELECT nodes
+            FROM incidences
+            WHERE Direction = 'Outbound' AND edges='{edge_name}';
+            """)
 
     def get_outbound_atoms_by_name(self, edge_name) -> pd.DataFrame:
         return self.query(f"""
@@ -530,7 +518,7 @@ class HyperNetXWrapper:
         return atom_names
 
     def get_inbound_firstLevel(self) -> pd.DataFrame:
-        firstLevel_phantoms = df_difference(pd.concat([self.get_phantom_structs(), self.get_phantom_sets()], ignore_index=False).reset_index()[["nodes"]],
+        firstLevel_phantoms = df_difference(self.get_phantom_design_edges().rename(columns={"name": 'nodes'}),
                                            self.get_outbounds().reset_index()[["nodes"]])
         firstLevel_incidences = self.get_inbounds().join(firstLevel_phantoms.set_index("nodes"), on="nodes", how='inner')
         return firstLevel_incidences

@@ -918,8 +918,8 @@ class Catalog(HyperNetXWrapper):
             matches5_2 = []
             for set_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
                 matches5_2.extend(self.get_atoms_including_transitivity_by_edge_name(set_name))
-            atoms5_2 = pd.concat([attributes, self.get_phantom_associations()])
-            violations5_2 = atoms5_2[~atoms5_2.index.isin(matches5_2)]
+            atoms5_2 = pd.concat([attributes["name"], self.get_phantom_associations()])
+            violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2)]
             if not violations5_2.empty:
                 consistent = False
                 print("🚨 IC-Design2 violation: Atoms disconnected from the first level")
@@ -1259,6 +1259,7 @@ class Catalog(HyperNetXWrapper):
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
                 custom_progress(f"--------Processing {struct_name}")
+                time_before = time.time()
                 for dom_attr_name, attr_path in tqdm(self.get_struct_attributes(struct_name), desc=f"----------Attributes in {struct_name}", leave=config.show_progress):
                     # In case of generalization, the attribute may be overwritten, but they should coincide
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
@@ -1283,6 +1284,9 @@ class Catalog(HyperNetXWrapper):
                     assert dom_attr_name in proj_attr and dom_attr_name + "@" + set_name in join_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
                     proj_attr[end.misc_properties["End_name"]] = proj_attr[dom_attr_name]
                     join_attr[end.misc_properties["End_name"] + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
+                time_after = time.time()
+                print(f"Processing {struct_name} time: {time_after - time_before:.4f} seconds")
+
         return alias_set, proj_attr, join_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
