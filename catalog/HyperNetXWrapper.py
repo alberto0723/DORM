@@ -240,9 +240,13 @@ class HyperNetXWrapper:
         return class_id.iat[0, 0]
 
     def get_class_by_attribute_name(self, attribute_name) -> str:
-        classes = self.get_outbound_classes().query('nodes == "' + attribute_name + '"').index.get_level_values("edges")
+        classes = self.query(f"""
+            SELECT edges AS class
+            FROM incidences
+            WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND nodes='{attribute_name}';
+            """)
         assert len(classes) == 1, f"Attribute {attribute_name} does not have exactly one class"
-        return classes[0]
+        return classes.iat[0, 0]
 
     def get_phantoms(self) -> pd.DataFrame:
         nodes = self.get_nodes()
@@ -451,13 +455,11 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_classes(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'ClassIncidence')]
-            return outbounds
+        return self.query(f"""
+            SELECT nodes AS attribute
+            FROM incidences
+            WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound';
+            """)
 
     def get_transitive_firstLevels(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
         """

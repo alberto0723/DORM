@@ -1218,8 +1218,6 @@ class Catalog(HyperNetXWrapper):
                 # Take the required attributes in the class that are in the current table
                 for class_name in hierarchy:
                     current_attributes.extend([a for a in self.get_outbound_class_by_name(class_name)["attribute"] if a in required_attributes])
-                time_after = time.time()
-                print(f"partial time processing class {elem} time: {time_after - time_before:.4f} seconds")
                 # If it is a class, the id always belongs to the table, hence we add it even if not required
                 class_id = self.get_class_id_by_name(elem)
                 if class_id not in current_attributes:
@@ -1231,6 +1229,8 @@ class Catalog(HyperNetXWrapper):
                 attrs_of_set = {}
                 for set_name in first_levels:
                     attrs_of_set[set_name] = self.get_atoms_including_transitivity_by_edge_name(set_name)
+                time_after = time.time()
+                print(f"partial time processing class {elem} time: {time_after - time_before:.4f} seconds")
                 for attr in current_attributes:
                     if not self.is_id(attr) or len(current_attributes) == 1:
                         firstlevels_with_attr = []
