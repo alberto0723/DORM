@@ -153,8 +153,8 @@ class NonFirstNormalFormJSON(Relational):
             struct_name = self.get_struct_names_inside_set_name(table_name)[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
-                if self.is_class_phantom(key):
-                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                if self.is_class(key):
+                    key_list.append(self.get_class_id_by_name(key))
                 # If it is not a class, it is a loose end
                 else:
                     key_list.append(key)

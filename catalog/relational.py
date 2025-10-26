@@ -531,19 +531,16 @@ class Relational(Catalog, ABC):
             custom_progress(f"Query requires UNION")
             # We need to recursively do it one by one, so we only take the first implicit superclass
             superclass_name = implicit_class
-            superclass_phantom_name = self.get_phantom_of_edge_by_name(superclass_name)
-            # Double squared bracket in "loc" is used to preserve the dataframe structure, even when there is only one row (otherwise, you get a Series)
-            generalizations = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[[superclass_phantom_name]]
-            generalizations = pd.merge(generalizations, self.get_generalizations(), left_on="edges", right_index=True, suffixes=("_incidence", "_node"), how="inner")
-            complete_generalizations = generalizations[generalizations["misc_properties_node"].apply(lambda r: r.get("Complete"))]
+            generalizations = self.get_outbound_generalization_by_superclasses_name(superclass_name)
+            complete_generalizations = generalizations[generalizations["Complete"]]
             # TODO: This takes the first complete generalization, but actually it should generate alternative executions with each of them
             if complete_generalizations.empty:
-                taken_generalization = generalizations.iloc[0]
+                taken_generalization = generalizations.iloc[0].Generalization
             else:
-                taken_generalization = complete_generalizations.iloc[0]
-            subclasses = self.get_outbound_generalization_subclasses().loc[taken_generalization.edges]
+                taken_generalization = complete_generalizations.iloc[0].Generalization
+            subclasses = self.get_outbound_generalization_subclasses_by_gen_name(taken_generalization.edges)
             subqueries = []
-            for subclass_phantom_name in subclasses.index.get_level_values("nodes"):
+            for subclass_phantom_name in subclasses["nodes"]:
                 custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern

@@ -442,10 +442,10 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic5: Every edge has at least one outbound
         logger.info("Checking IC-Generic5")
         matches1_5 = self.get_outbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
-        # Empty classes temtatively violate the constraint
+        # Empty classes tentatively violate the constraint
         tentative_violations1_5 = df_difference(edges.reset_index(drop=False)['edges'], matches1_5)
         # Remove those violations that correspond to empty subclasses
-        violations1_5 = df_difference(tentative_violations1_5, self.get_outbound_generalization_subclasses().reset_index(level='nodes', drop=False).merge(self.get_inbound_classes().reset_index(drop=False), on='nodes', how='inner')["edges"])
+        violations1_5 = df_difference(tentative_violations1_5, self.get_outbound_generalization_subclasses().rename(columns={"subclass": "edges"})["edges"])
         if not violations1_5.empty:
             consistent = False
             print("🚨 IC-Generic5 violation: There are edges without outbound (a.k.a. attributes), and they are not specialized classes")
@@ -552,7 +552,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms9: One class cannot have more than one direct superclass
         logger.info("Checking IC-Atoms9")
-        matches2_9 = self.get_outbound_generalization_subclasses().groupby(["nodes"]).size()
+        matches2_9 = self.get_outbound_generalization_subclasses().groupby(["subclass"]).size()
         violations2_9 = matches2_9[matches2_9 > 1]
         if not violations2_9.empty:
             consistent = False
@@ -561,7 +561,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms10: Every generalization outgoing of a subclass must have a discriminant
         logger.info("Checking IC-Atoms10")
-        violations2_10 = self.get_outbound_generalization_subclasses()[~self.get_outbound_generalization_subclasses().apply(lambda r: "Constraint" in r["misc_properties"], axis=1)]
+        violations2_10 = self.get_outbound_generalization_subclasses()[self.get_outbound_generalization_subclasses()["Constraint"].isna()]
         if not violations2_10.empty:
             consistent = False
             print("🚨 IC-Atoms10 violation: There are generalization subclasses without discriminant constraint")
@@ -569,8 +569,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms11: Every generalization has disjointness and completeness constraints
         logger.info("Checking IC-Atoms11")
-        matches2_11 = generalizations[generalizations.apply(lambda r: "Disjoint" in r["misc_properties"] and "Complete" in r["misc_properties"], axis=1)]
-        violations2_11 = df_difference(generalizations["name"], matches2_11["name"])
+        violations2_11 = generalizations[(generalizations["Disjoint"].isna()) | (generalizations["Complete"].isna())]
         if not violations2_11.empty:
             consistent = False
             print("🚨 IC-Atoms11 violation: There are generalizations without completeness and disjointness constraints")
@@ -607,28 +606,22 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms15: The top of every hierarchy has an ID
         logger.info("Checking IC-Atoms15")
-        matches2_15 = df_difference(self.get_outbound_generalization_superclasses().reset_index(drop=False)['nodes'], self.get_outbound_generalization_subclasses().reset_index(drop=False)['nodes'])
-        for top_phantom in matches2_15:
-            top_class = self.get_edge_by_phantom_name(top_phantom)
+        matches2_15 = df_difference(self.get_outbound_generalization_superclasses().rename(columns={"superclass": "class"})["class"], self.get_outbound_generalization_subclasses().rename(columns={"subclass": "class"})["class"])
+        for top_class in matches2_15:
             if self.get_class_id_by_name(top_class) is None:
                 consistent = False
                 print(f"🚨 IC-Atoms15 violation: The class '{top_class}' in the top of a hierarchy should have an identifier")
 
         # IC-Atoms16: Every discriminant must be an attribute in one of the corresponding superclasses
         logger.info("Checking IC-Atoms16")
-        matches2_16 = self.get_outbound_generalization_subclasses()[self.get_outbound_generalization_subclasses().apply(lambda r: "Constraint" in r["misc_properties"], axis=1)]
+        matches2_16 = self.get_outbound_generalization_subclasses()[self.get_outbound_generalization_subclasses()["Constraint"].notna()]
         for subclass in matches2_16.itertuples():
-            superclass_names = self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(subclass.Index[1]))
-            constraint = subclass.misc_properties.get('Constraint', None)
-            assert constraint is not None, f"☠️ No constraint found for '{subclass}'"
-            attribute_names = self.parse_predicate(constraint)
+            superclass_names = self.get_superclasses_by_class_name(subclass.subclass)
+            attribute_names = self.parse_predicate(subclass.Constraint)
             for attribute_name in attribute_names:
-                found = False
-                for superclass_name in superclass_names:
-                    found = found or self.H.get_cell_properties(superclass_name, attribute_name, "Kind") is not None
-                if not found:
+                if self.get_class_by_attribute_name(attribute_name) not in superclass_names:
                     consistent = False
-                    print(f"🚨 IC-Atoms16 violation: The attribute '{attribute_name}' used in the generalization constraint of '{subclass.Index[1]}', not found in any of its superclasses '{superclass_names}'")
+                    print(f"🚨 IC-Atoms16 violation: The attribute '{attribute_name}' used in the generalization constraint of '{subclass.subclass}', not found in any of its superclasses '{superclass_names}'")
 
         # IC-Atoms17: Every association end has name and multiplicities
         logger.info("Checking IC-Atoms17")
@@ -706,7 +699,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets7: A set that contains a class, cannot contain anything else
             logger.info("Checking IC-Sets7")
-            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_inbound_classes(), left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
+            sets_with_attributes = self.get_outbound_sets().reset_index(drop=False).merge(self.get_inbound_classes()["nodes"], left_on='nodes', right_on='nodes', suffixes=('_sets', '_attributes'), how='inner')
             matches4_7 = self.get_outbound_sets()[self.get_outbound_sets().index.get_level_values('edges').isin(sets_with_attributes['edges'])].groupby('edges').size()
             violations4_7 = matches4_7[matches4_7 > 1]
             if not violations4_7.empty:
@@ -770,12 +763,10 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs6: Elements in a struct can not contain two classes (directly or transitively) related by generalization
             #              This is just because of ambiguity generated by attributes. It could be solved using aliases
             logger.info("Checking IC-Structs6")
-            inbound_classes = self.get_inbound_classes()
-            inbound_classes["classname"] = inbound_classes.index.get_level_values("edges")
+            inbound_classes = self.get_inbound_classes().rename(columns={"edges": "classname"})
             temp_structOutbounds = structOutbounds
             temp_structOutbounds["structname"] = temp_structOutbounds.index.get_level_values("edges")
             struct_outbound_classes = pd.merge(temp_structOutbounds, inbound_classes, on="nodes", how="inner")
-            display(struct_outbound_classes)
             for row in struct_outbound_classes.itertuples():
                 current_struct_classes = struct_outbound_classes[struct_outbound_classes["structname"] == row.structname]["classname"].values
                 for superclass in self.get_superclasses_by_class_name(row.classname):
@@ -788,7 +779,7 @@ class Catalog(HyperNetXWrapper):
             for struct_name in structs.index:
                 loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
                 for anchor_end_name in self.get_anchor_end_names_by_struct_name(struct_name):
-                    if not self.is_class_phantom(anchor_end_name) and anchor_end_name not in loose_ends:
+                    if not self.is_class(anchor_end_name) and anchor_end_name not in loose_ends:
                         consistent = False
                         print(f"🚨 IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct_name}', which is a loose end (i.e., it has not the class in the anchor, but only in its elements)")
 
@@ -811,11 +802,9 @@ class Catalog(HyperNetXWrapper):
                             if class_name1 != class_name2 and class_name2 not in superclasses1 and class_name1 not in superclasses2:
                                 # Check if they are siblings
                                 if [s for s in superclasses1 if s in superclasses2]:
-                                    # Check if the corresponding discriminant attribute is present(this works because we have single inheritance)
+                                    # Check if the corresponding discriminant attribute is present (this works because we have single inheritance)
                                     discriminants.append(
-                                        restricted_struct.get_outbound_generalization_subclasses().reset_index(
-                                            level="edges", drop=True).loc[
-                                            self.get_phantom_of_edge_by_name(class_name1)].misc_properties["Constraint"])
+                                        restricted_struct.get_outbound_generalization_subclasses()[restricted_struct.get_outbound_generalization_subclasses()["subclass"] == class_name1]["Constraint"])
                 attribute_names = drop_duplicates(self.parse_predicate(" AND ".join(discriminants)))
                 for attr in attribute_names:
                     kind = self.H.get_cell_properties(struct_name, attr, "Kind")
@@ -938,7 +927,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Design3: All domain elements must appear in some struct or set
             #             This is relaxed into just a warning, because of generalizations
             logger.info("Checking IC-Design3 (produces just warnings)")
-            atoms = pd.concat([self.get_inbound_classes().reset_index(drop=False)["nodes"], self.get_inbound_associations().reset_index(drop=False)["nodes"], attributes.reset_index(drop=False)["nodes"]])
+            atoms = pd.concat([self.get_inbound_classes()["nodes"], self.get_inbound_associations()["nodes"], attributes.rename(columns={"name": "nodes"})["nodes"]])
             violations5_3 = atoms[~atoms.isin(pd.concat([structOutbounds, setOutbounds]).index.get_level_values("nodes"))]
             if not violations5_3.empty:
                 # consistent = False
@@ -966,8 +955,8 @@ class Catalog(HyperNetXWrapper):
                     concept_list = []
                     for key in self.get_anchor_end_names_by_struct_name(struct_name):
                         concept_list.append(key)
-                        if self.is_class_phantom(key):
-                            attribute_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                        if self.is_class(key):
+                            attribute_list.append(self.get_class_id_by_name(key))
                         # If it is not a class, it is a loose end
                         else:
                             attribute_list.append(key)
@@ -994,13 +983,13 @@ class Catalog(HyperNetXWrapper):
                                 a, b = i, j
                                 for _ in range(2):
                                     # Find the different concept in the anchor (they must be in the same generalization hierarchy by ID-Design4)
-                                    for phantom_name in anchor_concepts[a]:
-                                        if phantom_name not in anchor_concepts[b]:
-                                            class_name = self.get_edge_by_phantom_name(phantom_name)
+                                    for class_name in anchor_concepts[a]:
+                                        # Only classes can differ (not association ends)
+                                        if class_name not in anchor_concepts[b]:
                                             # Check if the class to be discriminated is not the top of the hierarchy
                                             if self.get_superclasses_by_class_name(class_name):
                                                 # Now we need to check if the corresponding discriminant is in the table (actually, we should check in the same struct)
-                                                discriminant = self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[phantom_name].misc_properties.get("Constraint", None)
+                                                discriminant = self.get_discriminant_by_class_name(class_name)
                                                 assert discriminant is not None, f"☠️ No discriminant for '{class_name}'"
                                                 attribute_names = self.parse_predicate(discriminant)
                                                 found = True
@@ -1018,7 +1007,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Design7 (produces just warnings)")
             for struct_name in self.get_structs().index:
                 # Get all class names in the current struct
-                class_names = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])].index.get_level_values("edges")
+                class_names = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]["edges"]
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
                 for class_name in class_names:
                     for subclass_name in self.get_subclasses_by_class_name(class_name):
@@ -1032,7 +1021,7 @@ class Catalog(HyperNetXWrapper):
             #             Such anchor must have min multiplicity one internally, to guarantee that it does not miss any instance.
             #             This is relaxed to be just a warning, as above, just because of generalizations.
             logger.info("Checking IC-Design8 (produces just warnings)")
-            for class_name in self.get_classes()["name"]:
+            for class_name in self.get_classes()["name"].values:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
                 for struct_name in self.get_structs().index:
@@ -1043,7 +1032,7 @@ class Catalog(HyperNetXWrapper):
                         bipartite = restricted_struct.H.remove_edges(dont_cross).bipartite()
                         anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                         for anchor_point in anchor_points:
-                            if self.is_class_phantom(anchor_point):
+                            if self.is_class(anchor_point):
                                 paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
                                 # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
                                 for path in paths:
@@ -1280,13 +1269,15 @@ class Catalog(HyperNetXWrapper):
                 custom_progress(f"----------Processing its association ends")
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
                 atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
-                associations = self.get_inbound_associations()[self.get_inbound_associations().index.get_level_values("nodes").isin(atoms)]
-                classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(atoms)]
+                associations = self.get_inbound_associations()[self.get_inbound_associations()["nodes"].isin(atoms)]
+                classes = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(atoms)]
+                time_after = time.time()
+                print(f"partial time: {time_after - time_before:.4f} seconds")
                 association_ends = self.get_outbound_associations()[
                     (self.get_outbound_associations()["edges"].isin(
-                        associations.index.get_level_values("edges"))) & (
+                        associations["edges"])) & (
                         self.get_outbound_associations()["nodes"].isin(
-                            classes.index.get_level_values("nodes")))]
+                            classes["nodes"]))]
                 # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
                 for end in association_ends.itertuples():
                     location_attr[end.End_name] = alias_set[set_name]
@@ -1296,7 +1287,6 @@ class Catalog(HyperNetXWrapper):
                     join_attr[end.End_name + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
                 time_after = time.time()
                 print(f"Processing {struct_name} time: {time_after - time_before:.4f} seconds")
-
         return alias_set, proj_attr, join_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
@@ -1316,9 +1306,9 @@ class Catalog(HyperNetXWrapper):
                 for set_name in sets_combination:
                     for struct_name in self.get_struct_names_inside_set_name(set_name):
                         # Get all classes in the current struct of the current table
-                        table_classes = self.get_inbound_classes()[self.get_inbound_classes().index.get_level_values("nodes").isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]
+                        table_classes = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]
                         # For all classes in the table
-                        for table_class_name in table_classes.index.get_level_values("edges"):
+                        for table_class_name in table_classes["edges"]:
                             # Check if they are siblings
                             if table_class_name in pattern_superclasses:
                                 discriminant = self.get_discriminant_by_class_name(pattern_class_name)
@@ -1354,8 +1344,8 @@ class Catalog(HyperNetXWrapper):
             anchor_attributes = []
             # Just need to take any struct, because all share the same anchor
             for key in self.get_anchor_end_names_by_struct_name(struct_name_list[0]):
-                if self.is_class_phantom(key):
-                    anchor_attributes.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                if self.is_class(key):
+                    anchor_attributes.append(self.get_class_id_by_name(key))
                 # If it is not a class, it is a loose end
                 else:
                     anchor_attributes.append(key)

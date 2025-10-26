@@ -159,8 +159,8 @@ class FirstNormalForm(Relational):
             struct_name = self.get_struct_names_inside_set_name(table_name)[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
-                if self.is_class_phantom(key):
-                    key_list.append(self.get_class_id_by_name(self.get_edge_by_phantom_name(key)))
+                if self.is_class(key):
+                    key_list.append(self.get_class_id_by_name(key))
                 # If it is not a class, it is a loose end
                 else:
                     key_list.append(key)
@@ -212,10 +212,10 @@ class FirstNormalForm(Relational):
                             struct_name = self.get_struct_names_inside_set_name(table_referred_name)[0]
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                             assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
-                            assert self.is_class_phantom(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
+                            assert self.is_class(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
                             attr_proj = self.generate_attr_projection_clause(attr_path)
                             # FKs are only generated when they point to a PK of a single attribute
-                            if (len(anchor_points) == 1 and self.get_edge_by_phantom_name(anchor_points[0]) == class_name
+                            if (len(anchor_points) == 1 and anchor_points[0] == class_name
                                     and (table_referee_name != table_referred_name or attr_proj != attr_correspondence)):
                                 found = True
                                 logger.info(f"-- Altering table {table_referee_name} to add the FK on '{attr_proj}'")
