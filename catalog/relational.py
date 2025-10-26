@@ -430,18 +430,18 @@ class Relational(Catalog, ABC):
                     if class_name in pattern_edges:
                         subclasses[class_name] = [class_name]+self.get_superclasses_by_class_name(class_name)
                         subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
-                        struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
+                        struct_containers_for_class[class_name] = self.get_unique_outbound_struct_by_phantom_list(subphantoms)
                     else:
                         for subclass in self.get_subclasses_by_class_name(class_name):
                             if subclass in pattern_edges:
                                 subclasses[class_name] = [subclass]+self.get_superclasses_by_class_name(subclass)
                                 subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
                                 struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
-                struct_containers_for_attribute = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes") == current_attribute_name].index.get_level_values('edges'))
+                struct_containers_for_attribute = self.get_unique_outbound_struct_by_phantom_list([current_attribute_name])
                 time_after = time.time()
                 print(f"current_attribute_name: {time_after - time_before:.4f} seconds")
                 # Check if there is any struct that contains both the attribute and any one of the classes
-                if not struct_containers_for_attribute.intersection(struct_containers_for_class[class_name]):
+                if not set(struct_containers_for_attribute).intersection(struct_containers_for_class[class_name]):
                     return subclasses[class_name][0]
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:

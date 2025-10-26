@@ -468,6 +468,12 @@ class HyperNetXWrapper:
             WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';
             """)
 
+    def get_unique_outbound_struct_by_phantom_list(self, phantom_list: list[str]) -> list[str]:
+        return self.query("""
+            SELECT DISTINCT edges
+            FROM incidences
+            WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND nodes IN ('""" + "','".join(phantom_list) + "');")["edges"].values.tolist()
+
     def get_anchors_by_struct_name(self, struct_name) -> pd.DataFrame:
         return self.query(f"""
             SELECT nodes
