@@ -322,6 +322,7 @@ class Catalog(HyperNetXWrapper):
         """
         # This cannot be a dictionary with the domain attribute name as key, because two loose ends over the same class would use the same entry
         # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
+        time_before = time.time()
         attribute_list = []
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the struct
@@ -361,6 +362,8 @@ class Catalog(HyperNetXWrapper):
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         assert len(attribute_list) == len(set(drop_duplicates([t[0] for t in attribute_list]))), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
+        time_after = time.time()
+        print(f"get_struct_attributes {struct_name} time: {time_after - time_before:.4f} seconds")
         return attribute_list
 
     def is_consistent(self, design=False) -> bool:
@@ -779,12 +782,12 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs7: Loose association ends in the anchor must still be loose ends in the whole struct
             logger.info("Checking IC-Structs7")
-            for struct in structs.index:
-                loose_ends = self.get_loose_association_end_names_by_struct_name(struct)
-                for anchor_end_name in self.get_anchor_end_names_by_struct_name(struct):
+            for struct_name in structs.index:
+                loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
+                for anchor_end_name in self.get_anchor_end_names_by_struct_name(struct_name):
                     if not self.is_class_phantom(anchor_end_name) and anchor_end_name not in loose_ends:
                         consistent = False
-                        print(f"🚨 IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct}', which is a loose end (i.e., it has not the class in the anchor, but only in its elements)")
+                        print(f"🚨 IC-Structs-7 violation: There is an anchor point '{anchor_end_name}' in '{struct_name}', which is a loose end (i.e., it has not the class in the anchor, but only in its elements)")
 
             # IC-Structs8: A struct containing siblings by some generalization must also contain the discriminant attribute
             logger.info("Checking IC-Structs8")

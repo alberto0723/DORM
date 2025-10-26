@@ -147,6 +147,26 @@ class HyperNetXWrapper:
                 WHERE i.Direction='Outbound'
                     AND (n.Kind='Attribute' OR (n.Kind='Phantom' AND n.SubKind IN ('Class', 'Association')));
             """)
+        self.query("""
+            CREATE TEMP TABLE struct_association_ends AS
+                SELECT outgoing.edges AS struct, incoming.nodes AS association_phantom, incoming.edges AS association, outgoing.Anchor, ending.nodes AS end_phantom, ending.End_name, classes.edges AS end_class
+                FROM incidences outgoing
+                    JOIN incidences incoming ON incoming.nodes=outgoing.nodes
+                    JOIN incidences ending ON incoming.edges=ending.edges 
+                    JOIN incidences classes ON ending.nodes=classes.nodes
+                WHERE outgoing.Direction='Outbound' AND outgoing.Kind='StructIncidence'
+                    AND incoming.Direction='Inbound' AND incoming.Kind='AssociationIncidence'
+                    AND ending.Direction = 'Outbound' AND ending.Kind='AssociationIncidence'
+                    AND classes.Direction='Inbound' AND classes.Kind='ClassIncidence';
+            """)
+        self.query("""
+            CREATE TEMP TABLE struct_classes AS
+                SELECT outgoing.edges AS struct, outgoing.nodes AS phantom, incoming.edges AS class, outgoing.Anchor
+                FROM incidences outgoing
+                    JOIN incidences incoming ON incoming.nodes=outgoing.nodes
+                WHERE outgoing.Direction='Outbound' AND outgoing.Kind='StructIncidence'
+                    AND incoming.Direction='Inbound' and incoming.Kind='ClassIncidence';
+            """)
 
     def get_parents(self, edge_name):
         return self.query(f"""
@@ -544,44 +564,32 @@ class HyperNetXWrapper:
             return classes.index.to_list()+end_names
 
     def get_loose_association_end_names_by_struct_name(self, struct_name) -> list[str]:
-        print(struct_name)
-        elements = self.get_outbound_struct_by_name(struct_name).set_index("nodes", drop=True)
-        print("---------------- Elements ----------------")
-        #display(elements)
-        inbounds = self.get_inbound_associations()
-        inbounds["edges"] = inbounds.index.get_level_values("edges")
-        print("---------------- Inbounds----------------")
-        #display(inbounds)
-        associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
-        print("---------------- Associations ----------------")
-        #display(associations)
-        outbounds = self.get_outbound_associations()
-        print("---------------- Outbounds ----------------")
-        #display(outbounds)
-        association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
-        print("---------------- Association_ends ----------------")
-        #display(association_ends)
-        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
-        print("---------------- Classes ----------------")
-        #display(classes)
+        association_ends = self.query(f"""
+            SELECT association_phantom, association, Anchor, end_phantom, End_name, end_class
+            FROM struct_association_ends
+            WHERE struct='{struct_name}';
+            """)
+        classes = self.query(f"""
+            SELECT struct, phantom, class, Anchor
+            FROM struct_classes
+            WHERE struct='{struct_name}';
+            """)
         tight_ends = []
-        for elem_phantom_name in elements.index.get_level_values("nodes"):
-            if self.is_struct_phantom(elem_phantom_name):
-                tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(elem_phantom_name)))
-            if self.is_set_phantom(elem_phantom_name):
-                hop_elem_phantom_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(elem_phantom_name)).index.get_level_values("nodes").to_list()[0]
-                assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{elem_phantom_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
+        for edge_name in self.get_outbound_design_edges_by_name(struct_name)["design_edge"]:
+            if self.is_struct(edge_name):
+                tight_ends.extend(self.get_anchor_points_by_struct_name(edge_name))
+            if self.is_set(edge_name):
+                hop_elem_phantom_name = self.get_outbound_set_by_name(edge_name).index.get_level_values("nodes").to_list()[0]
+                assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{edge_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
                 if self.is_struct_phantom(hop_elem_phantom_name):
                     tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
                 else:
                     tight_ends.append(hop_elem_phantom_name)
-        superclass_phantoms = []
-        for class_phantom_name in classes.index.to_list():
-            superclass_phantoms.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(class_phantom_name)))
-        superclasses = [self.get_phantom_of_edge_by_name(p) for p in superclass_phantoms]
-        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.to_list()+superclasses+tight_ends)]
-        print("---------------- Loose_ends ----------------")
-        #display(loose_ends)
+        superclasses = []
+        for class_name in classes["class"]:
+            superclasses.extend(self.get_superclasses_by_class_name(class_name))
+        superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
+        loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].tolist()+superclass_phantoms+tight_ends)]
         if loose_ends.empty:
             return []
         else:
