@@ -310,20 +310,18 @@ class HyperNetXWrapper:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind IN ('Set', 'Struct');")
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
-        phantom_inbounds = self.query(f"""
+        return self.query(f"""
             SELECT edges
             FROM incidences
             WHERE Direction = 'Inbound' AND nodes='{phantom_name}';
-            """)
-        return phantom_inbounds.iat[0, 0]
-
+            """).iat[0, 0]
 
     def get_phantom_of_edge_by_name(self, edge_name) -> str:
-        # return self.get_inbounds().loc[edge_name].index[0]
-        incidences = self.get_incidences()
-        edge_incidences = incidences.xs(edge_name, level="edges", drop_level=False)
-        edge_inbounds = edge_incidences[edge_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
-        return edge_inbounds.index[0][1]
+        return self.query(f"""
+            SELECT nodes
+            FROM incidences
+            WHERE Direction = 'Inbound' AND edges='{edge_name}';
+            """).iat[0, 0]
 
     def get_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Count FROM edges WHERE Kind='Class';")
