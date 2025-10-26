@@ -336,8 +336,12 @@ class Relational(Catalog, ABC):
             # For every struct in the table
             struct_name_list = self.get_struct_names_inside_set_name(current_table)
             for struct_name in struct_name_list:
-                node_name_list = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
+                node_name_list = self.get_outbound_struct_by_name(struct_name)["nodes"].values.tolist()
+                # TODO: Current bottleneck is in this loop (in the presence of hundreds of attributes)
                 for node_name in node_name_list:
+                    # This comparison pays off as soon as there are more attributes than anything else
+                    if self.is_attribute(node_name):
+                        continue
                     if self.is_struct_phantom(node_name):
                         struct_name_list.append(self.get_edge_by_phantom_name(node_name))
                     elif self.is_set_phantom(node_name):
@@ -417,11 +421,10 @@ class Relational(Catalog, ABC):
             return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited, previous_laterals)
 
     def find_implicit_class(self, required_attributes, pattern_edges) -> str:
+        # TODO: The loop cannot be avoided, but the dictionary of subclasses for every attribute could be pre-computed
         subclasses = {}
         struct_containers_for_class = {}
-        print("required attributes:", len(required_attributes))
         for current_attribute_name in required_attributes:
-            print(current_attribute_name)
             if not self.is_association_end(current_attribute_name):
                 time_before = time.time()
                 class_name = self.get_class_by_attribute_name(current_attribute_name)
@@ -438,8 +441,6 @@ class Relational(Catalog, ABC):
                                 subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
                                 struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
                 struct_containers_for_attribute = self.get_unique_outbound_struct_by_phantom_list([current_attribute_name])
-                time_after = time.time()
-                print(f"current_attribute_name: {time_after - time_before:.4f} seconds")
                 # Check if there is any struct that contains both the attribute and any one of the classes
                 if not set(struct_containers_for_attribute).intersection(struct_containers_for_class[class_name]):
                     return subclasses[class_name][0]
@@ -458,10 +459,7 @@ class Relational(Catalog, ABC):
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
         custom_progress(f"Parsing query")
-        time_before = time.time()
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
-        time_after = time.time()
-        print(f"parse_query: {time_after - time_before:.4f} seconds")
         if explicit_schema:
             schema_name = self.dbschema + "."
         else:
@@ -470,28 +468,18 @@ class Relational(Catalog, ABC):
         sentences = []
         # Check if all classes in the pattern are in some struct
         # Some classes may be stored implicitly in their subclasses, so we take them one by one
-        time_before = time.time()
         implicit_class = self.find_implicit_class(required_attributes, pattern_edges)
-        time_after = time.time()
-        print(f"find_implicit_class: {time_after - time_before:.4f} seconds")
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_class is None:
             custom_progress(f"--Generating combinations of tables to create the query")
-            time_before = time.time()
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
-            time_after = time.time()
-            print(f"create_bucket_combinations: {time_after - time_before:.4f} seconds")
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 query_alternatives = sorted(query_alternatives, key=len)
-            time_before = time.time()
             for tables_combination in query_alternatives:
                 custom_progress(f"----Generating the query with tables {tables_combination}")
                 custom_progress("------Getting aliases")
-                time_before1 = time.time()
                 alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
-                time_after1 = time.time()
-                print(f"get_aliases time: {time_after1 - time_before1:.4f} seconds")
                 custom_progress("------Getting discriminants")
                 conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
@@ -539,8 +527,6 @@ class Relational(Catalog, ABC):
                 else:
                     sentence_with_filter = sentence
                 sentences.append(sentence_with_filter)
-            time_after = time.time()
-            print(f"Generating combinations of tables to create the query time: {time_after - time_before:.4f} seconds")
         # If some classes are implicitly stored in the current design (i.e. stored only in their subclasses)
         else:
             custom_progress(f"Query requires UNION")

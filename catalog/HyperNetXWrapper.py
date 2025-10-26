@@ -217,6 +217,9 @@ class HyperNetXWrapper:
     def query(self, query: str) -> pd.DataFrame:
         return self.sql.execute(query).fetchdf()
 
+    def bool_query(self, query: str) -> bool:
+        return self.sql.execute(query).fetchone() is not None
+
     def save(self, file_path=None) -> None:
         if file_path is not None:
             logger.info(f"Saving hypergraph in '{file_path}'")
@@ -731,49 +734,49 @@ class HyperNetXWrapper:
                     """).iloc[0, 0]
 
     def is_attribute(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid = '{name}' AND Kind='Attribute';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid = '{name}' AND Kind='Attribute' LIMIT 1;")
 
     def is_association_end(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM association_ends WHERE name='{name}';").empty
+        return self.bool_query(f"SELECT 'Found' FROM association_ends WHERE name='{name}' LIMIT 1;")
 
     def is_id(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM class_ids WHERE nodes='{name}';").empty
+        return self.bool_query(f"SELECT 'Found' FROM class_ids WHERE nodes='{name}' LIMIT 1;")
 
     def is_class(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Class';").empty
+        return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Class' LIMIT 1;")
 
     def is_phantom(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' LIMIT 1;")
 
     def is_class_phantom(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Class';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Class' LIMIT 1;")
 
     def is_association_phantom(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Association';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Association' LIMIT 1;")
 
     def is_generalization_phantom(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Generalization';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Generalization' LIMIT 1;")
 
     def is_struct_phantom(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Struct';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Struct' LIMIT 1;")
 
     def is_set_phantom(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Set';").empty
+        return self.bool_query(f"SELECT 'Found' FROM nodes WHERE uid='{name}' AND Kind='Phantom' AND Subkind='Set' LIMIT 1;")
 
     def is_edge(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}';").empty
+        return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' LIMIT 1;")
 
     def is_association(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Association';").empty
+        return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Association' LIMIT 1;")
 
     def is_generalization(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Generalization';").empty
+        return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Generalization' LIMIT 1;")
 
     def is_struct(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Struct';").empty
+        return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Struct' LIMIT 1;")
 
     def is_set(self, name) -> bool:
-        return not self.query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Set';").empty
+        return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Set' LIMIT 1;")
 
     def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:
