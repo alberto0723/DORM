@@ -310,7 +310,7 @@ class Catalog(HyperNetXWrapper):
         assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', whose last hop should be either an Attribute or AssociationEnd"
         return None
 
-    def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
+    def generate_struct_attribute_list(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
         """
         This generates the correspondence between attribute names in a struct and their corresponding attribute.
         It is necessary to do it to consider loose ends (i.e., associations without class), which generate foreign keys.
@@ -322,7 +322,6 @@ class Catalog(HyperNetXWrapper):
         """
         # This cannot be a dictionary with the domain attribute name as key, because two loose ends over the same class would use the same entry
         # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
-        time_before = time.time()
         attribute_list = []
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the struct
@@ -362,9 +361,13 @@ class Catalog(HyperNetXWrapper):
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
         assert len(attribute_list) == len(set(drop_duplicates([t[0] for t in attribute_list]))), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
-        time_after = time.time()
-        print(f"get_struct_attributes {struct_name} time: {time_after - time_before:.4f} seconds")
         return attribute_list
+
+    def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
+        """
+        This just retrieves the list of attributes as pre-computed in generate_struct_attribute_list
+        """
+        return self.get_struct_attribute_list(struct_name)
 
     def is_consistent(self, design=False) -> bool:
         """

@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Self
 import logging
 import os
@@ -5,7 +6,6 @@ import hypernetx as hnx
 import pickle
 from IPython.display import display
 import pandas as pd
-import pandas.testing as pdt
 import matplotlib.pyplot as plt
 import matplotlib
 import duckdb
@@ -60,6 +60,10 @@ class HyperNetXWrapper:
         if os.path.exists(self.duckdb_filename):
             self.sql.close()
             os.remove(self.duckdb_filename)
+
+    @abstractmethod
+    def generate_struct_attributes(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
+        pass
 
     def fill_duckDB(self):
         #self.H.add_nodes_from([("Fake", {'Kind': None, 'Subkind': None, 'DataType': None, 'Size': None})])
@@ -167,6 +171,14 @@ class HyperNetXWrapper:
                 WHERE outgoing.Direction='Outbound' AND outgoing.Kind='StructIncidence'
                     AND incoming.Direction='Inbound' and incoming.Kind='ClassIncidence';
             """)
+        self.query("CREATE TEMP TABLE struct_attribute_list (struct TEXT, attribute_list BLOB);")
+        for struct_name in self.get_structs().index:
+            attribute_list = self.generate_struct_attribute_list(struct_name)
+            self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
+                            (struct_name, pickle.dumps(attribute_list)))
+
+    def get_struct_attribute_list(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
+        return pickle.loads(self.sql.execute(f"SELECT attribute_list FROM struct_attribute_list WHERE struct='{struct_name}';").fetchone()[0])
 
     def get_parents(self, edge_name):
         return self.query(f"""
