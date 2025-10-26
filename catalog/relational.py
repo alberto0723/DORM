@@ -356,7 +356,7 @@ class Relational(Catalog, ABC):
                     for ass in associations.itertuples():
                         if end_name == ass.End_name:
                             # Loose end can connect to a class id
-                            plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
+                            plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.nodes))))
                             # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
                             if self.get_edge_by_phantom_name(ass.nodes) not in query_classes:
                                 for ass2 in associations.itertuples():
