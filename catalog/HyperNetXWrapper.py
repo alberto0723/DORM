@@ -452,17 +452,16 @@ class HyperNetXWrapper:
                                                                                  x['Kind'] == 'StructIncidence')]
             return outbounds
 
-    def get_outbound_association_by_name(self, ass_name) -> pd.DataFrame:
-        # elements = self.get_outbound_associations().query('edges == "' + ass_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(ass_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'AssociationIncidence')]
-            return outbounds
+    def get_outbound_association_by_phantom_name(self, phantom_name) -> pd.DataFrame:
+        return self.query(f"""
+            SELECT classes.edges AS Class, outgoing.End_name 
+            FROM incidences outgoing
+                JOIN incidences incomming ON outgoing.edges=incomming.edges
+                JOIN incidences classes ON outgoing.nodes=classes.nodes
+            WHERE outgoing.Direction='Outbound' AND outgoing.Kind='AssociationIncidence' 
+                AND incomming.Direction='Inbound' AND incomming.Kind='AssociationIncidence' AND incomming.nodes='{phantom_name}'
+                AND classes.Direction='Inbound' AND classes.Kind='ClassIncidence';
+            """)
 
     def get_outbound_struct_by_name(self, struct_name) -> pd.DataFrame:
         return self.query(f"""

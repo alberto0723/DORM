@@ -419,8 +419,11 @@ class Relational(Catalog, ABC):
     def find_implicit_class(self, required_attributes, pattern_edges) -> str:
         subclasses = {}
         struct_containers_for_class = {}
+        print("required attributes:", len(required_attributes))
         for current_attribute_name in required_attributes:
+            print(current_attribute_name)
             if not self.is_association_end(current_attribute_name):
+                time_before = time.time()
                 class_name = self.get_class_by_attribute_name(current_attribute_name)
                 # Since the query must be connected, some class must appear in the pattern
                 if class_name not in subclasses:
@@ -435,6 +438,8 @@ class Relational(Catalog, ABC):
                                 subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
                                 struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
                 struct_containers_for_attribute = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes") == current_attribute_name].index.get_level_values('edges'))
+                time_after = time.time()
+                print(f"current_attribute_name: {time_after - time_before:.4f} seconds")
                 # Check if there is any struct that contains both the attribute and any one of the classes
                 if not struct_containers_for_attribute.intersection(struct_containers_for_class[class_name]):
                     return subclasses[class_name][0]
@@ -448,11 +453,15 @@ class Relational(Catalog, ABC):
         :param explicit_schema: Adds the dbschema to every table in the FROM clause.
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables.
         """
+
         logger.info("Resolving query")
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
         custom_progress(f"Parsing query")
+        time_before = time.time()
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
+        time_after = time.time()
+        print(f"parse_query: {time_after - time_before:.4f} seconds")
         if explicit_schema:
             schema_name = self.dbschema + "."
         else:
@@ -461,11 +470,17 @@ class Relational(Catalog, ABC):
         sentences = []
         # Check if all classes in the pattern are in some struct
         # Some classes may be stored implicitly in their subclasses, so we take them one by one
+        time_before = time.time()
         implicit_class = self.find_implicit_class(required_attributes, pattern_edges)
+        time_after = time.time()
+        print(f"find_implicit_class: {time_after - time_before:.4f} seconds")
         # If all classes in the pattern are in some struct (i.e., no classes being implicitly stored in subclasses)
         if implicit_class is None:
             custom_progress(f"--Generating combinations of tables to create the query")
+            time_before = time.time()
             query_alternatives, class_names, association_names = self.create_bucket_combinations(pattern_edges, required_attributes)
+            time_after = time.time()
+            print(f"create_bucket_combinations: {time_after - time_before:.4f} seconds")
             if len(query_alternatives) > 1:
                 warnings.warn(f"⚠️ The query may be ambiguous, since it can be solved by using different combinations of tables: {query_alternatives}")
                 query_alternatives = sorted(query_alternatives, key=len)

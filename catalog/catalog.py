@@ -337,11 +337,10 @@ class Catalog(HyperNetXWrapper):
                     id_attribute = self.get_class_id_by_name(class_name)
                     attribute_list.append((id_attribute, [{"kind": "Attribute", "name": id_attribute}]))
             elif self.is_association_phantom(elem_name):
-                ends = self.get_outbound_association_by_name(self.get_edge_by_phantom_name(elem_name))
+                ends = self.get_outbound_association_by_phantom_name(elem_name)
                 for end in ends.itertuples():
-                    if end.misc_properties["End_name"] in loose_ends:
-                        attribute_list.append((end.misc_properties['End_name'],
-                                               [{"kind": "AssociationEnd", "name": end.misc_properties['End_name'], "id": self.get_class_id_by_name(self.get_edge_by_phantom_name(end.Index[1]))}]))
+                    if end.End_name in loose_ends:
+                        attribute_list.append((end.End_name, [{"kind": "AssociationEnd", "name": end.End_name, "id": self.get_class_id_by_name(end.Class)}]))
             elif self.is_struct_phantom(elem_name):
                 nested_struct_name = self.get_edge_by_phantom_name(elem_name)
                 for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
@@ -1085,17 +1084,17 @@ class Catalog(HyperNetXWrapper):
         if not non_existing_associations.empty:
             raise ValueError(f"🚨 Some class or association in the pattern does not belong to the catalog: {non_existing_associations.values.tolist()[0]}")
 
+        # Check if the domain restricted to the edges in the query is connected
         superclasses = []
         for e in pattern_edges:
             if self.is_class(e):
                 superclasses.extend(self.get_superclasses_by_class_name(e))
                 superclasses.extend(self.get_generalizations_by_class_name(e))
         restricted_domain = self.H.restrict_to_edges(pattern_edges+superclasses)
-        # Check if the restricted domain is connected
+        # Next call is the current main bottleneck in the parsing of queries
         if not restricted_domain.is_connected(s=1):
             raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
-        # TODO: Optimize this!!!
         # Check if the restricted domain contains all the required attributes and association ends
         missing_attributes = df_difference(pd.DataFrame(required_attributes).rename(columns={0: "name"}), self.get_attribute_names_from_hypergraph(restricted_domain))
         if not missing_attributes.empty:
@@ -1258,7 +1257,6 @@ class Catalog(HyperNetXWrapper):
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
             for struct_name in self.get_struct_names_inside_set_name(set_name):
                 custom_progress(f"--------Processing {struct_name}")
-                time_before = time.time()
                 for dom_attr_name, attr_path in tqdm(self.get_struct_attributes(struct_name), desc=f"----------Attributes in {struct_name}", leave=config.show_progress):
                     # In case of generalization, the attribute may be overwritten, but they should coincide
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
@@ -1271,8 +1269,6 @@ class Catalog(HyperNetXWrapper):
                 atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
                 associations = self.get_inbound_associations()[self.get_inbound_associations()["nodes"].isin(atoms)]
                 classes = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(atoms)]
-                time_after = time.time()
-                print(f"partial time: {time_after - time_before:.4f} seconds")
                 association_ends = self.get_outbound_associations()[
                     (self.get_outbound_associations()["edges"].isin(
                         associations["edges"])) & (
@@ -1285,8 +1281,6 @@ class Catalog(HyperNetXWrapper):
                     assert dom_attr_name in proj_attr and dom_attr_name + "@" + set_name in join_attr, f"☠️ Attribute '{dom_attr_name}' does not exist in '{struct_name}'"
                     proj_attr[end.End_name] = proj_attr[dom_attr_name]
                     join_attr[end.End_name + "@" + set_name] = join_attr[dom_attr_name + "@" + set_name]
-                time_after = time.time()
-                print(f"Processing {struct_name} time: {time_after - time_before:.4f} seconds")
         return alias_set, proj_attr, join_attr, location_attr
 
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
