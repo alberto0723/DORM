@@ -49,7 +49,7 @@ class Catalog(HyperNetXWrapper):
         'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding class "+class_name)
-        if self.is_attribute(class_name) or self.is_association_end(class_name) or self.is_edge(class_name):
+        if self.is_attribute_in_H(class_name) or self.is_association_end_in_H(class_name) or self.is_edge_in_H(class_name):
             raise ValueError(f"🚨 Some element called '{class_name}' already exists")
         # First element in the pair is the name and the second its properties
         properties["Kind"] = 'Class'
@@ -64,7 +64,7 @@ class Catalog(HyperNetXWrapper):
         if len(unique_attr) < len(att_list):
             raise ValueError(f"🚨 Some attribute in '{class_name}' is repeated")
         for att in att_list:
-            if self.is_attribute(att['name']) or self.is_association_end(att['name']) or self.is_edge(att['name']):
+            if self.is_attribute_in_H(att['name']) or self.is_association_end_in_H(att['name']) or self.is_edge_in_H(att['name']):
                 raise ValueError(f"🚨 Some element end called '{att['name']}' already exists")
             incidence_properties = {'Kind': 'ClassIncidence',
                                     'Direction': 'Outbound',
@@ -82,7 +82,6 @@ class Catalog(HyperNetXWrapper):
         self.H.add_nodes_from(nodes)
         self.H.add_edges_from(edges)
         self.H.add_incidences_from(incidences)
-        self.fill_duckDB()
 
     def add_association(self, association_name, ends_list) -> None:
         """Besides the association name, this method requires
@@ -91,7 +90,7 @@ class Catalog(HyperNetXWrapper):
         'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
         """
         logger.info("Adding association "+association_name)
-        if self.is_attribute(association_name) or self.is_association_end(association_name) or self.is_edge(association_name):
+        if self.is_attribute_in_H(association_name) or self.is_association_end_in_H(association_name) or self.is_edge_in_H(association_name):
             raise ValueError(f"🚨 The element '{association_name}' already exists")
         if len(ends_list) != 2:
             raise ValueError(f"🚨 The association '{association_name}' should have exactly two ends, but has {len(ends_list)}")
@@ -101,20 +100,19 @@ class Catalog(HyperNetXWrapper):
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(association_name, self.config.prepend_phantom+association_name, {'Kind': 'AssociationIncidence', 'Direction': 'Inbound'})]
         for end in ends_list:
-            if not self.is_class(end['class']):
+            if not self.is_class_in_H(end['class']):
                 raise ValueError(f"🚨 The class '{end['class']}' in '{association_name}' does not exists")
             end_name = end['prop'].get('End_name', None)
             if end_name is None:
                 raise ValueError(f"🚨 Association end '{association_name}' does not have a name for its end towards '{end['class']}'")
-            if self.is_attribute(end_name) or self.is_association_end(end_name) or self.is_edge(end_name):
+            if self.is_attribute_in_H(end_name) or self.is_association_end_in_H(end_name) or self.is_edge_in_H(end_name):
                 raise ValueError(f"🚨 There is already an element called '{end_name}'")
             if end['prop'].get('MultiplicityMax', None) is None or end['prop'].get('MultiplicityMin', None) is None:
                 raise ValueError(f"🚨 '{association_name}' does not have both min and max multiplicity for its end '{end_name}'")
             end['prop']['Kind'] = 'AssociationIncidence'
             end['prop']['Direction'] = 'Outbound'
-            incidences.append((association_name, self.get_phantom_of_edge_by_name(end['class']), end['prop']))
+            incidences.append((association_name, self.get_phantom_of_edge_by_name_in_H(end['class']), end['prop']))
         self.H.add_incidences_from(incidences)
-        self.fill_duckDB()
 
     def add_generalization(self, generalization_name, properties, superclass, subclasses_list) -> None:
         """ Besides the generalization name, this method requires some properties (expected to be two booleans) for
@@ -123,39 +121,38 @@ class Catalog(HyperNetXWrapper):
         The latter is another dictionary that contains at least one constraint predicate that discriminates the subclass.
         """
         logger.info("Adding generalization "+generalization_name)
-        if self.is_attribute(generalization_name) or self.is_association_end(generalization_name) or self.is_edge(generalization_name):
+        if self.is_attribute_in_H(generalization_name) or self.is_association_end_in_H(generalization_name) or self.is_edge_in_H(generalization_name):
             raise ValueError(f"🚨 The element called '{generalization_name}' already exists")
         self.H.add_edge(generalization_name, Kind='Generalization', Disjoint=properties.get('Disjoint', False), Complete=properties.get('Complete', False))
         # This adds a special phantom node required to represent different cases of inclusion in structs
         self.H.add_node(self.config.prepend_phantom+generalization_name, Kind='Phantom', Subkind='Generalization')
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(generalization_name, self.config.prepend_phantom+generalization_name, {'Kind': 'GeneralizationIncidence', 'Direction': 'Inbound'})]
-        if not self.is_class(superclass):
+        if not self.is_class_in_H(superclass):
             raise ValueError(f"🚨 The superclass '{superclass}' in '{generalization_name}' does not exists")
         # First element in the pair of incidences is the edge name and the second the node
-        incidences.append((generalization_name,  self.get_phantom_of_edge_by_name(superclass), {'Kind': 'GeneralizationIncidence', 'Subkind': 'Superclass', 'Direction': 'Outbound'}))
+        incidences.append((generalization_name,  self.get_phantom_of_edge_by_name_in_H(superclass), {'Kind': 'GeneralizationIncidence', 'Subkind': 'Superclass', 'Direction': 'Outbound'}))
         if len(subclasses_list) < 1:
             raise ValueError(f"🚨 The generalization '{generalization_name}' should have at least one subclass")
         for sub in subclasses_list:
             if superclass == sub['class']:
                 raise ValueError(f"🚨 The same class '{superclass}' cannot play super and sub roles in generalization '{generalization_name}'")
-            if not self.is_class(sub['class']):
+            if not self.is_class_in_H(sub['class']):
                 raise ValueError(f"🚨 The subclass '{superclass}' in '{generalization_name}' does not exists")
             sub['prop']['Kind'] = 'GeneralizationIncidence'
             sub['prop']['Subkind'] = 'Subclass'
             sub['prop']['Direction'] = 'Outbound'
-            incidences.append((generalization_name, self.get_phantom_of_edge_by_name(sub['class']), sub['prop']))
+            incidences.append((generalization_name, self.get_phantom_of_edge_by_name_in_H(sub['class']), sub['prop']))
         self.H.add_incidences_from(incidences)
-        self.fill_duckDB()
 
     def add_struct(self, struct_name, anchor, elements) -> None:
         logger.info("Adding struct "+struct_name)
-        if self.is_edge(struct_name):
+        if self.is_edge_in_H(struct_name):
             raise ValueError(f"🚨 The hyperedge '{struct_name}' already exists")
         if not anchor:
             raise ValueError(f"🚨 Struct '{struct_name}' does not have any anchor")
         for elem in anchor:
-            if not self.is_class(elem) and not self.is_association(elem):
+            if not self.is_class_in_H(elem) and not self.is_association(elem):
                 raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{elem}') must be either a class or an association")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs
@@ -163,42 +160,44 @@ class Catalog(HyperNetXWrapper):
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
         for elem in drop_duplicates(elements+anchor):
-            if self.is_attribute(elem):
+            if self.is_attribute_in_H(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-            elif self.is_association(elem):
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-            elif self.is_class(elem):
-                # Only one element of a hierarchy can be included by the user in the elements of a struct
-                included_superclasses = [c for c in self.get_superclasses_by_class_name(elem) if c in elements]
-                if included_superclasses:
-                    raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{included_superclasses}')")
+            elif self.is_association_in_H(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+            elif self.is_class_in_H(elem):
+                # TODO: Move next lines to is_consistent
+                # # Only one element of a hierarchy can be included by the user in the elements of a struct
+                # included_superclasses = [c for c in self.get_superclasses_by_class_name(elem) if c in elements]
+                # if included_superclasses:
+                #     raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{included_superclasses}')")
                 # Add the class to the struct
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-                # Add the identifier to the struct
-                incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+                # TODO: Move next lines to is_consistent
+                # # Add the identifier to the struct
+                # incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
                 # We do need to have the generalizations in the struct to generate a restricted struct correctly including superclasses
-                for g in self.get_generalizations_by_class_name(elem, []):
-                    incidences.append((struct_name, self.get_phantom_of_edge_by_name(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
-            elif self.is_struct(elem) or self.is_set(elem):
-                incidences.append((struct_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-            elif self.is_generalization(elem):
+                for g in self.get_generalizations_by_class_name_in_H(elem, []):
+                    incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+            elif self.is_struct_in_H(elem) or self.is_set_in_H(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+            elif self.is_generalization_in_H(elem):
                 pass
             else:
                 raise ValueError(f"🚨 Creating struct '{struct_name}' could not find '{elem}' to place it inside (check both domain and design)")
         self.H.add_incidences_from(incidences)
-        self.fill_duckDB()
-        # Check if the classes and associations in the struct are connected
-        restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-        if not restricted_struct.H.is_connected():
-            raise ValueError(f"🚨 Struct '{struct_name}' is not connected")
-        # Check if attributes in the struct are connected
-        connected_attributes = restricted_struct.get_attributes()["name"].to_list()
-        for elem in elements:
-            if self.is_attribute(elem) and elem not in connected_attributes:
-                raise ValueError(f"🚨 Attribute '{elem}' in struct '{struct_name}' is not connected")
-        # Check if the associations in the anchor are connected (this should consider inheritance of associations)
-        if not restricted_struct.H.restrict_to_edges(anchor).is_connected():
-            raise ValueError(f"🚨 The anchor of struct '{struct_name}' is not connected")
+        # TODO: Move next lines to is_consistent
+        # # Check if the classes and associations in the struct are connected
+        # restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
+        # if not restricted_struct.H.is_connected():
+        #     raise ValueError(f"🚨 Struct '{struct_name}' is not connected")
+        # # Check if attributes in the struct are connected
+        # connected_attributes = restricted_struct.get_attributes()["name"].to_list()
+        # for elem in elements:
+        #     if self.is_attribute(elem) and elem not in connected_attributes:
+        #         raise ValueError(f"🚨 Attribute '{elem}' in struct '{struct_name}' is not connected")
+        # # Check if the associations in the anchor are connected (this should consider inheritance of associations)
+        # if not restricted_struct.H.restrict_to_edges(anchor).is_connected():
+        #     raise ValueError(f"🚨 The anchor of struct '{struct_name}' is not connected")
 
     def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
@@ -212,18 +211,17 @@ class Catalog(HyperNetXWrapper):
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(set_name, self.config.prepend_phantom+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
         for elem in elements:
-            if self.is_class(elem):
-                incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-            elif self.is_association(elem) or self.is_struct(elem):
-                incidences.append((set_name, self.get_phantom_of_edge_by_name(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
-            elif self.is_attribute(elem):
+            if self.is_class_in_H(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            elif self.is_association_in_H(elem) or self.is_struct_in_H(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            elif self.is_attribute_in_H(elem):
                 raise ValueError(f"🚨 Sets cannot contain attributes (adding '{elem}' into '{set_name}')")
-            elif self.is_set(elem):
+            elif self.is_set_in_H(elem):
                 raise ValueError(f"🚨 Sets cannot contain sets (adding '{elem}' into '{set_name}')")
             else:
                 raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside (the element may not exist in the domain)")
         self.H.add_incidences_from(incidences)
-        self.fill_duckDB()
 
     def load_domain(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading domain from '{file_path}'")
@@ -248,7 +246,6 @@ class Catalog(HyperNetXWrapper):
         for gen in tqdm(domain.get("generalizations", []), desc="Creating generalizations", leave=config.show_progress):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
-        self.fill_duckDB()
 
     def load_design(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
@@ -372,11 +369,10 @@ class Catalog(HyperNetXWrapper):
         """
         This method checks all the integrity constrains of the catalog.
         It can be expensive, so just do it at the end, not for each operation.
+        Views in DuckDB should have been filled before with self.fill_duckDB()
         :param design: Whether the catalog contains a design, or just a domain (more or less ICs will be checked)
         :return: If the catalog is honors all integrity constraints
         """
-        self.fill_duckDB()
-        self.create_temp_tables()
         consistent = True
         edges = self.get_edges()
         incidences = self.get_incidences()

@@ -44,16 +44,14 @@ class HyperNetXWrapper:
         if hypergraph is not None:
             self.H = hypergraph
             self.fill_duckDB()
-            self.create_temp_tables()
         elif file_path is not None:
             logger.info(f"Loading hypergraph from '{file_path}'")
             with open(file_path, "rb") as f:
                 self.H = pickle.load(f)
             self.fill_duckDB()
-            self.create_temp_tables()
         else:
+            # In this case, the hypergraph will be filled with load_domain or load_design, hence, the views must be created afterward
             self.H = hnx.Hypergraph([])
-            self.fill_duckDB()
 
     def __del__(self):
         # Remove the temporal DuckDB file
@@ -61,14 +59,95 @@ class HyperNetXWrapper:
             self.sql.close()
             os.remove(self.duckdb_filename)
 
+    ##############################################################################################
+    # Basic methods that do NOT requery DuckDB views.
+    # They are used for basic checks during the addition of elements to the hypergraph
+    ##############################################################################################
+    def is_attribute_in_H(self, attribute_name) -> bool:
+        if attribute_name in self.H.nodes.dataframe.index:
+            return self.H.nodes.dataframe.loc[attribute_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Attribute'
+        else:
+            return False
+
+    def is_edge_in_H(self, edge_name) -> bool:
+        return edge_name in self.H.edges.dataframe.index
+
+    def is_class_in_H(self, class_name) -> bool:
+        if class_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[class_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Class'
+        else:
+            return False
+
+    def is_association_in_H(self, association_name) -> bool:
+        if association_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[association_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Association'
+        else:
+            return False
+
+    def is_generalization_in_H(self, generalization_name) -> bool:
+        if generalization_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[generalization_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Generalization'
+        else:
+            return False
+
+    def is_struct_in_H(self, struct_name) -> bool:
+        if struct_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[struct_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Struct'
+        else:
+            return False
+
+    def is_set_in_H(self, set_name) -> bool:
+        if set_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[set_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Set'
+        else:
+            return False
+
+    # TODO: Needs to be implemented
+    def is_association_end_in_H(self, name) -> bool:
+        #return name in self.get_association_ends().index.to_list()
+        return False
+
+    def get_edge_by_phantom_name_in_H(self, phantom_name) -> str:
+        phantom_incidences = self.H.incidences.dataframe.xs(phantom_name, level="nodes", drop_level=False)
+        phantom_inbounds = phantom_incidences[phantom_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
+        return phantom_inbounds.index[0][0]
+
+    def get_phantom_of_edge_by_name_in_H(self, edge_name) -> str:
+        edge_incidences = self.H.incidences.dataframe.xs(edge_name, level="edges", drop_level=False)
+        edge_inbounds = edge_incidences[edge_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
+        return edge_inbounds.index[0][1]
+
+    def get_generalizations_by_class_name_in_H(self, class_name, visited: list[str] = None) -> list[str]:
+        if visited is None:
+            visited = []
+        phantom_name = self.get_phantom_of_edge_by_name_in_H(class_name)
+        incidences = self.H.incidences.dataframe
+        subclass_outbounds = incidences[(incidences.index.get_level_values("nodes") == phantom_name) &
+                                        (incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                             x['Kind'] == 'GeneralizationIncidence' and
+                                                                             x['Subkind'] == 'Subclass'))]
+        direct_superclass = incidences[(incidences.index.get_level_values("edges").isin(subclass_outbounds.index.get_level_values("edges"))) &
+                                       (incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                             x['Kind'] == 'GeneralizationIncidence' and
+                                                                             x['Subkind'] == 'Superclass'))]
+        if direct_superclass.empty:
+            return []
+        else:
+            # This means there is one superclass (multiple-inheritance is not allowed)
+            generalization = direct_superclass.index[0][0]
+            superclass = self.get_edge_by_phantom_name_in_H(direct_superclass.index[0][1])
+            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
+            return [generalization]+self.get_generalizations_by_class_name_in_H(superclass, visited + [class_name])
+
+    ##############################################################################################
+    # Methods to fill the views in DuckDB
+    ##############################################################################################
     @abstractmethod
     def generate_struct_attributes(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
         pass
 
     def fill_duckDB(self):
-        #self.H.add_nodes_from([("Fake", {'Kind': None, 'Subkind': None, 'DataType': None, 'Size': None})])
-        #self.H.add_edges_from([("Fake", {'Kind': None})])
-        #self.H.add_incidences_from([("Fake", "Fake", {'Kind': None, 'Direction': None, 'DistinctVals': None, 'Identifier': None, 'Anchor': None})])
+        # Create the main views of the hypergraph in DuckDB
         df_nodes = self.H.nodes.to_dataframe.reset_index()
         df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
         df_nodes_flattened = pd.concat([df_nodes.drop(columns="misc_properties"), df_nodes_with_json], axis=1)
@@ -93,6 +172,7 @@ class HyperNetXWrapper:
         # display(self.query("SELECT * FROM nodes;"))
         # display(self.query("SELECT * FROM edges;"))
         # display(self.query("SELECT * FROM incidences;"))
+        # Create other derived viewes in DuckDB
         self.query("""
             CREATE OR REPLACE TEMP TABLE class_ids AS
                 SELECT edges, nodes
@@ -139,8 +219,6 @@ class HyperNetXWrapper:
                 WHERE outgoing.Direction='Outbound' AND outgoing.Kind='StructIncidence'
                     AND incoming.Direction='Inbound' and incoming.Kind='ClassIncidence';
             """)
-
-    def create_temp_tables(self):
         self.query("""
             CREATE TEMP TABLE struct_attributes AS
                 SELECT i.edges AS struct, n.uid AS attribute
@@ -177,6 +255,9 @@ class HyperNetXWrapper:
             self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
                             (struct_name, pickle.dumps(attribute_list)))
 
+    ##############################################################################################
+    # Methods that use the views in DuckDB
+    ##############################################################################################
     def get_struct_attribute_list(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
         return pickle.loads(self.sql.execute(f"SELECT attribute_list FROM struct_attribute_list WHERE struct='{struct_name}';").fetchone()[0])
 
