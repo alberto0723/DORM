@@ -14,8 +14,6 @@ import uuid
 from .config import Config
 from .tools import drop_duplicates, df_difference
 
-import time
-
 # Libraries initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
@@ -675,12 +673,12 @@ class HyperNetXWrapper:
         """
         # TODO: This is not considering that an anchor of a struct can be in a nested struct (only at first level)
         association_ends = self.query(f"""
-            SELECT association_phantom, association, Anchor, end_phantom, End_name, end_class
+            SELECT end_class
             FROM struct_association_ends
             WHERE struct='{struct_name}' AND Anchor;
             """)
         classes = self.query(f"""
-            SELECT struct, phantom, class, Anchor
+            SELECT class
             FROM struct_classes
             WHERE struct='{struct_name}' AND Anchor;
             """)
@@ -692,13 +690,18 @@ class HyperNetXWrapper:
         :param struct_name: Name of the struct
         :return: A list of class names and association end names
         """
+        # Need to remove association ends that appear in two associations, hence the NOT EXISTS
         association_ends = self.query(f"""
-            SELECT association_phantom, association, Anchor, end_phantom, End_name, end_class
-            FROM struct_association_ends
-            WHERE struct='{struct_name}' AND Anchor;
+            SELECT end_phantom, End_name
+            FROM struct_association_ends external
+            WHERE struct='{struct_name}' AND Anchor AND NOT EXISTS(
+                SELECT *
+                FROM struct_association_ends internal
+                WHERE struct='{struct_name}' AND Anchor AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
+                );
             """)
         classes = self.query(f"""
-            SELECT struct, phantom, class, Anchor
+            SELECT phantom, class
             FROM struct_classes
             WHERE struct='{struct_name}' AND Anchor;
             """)
@@ -706,18 +709,27 @@ class HyperNetXWrapper:
         for class_name in classes["class"]:
             superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
-        # TODO: Need to remove association ends that appear in two associations
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms)]
         return classes["class"].values.tolist()+loose_ends["End_name"].values.tolist()
 
     def get_loose_association_end_names_by_struct_name(self, struct_name) -> list[str]:
+        """
+        Returns the loose association ends of a struct.
+        :param struct_name: Name of the struct
+        :return: A list of association end names
+        """
+        # Need to remove association ends that appear in two associations, hence the NOT EXISTS
         association_ends = self.query(f"""
-            SELECT association_phantom, association, Anchor, end_phantom, End_name, end_class
-            FROM struct_association_ends
-            WHERE struct='{struct_name}';
+            SELECT end_phantom, End_name
+            FROM struct_association_ends external
+            WHERE struct='{struct_name}' AND NOT EXISTS(
+                SELECT *
+                FROM struct_association_ends internal
+                WHERE struct='{struct_name}' AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
+                );
             """)
         classes = self.query(f"""
-            SELECT struct, phantom, class, Anchor
+            SELECT phantom, class
             FROM struct_classes
             WHERE struct='{struct_name}';
             """)
@@ -736,7 +748,6 @@ class HyperNetXWrapper:
         for class_name in classes["class"]:
             superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
-        # TODO: Need to remove association ends that appear in two associations
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms+tight_ends)]
         return loose_ends["End_name"].values.tolist()
 
