@@ -167,7 +167,7 @@ class Catalog(HyperNetXWrapper):
             elif self.is_class_in_H(elem):
                 # TODO: Move next lines to is_consistent
                 # # Only one element of a hierarchy can be included by the user in the elements of a struct
-                # included_superclasses = [c for c in self.get_superclasses_by_class_name(elem) if c in elements]
+                # included_superclasses = [c for c in self.get_generalizations_by_class_name(elem, return_superclasses=True) if c in elements]
                 # if included_superclasses:
                 #     raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{included_superclasses}')")
                 # Add the class to the struct
@@ -571,7 +571,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms12: Generalizations cannot have cycles
         logger.info("Checking IC-Atoms12")
-        violations2_12 = classes[classes.apply(lambda r: r["name"] in self.get_superclasses_by_class_name(r["name"]), axis=1)]
+        violations2_12 = classes[classes.apply(lambda r: r["name"] in self.get_generalizations_by_class_name(r["name"], return_superclasses=True), axis=1)]
         if not violations2_12.empty:
             consistent = False
             print("🚨 IC-Atoms12 violation: There are some cyclic generalizations")
@@ -582,7 +582,7 @@ class Catalog(HyperNetXWrapper):
         matches2_13 = outbounds.join(ids.set_index('name').rename_axis('nodes'), on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_13 = classes[~classes["name"].isin((matches2_13.reset_index(drop=False))["edges"])]
         for class_name in possible_violations2_13.index:
-            superclasses = self.get_superclasses_by_class_name(class_name)
+            superclasses = self.get_generalizations_by_class_name(class_name, return_superclasses=True)
             if not superclasses:
                 consistent = False
                 print(f"🚨 IC-Atoms13 violation: There is some class '{class_name}' without identifier (neither direct, nor inherited from a superclass)")
@@ -592,7 +592,7 @@ class Catalog(HyperNetXWrapper):
         matches2_14 = outbounds.join(ids.set_index('name').rename_axis('nodes'), on='nodes', rsuffix='_nodes', how='inner')
         possible_violations2_14 = classes[classes["name"].isin((matches2_14.reset_index(drop=False))["edges"])]
         for class_name in possible_violations2_14.index:
-            superclasses = self.get_superclasses_by_class_name(class_name)
+            superclasses = self.get_generalizations_by_class_name(class_name, return_superclasses=True)
             identified_superclasses = [s for s in superclasses if s in possible_violations2_14.index]
             if identified_superclasses:
                 consistent = False
@@ -610,7 +610,7 @@ class Catalog(HyperNetXWrapper):
         logger.info("Checking IC-Atoms16")
         matches2_16 = self.get_outbound_generalization_subclasses()[self.get_outbound_generalization_subclasses()["Constraint"].notna()]
         for subclass in matches2_16.itertuples():
-            superclass_names = self.get_superclasses_by_class_name(subclass.subclass)
+            superclass_names = self.get_generalizations_by_class_name(subclass.subclass, return_superclasses=True)
             attribute_names = self.parse_predicate(subclass.Constraint)
             for attribute_name in attribute_names:
                 if self.get_class_by_attribute_name(attribute_name) not in superclass_names:
@@ -763,7 +763,7 @@ class Catalog(HyperNetXWrapper):
             struct_outbound_classes = pd.merge(temp_structOutbounds, inbound_classes, on="nodes", how="inner")
             for row in struct_outbound_classes.itertuples():
                 current_struct_classes = struct_outbound_classes[struct_outbound_classes["structname"] == row.structname]["classname"].values
-                for superclass in self.get_superclasses_by_class_name(row.classname):
+                for superclass in self.get_generalizations_by_class_name(row.classname, return_superclasses=True):
                     if superclass in current_struct_classes:
                         consistent = False
                         print(f"🚨 IC-Structs-6 violation: Both '{row.classname}' and its superclass '{superclass}' cannot belong to the same struct '{row.structname}'")
@@ -785,13 +785,13 @@ class Catalog(HyperNetXWrapper):
                 restricted_classes = restricted_struct.get_classes()
                 # Foll all classes in the current struct
                 for class_name1 in restricted_classes["name"]:
-                    superclasses1 = restricted_struct.get_superclasses_by_class_name(class_name1)
+                    superclasses1 = restricted_struct.get_generalizations_by_class_name(class_name1, return_superclasses=True)
                     # If it has superclasses
                     if superclasses1:
                         # Check all other classes in the struct
                         for class_name2 in restricted_classes["name"]:
                             # Get their superclasses
-                            superclasses2 = restricted_struct.get_superclasses_by_class_name(class_name2)
+                            superclasses2 = restricted_struct.get_generalizations_by_class_name(class_name2, return_superclasses=True)
                             # Check this is not actually itself or an ancestor
                             if class_name1 != class_name2 and class_name2 not in superclasses1 and class_name1 not in superclasses2:
                                 # Check if they are siblings
@@ -864,7 +864,7 @@ class Catalog(HyperNetXWrapper):
                 if self.is_class_phantom(internal_elem_name):
                     # By IC-Sets7 a set can have at most one class
                     # It may be that the association is actually inherited from a superclass
-                    superclass_phantoms = [self.get_phantom_of_edge_by_name(s) for s in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(internal_elem_name))]
+                    superclass_phantoms = [self.get_phantom_of_edge_by_name(s) for s in self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(internal_elem_name), return_superclasses=True)]
                     superclass_phantoms.append(internal_elem_name)
                     if all([p not in restricted_struct.get_association_ends()["phantom"].values for p in superclass_phantoms]):
                         consistent = False
@@ -981,7 +981,7 @@ class Catalog(HyperNetXWrapper):
                                         # Only classes can differ (not association ends)
                                         if class_name not in anchor_concepts[b]:
                                             # Check if the class to be discriminated is not the top of the hierarchy
-                                            if self.get_superclasses_by_class_name(class_name):
+                                            if self.get_generalizations_by_class_name(class_name, return_superclasses=True):
                                                 # Now we need to check if the corresponding discriminant is in the table (actually, we should check in the same struct)
                                                 discriminant = self.get_discriminant_by_class_name(class_name)
                                                 assert discriminant is not None, f"☠️ No discriminant for '{class_name}'"
@@ -1083,8 +1083,8 @@ class Catalog(HyperNetXWrapper):
         superclasses = []
         for e in pattern_edges:
             if self.is_class(e):
-                superclasses.extend(self.get_superclasses_by_class_name(e))
-                superclasses.extend(self.get_generalizations_by_class_name(e))
+                superclasses.extend(self.get_generalizations_by_class_name(e, return_superclasses=True))
+                superclasses.extend(self.get_generalizations_by_class_name(e, return_superclasses=False))
         restricted_domain = self.H.restrict_to_edges(pattern_edges+superclasses)
         # Next call is the current main bottleneck in the parsing of queries
         if not restricted_domain.is_connected(s=1):
@@ -1195,7 +1195,7 @@ class Catalog(HyperNetXWrapper):
         associations = []
         for elem in pattern:
             # Find the sets at fist level where the element belongs
-            hierarchy = [elem]+self.get_superclasses_by_class_name(elem)
+            hierarchy = [elem]+self.get_generalizations_by_class_name(elem, return_superclasses=True)
             first_levels = drop_duplicates(self.get_transitive_firstLevels(hierarchy))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
@@ -1289,7 +1289,7 @@ class Catalog(HyperNetXWrapper):
         discriminants = []
         # For every class in the pattern
         for pattern_class_name in pattern_class_names:
-            pattern_superclasses = self.get_superclasses_by_class_name(pattern_class_name)
+            pattern_superclasses = self.get_generalizations_by_class_name(pattern_class_name, return_superclasses=True)
             if pattern_superclasses:
                 # For every first level set required in the query
                 for set_name in sets_combination:

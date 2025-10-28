@@ -326,7 +326,7 @@ class Relational(Catalog, ABC):
         associations = self.get_outbound_associations()[self.get_outbound_associations()["edges"].isin(query_associations)]
         query_superclasses = query_classes.copy()
         for class_name in query_classes:
-            query_superclasses.extend(self.get_superclasses_by_class_name(class_name))
+            query_superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         query_superclasses = drop_duplicates(query_superclasses)
         while tables:
             # Take any table and find all its potentially connection points
@@ -354,7 +354,7 @@ class Relational(Catalog, ABC):
                             plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
                             # Also, it can connect to a loose end if it participates in an association
                             for ass in associations.itertuples():
-                                if self.get_edge_by_phantom_name(ass.nodes) in [class_name]+self.get_superclasses_by_class_name(class_name):
+                                if self.get_edge_by_phantom_name(ass.nodes) in [class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True):
                                     plugs.append((self.get_class_id_by_name(class_name), ass.End_name))
                 for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
                     for ass in associations.itertuples():
@@ -431,13 +431,13 @@ class Relational(Catalog, ABC):
                 # Since the query must be connected, some class must appear in the pattern
                 if class_name not in subclasses:
                     if class_name in pattern_edges:
-                        subclasses[class_name] = [class_name]+self.get_superclasses_by_class_name(class_name)
+                        subclasses[class_name] = [class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True)
                         subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
                         struct_containers_for_class[class_name] = self.get_unique_outbound_struct_by_phantom_list(subphantoms)
                     else:
                         for subclass in self.get_subclasses_by_class_name(class_name):
                             if subclass in pattern_edges:
-                                subclasses[class_name] = [subclass]+self.get_superclasses_by_class_name(subclass)
+                                subclasses[class_name] = [subclass]+self.get_generalizations_by_class_name(subclass, return_superclasses=True)
                                 subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
                                 struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
                 struct_containers_for_attribute = self.get_unique_outbound_struct_by_phantom_list([current_attribute_name])

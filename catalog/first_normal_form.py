@@ -190,7 +190,7 @@ class FirstNormalForm(Relational):
                     # If it comes from an association
                     if dom_attr_name != attr_correspondence:
                         class_referee = self.get_class_name_by_end_name(dom_attr_name)
-                        hierarchy = [class_referee] + self.get_superclasses_by_class_name(class_referee)
+                        hierarchy = [class_referee] + self.get_generalizations_by_class_name(class_referee, return_superclasses=True)
                     # If the attribute comes from a class (the FK corresponds to generalization)
                     else:
                         # Get the classes in the struct that provide the ID
@@ -200,7 +200,7 @@ class FirstNormalForm(Relational):
                                 if self.is_class_phantom(elem):
                                     class_name = self.get_edge_by_phantom_name(elem)
                                     if dom_attr_name == self.get_class_id_by_name(class_name):
-                                        hierarchies.append([class_name]+self.get_superclasses_by_class_name(class_name))
+                                        hierarchies.append([class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True))
                         assert len(hierarchies) > 0, f"☠️ The ID '{dom_attr_name}' we are looking for should be in some struct in '{table_referee_name}'"
                         # Take the shorter hierarchy
                         hierarchy = sorted(hierarchies, key=len)[0]

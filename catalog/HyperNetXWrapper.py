@@ -368,7 +368,7 @@ class HyperNetXWrapper:
         return self.query("SELECT nodes as name FROM class_ids;")
 
     def get_class_id_by_name(self, class_name) -> str:
-        superclasses = self.get_superclasses_by_class_name(class_name)
+        superclasses = self.get_generalizations_by_class_name(class_name, return_superclasses=True)
         if not superclasses:
             edge_name = class_name
         else:
@@ -704,7 +704,7 @@ class HyperNetXWrapper:
             """)
         superclasses = []
         for class_name in classes["class"]:
-            superclasses.extend(self.get_superclasses_by_class_name(class_name))
+            superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
         # TODO: Need to remove association ends that appear in two associations
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms)]
@@ -734,7 +734,7 @@ class HyperNetXWrapper:
                     tight_ends.append(hop_elem_phantom_name)
         superclasses = []
         for class_name in classes["class"]:
-            superclasses.extend(self.get_superclasses_by_class_name(class_name))
+            superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
         # TODO: Need to remove association ends that appear in two associations
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms+tight_ends)]
@@ -752,8 +752,8 @@ class HyperNetXWrapper:
             if self.is_class(elem) or self.is_association(elem) or self.is_generalization(elem):
                 edge_names.append(elem)
                 if self.is_class(elem) and elem in outbounds:
-                    edge_names.extend(self.get_superclasses_by_class_name(elem))
-                    edge_names.extend(self.get_generalizations_by_class_name(elem))
+                    edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=True))
+                    edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=False))
         # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
         result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
         to_be_removed = []
@@ -786,29 +786,14 @@ class HyperNetXWrapper:
             subclasses.extend([subclass]+self.get_subclasses_by_class_name(subclass, visited + [class_name]))
         return subclasses
 
-    def get_superclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
+    def get_generalizations_by_class_name(self, class_name, return_superclasses: bool, visited: list[str] = None) -> list[str]:
         """
-        Gives the names of the superclasses of a given class (the class itself is not included in the list)
-        :param class_name:
+        Gives the names of the superclasses or generalizations of a given class (the class itself is not included in the list)
+        :param class_name: Name of the bottom of the hierarchy
+        :return_superclass: Indicates if the method returns a list of superclasses or generalizations
         :param visited: This is necessary for recursion purposes. Initially, it should be just an empty list
-        :return: List of superclasses sorted from the bottom top of the hierarchy to the top
+        :return: List of superclasses/generalizations sorted from the bottom top of the hierarchy to the top
         """
-        if visited is None:
-            visited = []
-        direct_superclass = self.query(f"""
-                    SELECT superclass
-                    FROM sub_super_pairs
-                    WHERE subclass = '{class_name}';
-                    """)
-        if direct_superclass.empty:
-            return []
-        else:
-            # This means there is one superclass (multiple-inheritance is not allowed)
-            superclass = direct_superclass.iat[0, 0]
-            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
-            return [superclass]+self.get_superclasses_by_class_name(superclass, visited + [class_name])
-
-    def get_generalizations_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         if visited is None:
             visited = []
         direct_superclass = self.query(f"""
@@ -823,7 +808,10 @@ class HyperNetXWrapper:
             generalization = direct_superclass.iat[0, 0]
             superclass = direct_superclass.iat[0, 1]
             assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
-            return [generalization]+self.get_generalizations_by_class_name(superclass, visited + [class_name])
+            if return_superclasses:
+                return [superclass]+self.get_generalizations_by_class_name(superclass, return_superclasses, visited + [class_name])
+            else:
+                return [generalization]+self.get_generalizations_by_class_name(superclass, return_superclasses, visited + [class_name])
 
     def get_discriminant_by_class_name(self, class_name) -> str:
         return self.query(f"""
@@ -918,7 +906,7 @@ class HyperNetXWrapper:
             elif self.is_generalization(current):
                 # Max is always to-one independently of the direction
                 # Min is also to-one if it goes upward, but less than one if it goes downwards
-                correct = (correct[0] and (self.get_edge_by_phantom_name(path[i+1]) in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(path[i-1]))), correct[1])
+                correct = (correct[0] and (self.get_edge_by_phantom_name(path[i+1]) in self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(path[i-1]), return_superclasses=True)), correct[1])
         return correct
 
     def exists_more_generic_struct_in_set(self, struct_name, set_name) -> bool:
@@ -938,7 +926,7 @@ class HyperNetXWrapper:
                 for anchor in struct_anchor_classes:
                     for current_anchor in current_struct_anchor_classes:
                         if anchor != current_anchor:
-                            superclasses = self.get_superclasses_by_class_name(anchor)
+                            superclasses = self.get_generalizations_by_class_name(anchor, return_superclasses=True)
                             found = found or (current_anchor in superclasses)
         return found
 
