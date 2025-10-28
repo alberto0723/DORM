@@ -159,7 +159,7 @@ class Catalog(HyperNetXWrapper):
         self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
         # First element in the pair of incidences is the edge name and the second the node
         incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
-        for elem in drop_duplicates(elements+anchor):
+        for elem in list(set(elements+anchor)):
             if self.is_attribute_in_H(elem):
                 incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_association_in_H(elem):
@@ -337,7 +337,7 @@ class Catalog(HyperNetXWrapper):
                             attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
         # We need to remove duplicates to avoid ids appearing twice
         attribute_list = drop_duplicates(attribute_list)
-        assert len(attribute_list) == len(set(drop_duplicates([t[0] for t in attribute_list]))), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
+        assert len(attribute_list) == len(set([t[0] for t in attribute_list])), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
         return attribute_list
 
     def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
@@ -779,7 +779,7 @@ class Catalog(HyperNetXWrapper):
                                     # Check if the corresponding discriminant attribute is present (this works because we have single inheritance)
                                     discriminants.append(
                                         restricted_struct.get_outbound_generalization_subclasses()[restricted_struct.get_outbound_generalization_subclasses()["subclass"] == class_name1]["Constraint"])
-                attribute_names = drop_duplicates(self.parse_predicate(" AND ".join(discriminants)))
+                attribute_names = list(set(self.parse_predicate(" AND ".join(discriminants))))
                 for attr in attribute_names:
                     kind = self.H.get_cell_properties(struct_name, attr, "Kind")
                     if kind is None:
@@ -938,7 +938,7 @@ class Catalog(HyperNetXWrapper):
                     attribute_list.sort()
                     anchor_concepts.append(concept_list)
                     anchor_attributes.append(attribute_list)
-                set_attributes = drop_duplicates(set_attributes)
+                set_attributes = list(set(set_attributes))
                 # Check IC-Design4
                 if len(drop_duplicates(anchor_attributes)) > 1:
                     consistent = False
@@ -1119,8 +1119,9 @@ class Catalog(HyperNetXWrapper):
             elif requested == '*':
                 for edge in pattern_edges:
                     if self.is_class(edge):
-                        # TODO: This needs to include the attributes of the superclasses
-                        project_attributes.extend(self.get_outbound_class_by_name(edge)["attribute"])
+                        class_list = [edge] + self.get_generalizations_by_class_name(edge, return_superclasses=True)
+                        for class_name in class_list:
+                            project_attributes.extend(self.get_outbound_class_by_name(class_name)["attribute"])
                         # for attr in self.get_outbound_class_by_name(edge).itertuples():
                         #     project_attributes.append(attr.Index[1])
             elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
@@ -1129,6 +1130,7 @@ class Catalog(HyperNetXWrapper):
                 #     project_attributes.append(attr.Index[1])
             else:
                 raise ValueError(f"🚨 Projected '{requested}' is neither an attribute, nor an association end, nor an accepted wildcard")
+        project_attributes = list(set(project_attributes))
         identifiers = []
         for e in pattern_edges:
             if not (self.is_class(e) or self.is_association(e)):
@@ -1138,7 +1140,7 @@ class Catalog(HyperNetXWrapper):
         filter_clause = query.get("filter", "TRUE")
         if filter_clause == "":
             filter_clause = "TRUE"
-        filter_attributes = drop_duplicates(self.parse_predicate(filter_clause))
+        filter_attributes = list(set(self.parse_predicate(filter_clause)))
         # Identifiers of all classes are added to guarantee that a table containing the class is used in the query
         required_attributes = list(set(project_attributes + filter_attributes + identifiers))
 
@@ -1176,7 +1178,7 @@ class Catalog(HyperNetXWrapper):
         for elem in pattern:
             # Find the sets at fist level where the element belongs
             hierarchy = [elem]+self.get_generalizations_by_class_name(elem, return_superclasses=True)
-            first_levels = drop_duplicates(self.get_transitive_firstLevels(hierarchy))
+            first_levels = list(set(self.get_transitive_firstLevels(hierarchy)))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
             # Split join edges into classes and associations
@@ -1289,7 +1291,7 @@ class Catalog(HyperNetXWrapper):
                                 discriminants.append(discriminant)
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
-        return drop_duplicates(discriminants)
+        return list(set(discriminants))
 
     def get_insertion_alternatives(self, pattern_edges: list[str], provided_attributes: list[str]) -> list[tuple[str, dict[str,str]]]:
         """

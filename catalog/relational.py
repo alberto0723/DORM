@@ -327,7 +327,7 @@ class Relational(Catalog, ABC):
         query_superclasses = query_classes.copy()
         for class_name in query_classes:
             query_superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
-        query_superclasses = drop_duplicates(query_superclasses)
+        query_superclasses = list(set(query_superclasses))
         while tables:
             # Take any table and find all its potentially connection points
             current_table = tables.pop(0)
@@ -405,7 +405,7 @@ class Relational(Catalog, ABC):
                 unjoinable = []
                 break
         # Duplication removal should not be necessary, but they appear because of multiple structs in a table
-        joins = drop_duplicates(joins)
+        joins = list(set(joins))
         # Get all the connection point in the table and mark them as visited
         for plug in plugs:
             visited[plug[0]] = current_table
@@ -413,7 +413,7 @@ class Relational(Catalog, ABC):
         join_clause = schema_name + current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
-                raise ValueError(f"🚨 Tables {unjoinable} are not joinable in the query with tables {drop_duplicates(visited.values())}")
+                raise ValueError(f"🚨 Tables {unjoinable} are not joinable in the query with tables {set(visited.values())}")
             join_clause = laterals + "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
@@ -493,7 +493,7 @@ class Relational(Catalog, ABC):
                         conditions_external.append(condition)
                     else:
                         conditions_internal.append(condition)
-                filter_attributes_external = drop_duplicates(self.parse_predicate(" AND ".join(conditions_external)))
+                filter_attributes_external = list(set(self.parse_predicate(" AND ".join(conditions_external))))
                 custom_progress("------Generating FROM clause")
                 # Simple case of only one table required by the query
                 if len(tables_combination) == 1:

@@ -682,7 +682,7 @@ class HyperNetXWrapper:
             FROM struct_classes
             WHERE struct='{struct_name}' AND Anchor;
             """)
-        return drop_duplicates(association_ends["end_class"].values.tolist()+classes["class"].values.tolist())
+        return list(set(association_ends["end_class"].values.tolist()+classes["class"].values.tolist()))
 
     def get_anchor_end_names_by_struct_name(self, struct_name) -> list[str]:
         """
@@ -759,7 +759,7 @@ class HyperNetXWrapper:
             outbounds = ([self.get_edge_by_phantom_name(n) for n in self.get_outbound_struct_by_name(struct_name)["nodes"] if self.is_phantom(n)] +
                             [n for n in self.get_outbound_struct_by_name(struct_name)["nodes"] if self.is_attribute(n)])
         edge_names = []
-        for elem in drop_duplicates(outbounds + anchor_points):
+        for elem in set(outbounds + anchor_points):
             if self.is_class(elem) or self.is_association(elem) or self.is_generalization(elem):
                 edge_names.append(elem)
                 if self.is_class(elem) and elem in outbounds:
