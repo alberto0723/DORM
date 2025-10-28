@@ -884,6 +884,9 @@ class HyperNetXWrapper:
     def is_set(self, name) -> bool:
         return self.bool_query(f"SELECT 'Found' FROM edges WHERE uid='{name}' AND Kind='Set' LIMIT 1;")
 
+    def is_atom_in_fist_level(self, atom_name, edge_name) -> bool:
+        return self.bool_query(f"SELECT 'Found' FROM atoms_including_transitivity_by_edge_name WHERE atom='{atom_name}' AND edge='{edge_name}' LIMIT 1;")
+
     def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
         if visited is None:
             visited = [edge_name]

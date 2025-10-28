@@ -1172,7 +1172,9 @@ class Catalog(HyperNetXWrapper):
         associations = []
         for elem in pattern:
             # Find the sets at fist level where the element belongs
-            hierarchy = [elem]+self.get_generalizations_by_class_name(elem, return_superclasses=True)
+            hierarchy = [elem]
+            if self.is_class(elem):
+                hierarchy.extend(self.get_generalizations_by_class_name(elem, return_superclasses=True))
             first_levels = list(set(self.get_transitive_firstLevels(hierarchy)))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
@@ -1181,7 +1183,7 @@ class Catalog(HyperNetXWrapper):
                 associations.append(elem)
                 # If the element is an association, any table containing it is an option
                 buckets.append(first_levels)
-            if self.is_class(elem):
+            elif self.is_class(elem):
                 classes.append(elem)
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
@@ -1194,20 +1196,15 @@ class Catalog(HyperNetXWrapper):
                 # If it is a class, it may be vertically partitioned
                 # We need to generate joins of these tables that cover all required attributes one by one
                 # Get the tables independently for every attribute in the class
-                #    First, we precompute the attributes of all sets (which is expensive) to save time
-                attrs_of_set = {}
-                for set_name in first_levels:
-                    attrs_of_set[set_name] = self.get_atoms_including_transitivity_by_edge_name(set_name)
                 for attr in current_attributes:
                     if not self.is_id(attr) or len(current_attributes) == 1:
                         firstlevels_with_attr = []
                         for set_name in first_levels:
-                            if attr in attrs_of_set[set_name]:
+                            if self.is_atom_in_fist_level(attr, set_name):
                                 firstlevels_with_attr.append(set_name)
-                        if firstlevels_with_attr:
-                            buckets.append(firstlevels_with_attr)
+                        assert firstlevels_with_attr, f"The attribute {attr} is not found in any of the fist levels of the corresponding class {elem}"
+                        buckets.append(firstlevels_with_attr)
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
-        # TODO: Actually, it is not guaranteed that all of them are covered. It should be checked
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
     def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
