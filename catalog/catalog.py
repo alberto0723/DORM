@@ -165,11 +165,6 @@ class Catalog(HyperNetXWrapper):
             elif self.is_association_in_H(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
             elif self.is_class_in_H(elem):
-                # TODO: Move next lines to is_consistent
-                # # Only one element of a hierarchy can be included by the user in the elements of a struct
-                # included_superclasses = [c for c in self.get_generalizations_by_class_name(elem, return_superclasses=True) if c in elements]
-                # if included_superclasses:
-                #     raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{included_superclasses}')")
                 # Add the class to the struct
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
                 # Add the identifier to the struct
@@ -184,19 +179,6 @@ class Catalog(HyperNetXWrapper):
             else:
                 raise ValueError(f"🚨 Creating struct '{struct_name}' could not find '{elem}' to place it inside (check both domain and design)")
         self.H.add_incidences_from(incidences)
-        # TODO: Move next lines to is_consistent
-        # # Check if the classes and associations in the struct are connected
-        # restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-        # if not restricted_struct.H.is_connected():
-        #     raise ValueError(f"🚨 Struct '{struct_name}' is not connected")
-        # # Check if attributes in the struct are connected
-        # connected_attributes = restricted_struct.get_attributes()["name"].to_list()
-        # for elem in elements:
-        #     if self.is_attribute(elem) and elem not in connected_attributes:
-        #         raise ValueError(f"🚨 Attribute '{elem}' in struct '{struct_name}' is not connected")
-        # # Check if the associations in the anchor are connected (this should consider inheritance of associations)
-        # if not restricted_struct.H.restrict_to_edges(anchor).is_connected():
-        #     raise ValueError(f"🚨 The anchor of struct '{struct_name}' is not connected")
 
     def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
@@ -461,8 +443,6 @@ class Catalog(HyperNetXWrapper):
             consistent = False
             print("🚨 IC-Generic7 violation: There are cyclic hyperedges")
             display(violations1_7)
-
-        # IC-Generic8: Unused
 
         # ------------------------------------------------------------------------------------------------- ICs on atoms
         custom_progress("    Checking constraints on the domain")
