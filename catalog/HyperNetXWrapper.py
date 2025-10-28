@@ -190,14 +190,14 @@ class HyperNetXWrapper:
         # display(self.query("SELECT * FROM incidences;"))
         # Create other derived viewes in DuckDB
         self.query("""
-            CREATE OR REPLACE TEMP TABLE class_ids AS
+            CREATE TEMP TABLE class_ids AS
                 SELECT edges, nodes
                 FROM incidences
                 WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND Identifier;
             """)
         # This query requires and outer join to deal with restricted hypergraphs (which may be incomplete)
         self.query("""
-            CREATE OR REPLACE TEMP TABLE association_ends AS
+            CREATE TEMP TABLE association_ends AS
                 SELECT a.edges AS association, a.End_name AS name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
                 FROM incidences a
                     LEFT OUTER JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
@@ -205,7 +205,7 @@ class HyperNetXWrapper:
                     AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
             """)
         self.query("""
-            CREATE OR REPLACE TEMP TABLE sub_super_pairs AS
+            CREATE TEMP TABLE sub_super_pairs AS
                 SELECT sub_phantom.edges AS subclass, super.edges AS generalization, super_phantom.edges AS superclass, sub.Constraint
                 FROM incidences super
                     JOIN incidences super_phantom ON super.nodes = super_phantom.nodes
@@ -216,7 +216,7 @@ class HyperNetXWrapper:
                     AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
             """)
         self.query("""
-            CREATE OR REPLACE TEMP TABLE struct_association_ends AS
+            CREATE TEMP TABLE struct_association_ends AS
                 SELECT outgoing.edges AS struct, incoming.nodes AS association_phantom, incoming.edges AS association, outgoing.Anchor, ending.nodes AS end_phantom, ending.End_name, classes.edges AS end_class
                 FROM incidences outgoing
                     JOIN incidences incoming ON incoming.nodes=outgoing.nodes
@@ -228,7 +228,7 @@ class HyperNetXWrapper:
                     AND classes.Direction='Inbound' AND classes.Kind='ClassIncidence';
             """)
         self.query("""
-            CREATE OR REPLACE TEMP TABLE struct_classes AS
+            CREATE TEMP TABLE struct_classes AS
                 SELECT outgoing.edges AS struct, outgoing.nodes AS phantom, incoming.edges AS class, outgoing.Anchor
                 FROM incidences outgoing
                     JOIN incidences incoming ON incoming.nodes=outgoing.nodes
@@ -270,6 +270,11 @@ class HyperNetXWrapper:
             attribute_list = self.generate_struct_attribute_list(struct_name)
             self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
                             (struct_name, pickle.dumps(attribute_list)))
+        self.query("CREATE TEMP TABLE atoms_including_transitivity_by_edge_name (edge TEXT, atom TEXT);")
+        for edge_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            for attribute_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name):
+                self.sql.execute("INSERT INTO atoms_including_transitivity_by_edge_name (edge, atom) VALUES (?, ?);",
+                             (edge_name, attribute_name))
 
     ##############################################################################################
     # Methods that use the views in DuckDB
@@ -641,17 +646,20 @@ class HyperNetXWrapper:
             firstLevels.extend(self.get_transitive_firstLevels(next_edge_list, visited))
         return firstLevels
 
-    def get_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:
+    def generate_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:
         if visited is None:
             visited = [edge_name]
         else:
             visited.append(edge_name)
         atom_names = self.get_outbound_atoms_by_name(edge_name)["atom"].tolist()
         for next_edge in self.get_outbound_design_edges_by_name(edge_name)["design_edge"]:
-            assert next_edge not in visited, f"☠️ Cycle of edges detected: {next_edge} already in {visited}"
-            atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
+            assert next_edge not in visited, f"☠️ Cycle of edges detected while generating atoms inside an edge including_transitivity: {next_edge} already in {visited}"
+            atom_names.extend(self.generate_atoms_including_transitivity_by_edge_name(next_edge, visited))
         visited.pop()
         return atom_names
+
+    def get_atoms_including_transitivity_by_edge_name(self, edge_name) -> list[str]:
+        return self.query(f"SELECT atom FROM atoms_including_transitivity_by_edge_name WHERE edge='{edge_name}';")["atom"].values.tolist()
 
     def get_inbound_firstLevel(self) -> pd.DataFrame:
         firstLevel_phantoms = df_difference(self.get_phantom_design_edges().rename(columns={"name": 'nodes'}),
