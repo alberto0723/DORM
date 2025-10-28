@@ -102,10 +102,11 @@ class HyperNetXWrapper:
         else:
             return False
 
-    # TODO: Needs to be implemented
-    def is_association_end_in_H(self, name) -> bool:
-        #return name in self.get_association_ends().index.to_list()
-        return False
+    def is_association_end_in_H(self, end_name) -> bool:
+        ends = self.H.incidences.dataframe[self.H.incidences.dataframe["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                             x['Kind'] == 'AssociationIncidence' and
+                                                                             x['End_name'] == end_name)]
+        return not ends.empty
 
     def get_edge_by_phantom_name_in_H(self, phantom_name) -> str:
         phantom_incidences = self.H.incidences.dataframe.xs(phantom_name, level="nodes", drop_level=False)
