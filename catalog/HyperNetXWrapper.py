@@ -118,7 +118,7 @@ class HyperNetXWrapper:
         edge_inbounds = edge_incidences[edge_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
         return edge_inbounds.index[0][1]
 
-    def get_generalizations_by_class_name_in_H(self, class_name, visited: list[str] = None) -> list[str]:
+    def get_generalizations_by_class_name_in_H(self, class_name, return_superclasses: bool, visited: list[str] = None) -> list[str]:
         if visited is None:
             visited = []
         phantom_name = self.get_phantom_of_edge_by_name_in_H(class_name)
@@ -138,7 +138,24 @@ class HyperNetXWrapper:
             generalization = direct_superclass.index[0][0]
             superclass = self.get_edge_by_phantom_name_in_H(direct_superclass.index[0][1])
             assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
-            return [generalization]+self.get_generalizations_by_class_name_in_H(superclass, visited + [class_name])
+            if return_superclasses:
+                return [superclass]+self.get_generalizations_by_class_name_in_H(superclass, return_superclasses, visited + [class_name])
+            else:
+                return [generalization]+self.get_generalizations_by_class_name_in_H(superclass, return_superclasses, visited + [class_name])
+
+    def get_class_id_by_name_in_H(self, class_name) -> str:
+        superclasses = self.get_generalizations_by_class_name_in_H(class_name, return_superclasses=True)
+        incidences = self.H.incidences.dataframe
+        if not superclasses:
+            class_incidences = incidences.xs(class_name, level="edges", drop_level=False)
+        else:
+            # The top of the hierarchy should be the first in the list
+            class_incidences = incidences.xs(superclasses[-1], level="edges", drop_level=False)
+        class_id = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                         x['Kind'] == 'ClassIncidence' and
+                                                                                         x['Identifier'])]
+        assert not class_id.empty, f"Class {class_name} does not have an identifier"
+        return class_id.index[0][1]
 
     ##############################################################################################
     # Methods to fill the views in DuckDB

@@ -172,11 +172,10 @@ class Catalog(HyperNetXWrapper):
                 #     raise ValueError(f"🚨 Only one class per hierarchy can be included in the elements of a struct ('{struct_name}' got '{elem} and '{included_superclasses}')")
                 # Add the class to the struct
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
-                # TODO: Move next lines to is_consistent
-                # # Add the identifier to the struct
-                # incidences.append((struct_name, self.get_class_id_by_name(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+                # Add the identifier to the struct
+                incidences.append((struct_name, self.get_class_id_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
                 # We do need to have the generalizations in the struct to generate a restricted struct correctly including superclasses
-                for g in self.get_generalizations_by_class_name_in_H(elem, []):
+                for g in self.get_generalizations_by_class_name_in_H(elem, return_superclasses=False, visited=[]):
                     incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
             elif self.is_struct_in_H(elem) or self.is_set_in_H(elem):
                 incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
