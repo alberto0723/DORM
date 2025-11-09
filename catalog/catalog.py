@@ -152,7 +152,7 @@ class Catalog(HyperNetXWrapper):
         if not anchor:
             raise ValueError(f"🚨 Struct '{struct_name}' does not have any anchor")
         for elem in anchor:
-            if not self.is_class_in_H(elem) and not self.is_association(elem):
+            if not self.is_class_in_H(elem) and not self.is_association_in_H(elem):
                 raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{elem}') must be either a class or an association")
         self.H.add_edge(struct_name, Kind='Struct')
         # This adds a special phantom node required to represent different cases of inclusion in structs

@@ -174,7 +174,7 @@ class HyperNetXWrapper:
         df_edges = self.H.edges.to_dataframe.reset_index()
         df_edges_with_json = pd.json_normalize(df_edges["misc_properties"])
         df_edges_flattened = pd.concat([df_edges.drop(columns="misc_properties"), df_edges_with_json], axis=1)
-        for required in ['Kind']:
+        for required in ['Kind', 'Complete', 'Disjoint']:
             if required not in df_edges_flattened.columns:
                 df_edges_flattened[required] = None
         self.sql.register("edges", df_edges_flattened)

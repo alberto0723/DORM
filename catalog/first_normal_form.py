@@ -114,7 +114,7 @@ class FirstNormalForm(Relational):
             for _, attr_path in attr_paths:
                 attribute = self.get_attribute_by_name(self.get_domain_attribute_from_path(attr_path))
                 if attribute["DataType"] == "String":
-                    attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " VarChar(" + str(attribute["Size"]) + ")")
+                    attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " VarChar(" + str(int(attribute["Size"])) + ")")
                 else:
                     attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " " + attribute["DataType"])
             sentence += ",\n".join(attribute_list) + "\n  );"
