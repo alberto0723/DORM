@@ -876,8 +876,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Design1: All roots must be sets
             logger.info("Checking IC-Design1")
-            matches5_1 = self.get_root_edges()
-            violations5_1 = matches5_1[~matches5_1["is_set"]]
+            violations5_1 = self.get_root_edges(is_set=False)
             if not violations5_1.empty:
                 consistent = False
                 print("🚨 IC-Design1 violation: All root edges must be sets")
@@ -919,7 +918,7 @@ class Catalog(HyperNetXWrapper):
                 anchor_concepts = []
                 anchor_attributes = []
                 set_attributes = []
-                structs_list = self.get_structs_list_by_set_name(set_name)["structs"]
+                structs_list = self.get_struct_names_inside_set_name(set_name)
                 for struct_name in structs_list:
                     set_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
                     attribute_list = []

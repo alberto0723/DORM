@@ -12,7 +12,6 @@ import duckdb
 import uuid
 
 from .config import Config
-from .tools import drop_duplicates, df_difference
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -247,7 +246,7 @@ class HyperNetXWrapper:
             CREATE TEMP TABLE containments AS
                 SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge, n.Subkind AS child_kind, 
                     CASE WHEN outgoing.Kind='SetIncidence' THEN 'Set'
-                         WHEN outgoing.Kind='StructIncidence' THEN 'Set'
+                         WHEN outgoing.Kind='StructIncidence' THEN 'Struct'
                          ELSE NULL
                     END AS parent_kind
                 FROM nodes n
@@ -351,13 +350,6 @@ class HyperNetXWrapper:
         edges["name"] = edges.index
         return edges
 
-    def get_struct_names_inside_set_name(self, set_name) -> list[str]:
-        return self.query(f"""
-            SELECT child_edge
-            FROM containments
-            WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}'
-            """)["child_edge"]
-
     def get_incidences(self) -> pd.DataFrame:
         incidences = self.H.incidences.dataframe
         return incidences
@@ -369,7 +361,7 @@ class HyperNetXWrapper:
         return self.query(f"SELECT uid AS name, DataType, Size FROM nodes WHERE uid='{attr_name}' AND Kind='Attribute';").iloc[0]
 
     def get_association_ends(self) -> pd.DataFrame:
-        return self.query("""SELECT * FROM association_ends;""")
+        return self.query("SELECT * FROM association_ends;")
 
     def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
         return self.query(f"SELECT * FROM association_ends WHERE association='{association_name}';")
@@ -387,20 +379,12 @@ class HyperNetXWrapper:
         else:
             # The top of the hierarchy should be the first in the list
             edge_name = superclasses[-1]
-        class_id = self.query(f"""
-            SELECT nodes
-            FROM class_ids
-            WHERE edges = '{edge_name}';
-            """)
+        class_id = self.query(f"SELECT nodes FROM class_ids WHERE edges = '{edge_name}';")
         assert not class_id.empty, f"Class {class_name} does not have an identifier"
         return class_id.iat[0, 0]
 
     def get_class_by_attribute_name(self, attribute_name) -> str:
-        classes = self.query(f"""
-            SELECT edges AS class
-            FROM incidences
-            WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND nodes='{attribute_name}';
-            """)
+        classes = self.query(f"SELECT edges AS class FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND nodes='{attribute_name}';")
         assert len(classes) == 1, f"Attribute {attribute_name} does not have exactly one class"
         return classes.iat[0, 0]
 
@@ -420,18 +404,10 @@ class HyperNetXWrapper:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind IN ('Set', 'Struct');")
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
-        return self.query(f"""
-            SELECT edges
-            FROM incidences
-            WHERE Direction = 'Inbound' AND nodes='{phantom_name}';
-            """).iat[0, 0]
+        return self.query(f"SELECT edges FROM incidences WHERE Direction = 'Inbound' AND nodes='{phantom_name}';").iat[0, 0]
 
     def get_phantom_of_edge_by_name(self, edge_name) -> str:
-        return self.query(f"""
-            SELECT nodes
-            FROM incidences
-            WHERE Direction = 'Inbound' AND edges='{edge_name}';
-            """).iat[0, 0]
+        return self.query(f"SELECT nodes FROM incidences WHERE Direction = 'Inbound' AND edges='{edge_name}';").iat[0, 0]
 
     def get_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Count FROM edges WHERE Kind='Class';")
@@ -452,32 +428,16 @@ class HyperNetXWrapper:
         return self.query("SELECT uid AS name FROM edges WHERE Kind='Set';")
 
     def get_inbounds(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT edges, nodes
-            FROM incidences
-            WHERE Direction = 'Inbound';
-            """)
+        return self.query("SELECT edges, nodes FROM incidences WHERE Direction = 'Inbound';")
 
     def get_inbound_classes(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT edges, nodes
-            FROM incidences
-            WHERE Direction = 'Inbound' AND Kind='ClassIncidence';
-            """)
+        return self.query("SELECT edges, nodes FROM incidences WHERE Direction = 'Inbound' AND Kind='ClassIncidence';")
 
     def get_inbound_associations(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT edges, nodes
-            FROM incidences
-            WHERE Direction = 'Inbound' AND Kind='AssociationIncidence';
-            """)
+        return self.query("SELECT edges, nodes FROM incidences WHERE Direction = 'Inbound' AND Kind='AssociationIncidence';")
 
     def get_inbound_generalizations(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT nodes
-            FROM incidences
-            WHERE Direction = 'Inbound' AND Kind='GeneralizationIncidence';
-            """)
+        return self.query("SELECT nodes FROM incidences WHERE Direction = 'Inbound' AND Kind='GeneralizationIncidence';")
 
     def get_inbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()
@@ -494,25 +454,13 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_atoms_by_name(self, edge_name) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT atom
-            FROM outgoing_atoms
-            WHERE edge='{edge_name}';
-            """)
+        return self.query(f"SELECT atom FROM outgoing_atoms WHERE edge='{edge_name}';")
 
     def get_outbound_design_edges_by_name(self, edge_name) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT child_edge AS design_edge
-            FROM containments
-            WHERE parent_edge='{edge_name}' AND child_kind IN ('Set', 'Struct');
-            """)
+        return self.query(f"SELECT child_edge AS design_edge FROM containments WHERE parent_edge='{edge_name}' AND child_kind IN ('Set', 'Struct');")
 
     def get_outbound_associations(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT edges, nodes, End_name, MultiplicityMax, MultiplicityMin
-            FROM incidences
-            WHERE Direction = 'Outbound' AND Kind='AssociationIncidence';
-            """)
+        return self.query("SELECT edges, nodes, End_name, MultiplicityMax, MultiplicityMin FROM incidences WHERE Direction = 'Outbound' AND Kind='AssociationIncidence';")
 
     def get_outbound_generalization_superclasses(self) -> pd.DataFrame:
         return self.query(f"""
@@ -543,11 +491,7 @@ class HyperNetXWrapper:
             """)
 
     def get_outbound_generalization_subclasses_by_gen_name(self, gen_name: str) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT nodes
-            FROM incidences
-            WHERE Direction='Outbound' AND Kind='GeneralizationIncidence' AND Subkind='Subclass' AND edges='{gen_name}';
-            """)
+        return self.query(f"SELECT nodes FROM incidences WHERE Direction='Outbound' AND Kind='GeneralizationIncidence' AND Subkind='Subclass' AND edges='{gen_name}';")
 
     def get_outbound_structs(self) -> pd.DataFrame:
         incidences = self.get_incidences()
@@ -570,11 +514,7 @@ class HyperNetXWrapper:
             """)
 
     def get_outbound_struct_by_name(self, struct_name) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT nodes, Anchor
-            FROM incidences
-            WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';
-            """)
+        return self.query(f"SELECT nodes, Anchor FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';")
 
     def get_unique_outbound_struct_by_phantom_list(self, phantom_list: list[str]) -> list[str]:
         return self.query("""
@@ -583,20 +523,10 @@ class HyperNetXWrapper:
             WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND nodes IN ('""" + "','".join(phantom_list) + "');")["edges"].values.tolist()
 
     def get_anchors_by_struct_name(self, struct_name) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT nodes
-            FROM incidences
-            WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;
-            """)
+        return self.query(f"SELECT nodes FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor; ")
 
-    def get_structs_list_by_set_name(self, set_name) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT i2.edges AS structs
-            FROM incidences i1
-                JOIN incidences i2 ON i1.nodes = i2.nodes
-            WHERE i1.Direction = 'Outbound' AND i1.Kind='SetIncidence' AND i1.edges='{set_name}' 
-                AND i2.Direction = 'Inbound' AND i2.Kind='StructIncidence';
-            """)
+    def get_struct_names_inside_set_name(self, set_name) -> list[str]:
+        return self.query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}';")["child_edge"]
 
     def get_outbound_set_by_name(self, set_name) -> pd.DataFrame:
         # elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
@@ -611,11 +541,7 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
-        return self.query(f"""
-                SELECT nodes AS attribute
-                FROM incidences
-                WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';
-            """)
+        return self.query(f"SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';")
 
     def get_outbound_sets(self) -> pd.DataFrame:
         incidences = self.get_incidences()
@@ -627,11 +553,7 @@ class HyperNetXWrapper:
             return outbounds
 
     def get_outbound_classes(self) -> pd.DataFrame:
-        return self.query(f"""
-            SELECT nodes AS attribute
-            FROM incidences
-            WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound';
-            """)
+        return self.query("SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound';")
 
     def get_transitive_roots(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
         """
@@ -673,8 +595,8 @@ class HyperNetXWrapper:
     def get_atoms_including_transitivity_by_edge_name(self, edge_name) -> list[str]:
         return self.query(f"SELECT atom FROM atoms_including_transitivity_by_edge_name WHERE edge='{edge_name}';")["atom"].values.tolist()
 
-    def get_root_edges(self) -> pd.DataFrame:
-        return self.query("SELECT name, is_set FROM root_edges;")
+    def get_root_edges(self, is_set: bool = True) -> pd.DataFrame:
+        return self.query(f"SELECT name FROM root_edges WHERE is_set={is_set};")
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         anchor_elements = self.get_anchors_by_struct_name(struct_name)
@@ -689,16 +611,8 @@ class HyperNetXWrapper:
         :return: A list of class names
         """
         # TODO: This is not considering that an anchor of a struct can be in a nested struct (only as root at first level)
-        association_ends = self.query(f"""
-            SELECT end_class
-            FROM struct_association_ends
-            WHERE struct='{struct_name}' AND Anchor;
-            """)
-        classes = self.query(f"""
-            SELECT class
-            FROM struct_classes
-            WHERE struct='{struct_name}' AND Anchor;
-            """)
+        association_ends = self.query(f"SELECT end_class FROM struct_association_ends WHERE struct='{struct_name}' AND Anchor;")
+        classes = self.query(f"SELECT class FROM struct_classes WHERE struct='{struct_name}' AND Anchor;")
         return list(set(association_ends["end_class"].values.tolist()+classes["class"].values.tolist()))
 
     def get_anchor_end_names_by_struct_name(self, struct_name) -> list[str]:
@@ -717,11 +631,7 @@ class HyperNetXWrapper:
                 WHERE struct='{struct_name}' AND Anchor AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
                 );
             """)
-        classes = self.query(f"""
-            SELECT phantom, class
-            FROM struct_classes
-            WHERE struct='{struct_name}' AND Anchor;
-            """)
+        classes = self.query(f"SELECT phantom, class FROM struct_classes WHERE struct='{struct_name}' AND Anchor;")
         superclasses = []
         for class_name in classes["class"]:
             superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
@@ -745,11 +655,7 @@ class HyperNetXWrapper:
                 WHERE struct='{struct_name}' AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
                 );
             """)
-        classes = self.query(f"""
-            SELECT phantom, class
-            FROM struct_classes
-            WHERE struct='{struct_name}';
-            """)
+        classes = self.query(f"SELECT phantom, class FROM struct_classes WHERE struct='{struct_name}';")
         tight_ends = []
         for edge_name in self.get_outbound_design_edges_by_name(struct_name)["design_edge"]:
             if self.is_struct(edge_name):
@@ -946,7 +852,7 @@ class HyperNetXWrapper:
         for key in self.get_anchor_end_names_by_struct_name(struct_name):
             if self.is_class(key):
                 struct_anchor_classes.append(key)
-        for current_struct_name in self.get_structs_list_by_set_name(set_name)["structs"]:
+        for current_struct_name in self.get_struct_names_inside_set_name(set_name):
             if current_struct_name != struct_name:
                 current_struct_anchor_classes = []
                 for key in self.get_anchor_end_names_by_struct_name(current_struct_name):
