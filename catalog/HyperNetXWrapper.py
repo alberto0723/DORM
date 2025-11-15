@@ -395,9 +395,7 @@ class HyperNetXWrapper:
         return classes.iat[0, 0]
 
     def get_phantoms(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
-        return phantoms
+        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom';")
 
     def get_phantom_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Class';")
@@ -406,10 +404,7 @@ class HyperNetXWrapper:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Association';")
 
     def get_phantom_structs(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Struct')]
-        return phantoms
+        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Struct';")
 
     def get_phantom_design_edges(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind IN ('Set', 'Struct');")
@@ -584,6 +579,15 @@ class HyperNetXWrapper:
             SELECT nodes
             FROM incidences
             WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;
+            """)
+
+    def get_structs_list_by_set_name(self, set_name) -> pd.DataFrame:
+        return self.query(f"""
+            SELECT i2.edges AS structs
+            FROM incidences i1
+                JOIN incidences i2 ON i1.nodes = i2.nodes
+            WHERE i1.Direction = 'Outbound' AND i1.Kind='SetIncidence' AND i1.edges='{set_name}' 
+                AND i2.Direction = 'Inbound' AND i2.Kind='StructIncidence';
             """)
 
     def get_outbound_set_by_name(self, set_name) -> pd.DataFrame:
@@ -937,9 +941,7 @@ class HyperNetXWrapper:
         for key in self.get_anchor_end_names_by_struct_name(struct_name):
             if self.is_class(key):
                 struct_anchor_classes.append(key)
-        struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_phantom_structs(), on="nodes", how="inner").index
-        for current_struct_phantom in struct_phantom_list:
-            current_struct_name = self.get_edge_by_phantom_name(current_struct_phantom)
+        for current_struct_name in self.get_structs_list_by_set_name(set_name)["structs"]:
             if current_struct_name != struct_name:
                 current_struct_anchor_classes = []
                 for key in self.get_anchor_end_names_by_struct_name(current_struct_name):

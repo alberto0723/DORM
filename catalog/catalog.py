@@ -358,7 +358,8 @@ class Catalog(HyperNetXWrapper):
         edges = self.get_edges()
         incidences = self.get_incidences()
         ids = self.get_ids()
-        phantoms = self.get_phantoms()
+        phantoms = self.get_phantoms().set_index("name", drop=False)
+        phantoms.index.name = "nodes"
         attributes = self.get_attributes().set_index("name", drop=False)
         attributes.index.name = "nodes"
         classes = self.get_classes().set_index("name", drop=False)
@@ -695,8 +696,8 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs2: Every struct must be inside another struct or set
             logger.info("Checking IC-Structs2")
-            matches3_2 = pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).reset_index("edges", drop=True).drop('misc_properties', axis=1)
-            violations3_2 = df_difference(self.get_phantom_structs().drop(['misc_properties', 'name'], axis=1), matches3_2)
+            matches3_2 = pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).index.get_level_values("nodes").to_series()
+            violations3_2 = df_difference(self.get_phantom_structs()['name'], matches3_2)
             if not violations3_2.empty:
                 consistent = False
                 print("🚨 IC-Structs2 violation: There are structs that do not belong to any other struct or set")
@@ -916,9 +917,8 @@ class Catalog(HyperNetXWrapper):
                 anchor_concepts = []
                 anchor_attributes = []
                 set_attributes = []
-                struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_phantom_structs(), on="nodes", how="inner").index
-                for struct_phantom in struct_phantom_list:
-                    struct_name = self.get_edge_by_phantom_name(struct_phantom)
+                structs_list = self.get_structs_list_by_set_name(set_name)["structs"]
+                for struct_name in structs_list:
                     set_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
                     attribute_list = []
                     concept_list = []
@@ -940,7 +940,7 @@ class Catalog(HyperNetXWrapper):
                     print(f"🚨 IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
                 # Check IC-Design5
                 # Not really necessary to check if they are generalization, because attributes already coincide
-                elif len(drop_duplicates(anchor_concepts)) != len(struct_phantom_list):
+                elif len(drop_duplicates(anchor_concepts)) != len(structs_list):
                     consistent = False
                     print(f"🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do exactly coincide and should not: '{anchor_concepts}'")
                 # Check IC-Design6
