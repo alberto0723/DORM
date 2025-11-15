@@ -652,7 +652,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets4: Sets cannot directly contain other sets
             logger.info("Checking IC-Sets4")
-            violations4_4 = pd.merge(self.get_outbound_sets(), self.get_inbound_sets(), on='nodes', suffixes=('_setOutbounds', '_setInbounds'), how='inner')
+            violations4_4 = pd.merge(self.get_outbound_sets(), self.get_phantom_sets(), left_on='nodes', right_on='name', suffixes=('_setOutbounds', '_setInbounds'), how='inner')
             if not violations4_4.empty:
                 consistent = False
                 print("🚨 IC-Sets4 violation: There are sets that contain other sets")
@@ -668,7 +668,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets6: Sets cannot directly contain generalizations
             logger.info("Checking IC-Sets6")
-            violations4_6 = pd.merge(self.get_outbound_sets(), self.get_inbound_generalizations(), on='nodes', suffixes=('_setOutbounds', '_generInbounds'), how='inner')
+            violations4_6 = pd.merge(self.get_outbound_sets(), self.get_phantom_generalizations(), left_on='nodes', right_on='name', suffixes=('_setOutbounds', '_generInbounds'), how='inner')
             if not violations4_6.empty:
                 consistent = False
                 print("🚨 IC-Sets6 violation: There are sets that contain generalizations")
@@ -837,7 +837,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the class or anchor of the struct inside the set (Definition 7-d)
             #               Actually, this just checks that the parent struct has an association to either the class or every element in the anchor
             logger.info("Checking IC-Structs-d")
-            sets_within_struct = self.get_outbound_structs().reset_index(drop=False).merge(self.get_inbound_sets(), left_on='nodes', right_on='nodes', suffixes=('_struct', '_set'), how='inner')
+            sets_within_struct = self.get_outbound_structs().reset_index(drop=False).merge(self.get_phantom_sets(), left_on='nodes', right_on='name', suffixes=('_struct', '_set'), how='inner')
             for set_struct in sets_within_struct.itertuples():
                 external_struct_name = set_struct.edges
                 # The content of a set can be either one single class, or several structs
