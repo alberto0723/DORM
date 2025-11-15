@@ -265,13 +265,23 @@ class HyperNetXWrapper:
                 WHERE i.Direction='Outbound'
                     AND (n.Kind='Attribute' OR (n.Kind='Phantom' AND n.SubKind IN ('Class', 'Association')));
             """)
+        self.query(f"""
+            CREATE TEMP TABLE root_edges AS
+                SELECT edges AS name, (i_external.Kind='SetIncidence') AS is_set
+                FROM incidences i_external
+                WHERE i_external.Direction = 'Inbound'
+                    AND NOT EXISTS(SELECT 1 
+                                    FROM incidences i_internal 
+                                    WHERE i_internal.Direction = 'Outbound' 
+                                        AND i_external.nodes = i_internal.nodes);
+                    """)
         self.query("CREATE TEMP TABLE struct_attribute_list (struct TEXT, attribute_list BLOB);")
-        for struct_name in self.get_structs().index:
+        for struct_name in self.get_structs()["name"]:
             attribute_list = self.generate_struct_attribute_list(struct_name)
             self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
                             (struct_name, pickle.dumps(attribute_list)))
         self.query("CREATE TEMP TABLE atoms_including_transitivity_by_edge_name (edge TEXT, atom TEXT);")
-        for edge_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+        for edge_name in self.get_root_edges()["name"]:
             for attribute_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name):
                 self.sql.execute("INSERT INTO atoms_including_transitivity_by_edge_name (edge, atom) VALUES (?, ?);",
                              (edge_name, attribute_name))
@@ -436,19 +446,17 @@ class HyperNetXWrapper:
         return self.query("SELECT uid AS name, Complete, Disjoint FROM edges WHERE Kind='Generalization';")
 
     def get_structs(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        structs = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Struct')]
-        return structs
+        return self.query("SELECT uid AS name FROM edges WHERE Kind='Struct';")
 
     def get_sets(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        sets = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Set')]
-        return sets
+        return self.query("SELECT uid AS name FROM edges WHERE Kind='Set';")
 
     def get_inbounds(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
-        return inbounds
+        return self.query(f"""
+            SELECT edges, nodes
+            FROM incidences
+            WHERE Direction = 'Inbound';
+            """)
 
     def get_inbound_classes(self) -> pd.DataFrame:
         return self.query(f"""
@@ -625,30 +633,30 @@ class HyperNetXWrapper:
             WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound';
             """)
 
-    def get_transitive_firstLevels(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
+    def get_transitive_roots(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
         """
-        Given some edges, returns the list of first levels containing them, following nested structs and sets.
+        Given some edges, returns the list of roots containing them, following nested structs and sets.
         :param edge_list: List of edges to find
         :param visited: Visited edges to avoid potential recursion (which should not happen)
-        :return: List of first levels containing the given edges
+        :return: List of roots containing the given edges
         """
         if visited is None:
             visited = edge_list
         else:
             visited = visited + edge_list
-        firstLevels = []
+        roots = []
         next_edge_list = []
         for edge_name in edge_list:
             parents = self.get_parents(edge_name)
             if parents.empty:
                 # It may happen that some classes are not actually present in the design (because of generalizations)
                 if self.is_set(edge_name):
-                    firstLevels.append(edge_name)
+                    roots.append(edge_name)
             else:
                 next_edge_list.extend([edge for edge in parents["parent_edge"] if edge not in visited])
         if next_edge_list:
-            firstLevels.extend(self.get_transitive_firstLevels(next_edge_list, visited))
-        return firstLevels
+            roots.extend(self.get_transitive_roots(next_edge_list, visited))
+        return roots
 
     def generate_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:
         if visited is None:
@@ -665,11 +673,8 @@ class HyperNetXWrapper:
     def get_atoms_including_transitivity_by_edge_name(self, edge_name) -> list[str]:
         return self.query(f"SELECT atom FROM atoms_including_transitivity_by_edge_name WHERE edge='{edge_name}';")["atom"].values.tolist()
 
-    def get_inbound_firstLevel(self) -> pd.DataFrame:
-        firstLevel_phantoms = df_difference(self.get_phantom_design_edges().rename(columns={"name": 'nodes'}),
-                                           self.get_outbounds().reset_index()[["nodes"]])
-        firstLevel_incidences = self.get_inbounds().join(firstLevel_phantoms.set_index("nodes"), on="nodes", how='inner')
-        return firstLevel_incidences
+    def get_root_edges(self) -> pd.DataFrame:
+        return self.query("SELECT name, is_set FROM root_edges;")
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         anchor_elements = self.get_anchors_by_struct_name(struct_name)
@@ -683,7 +688,7 @@ class HyperNetXWrapper:
         :param struct_name: Name of the struct
         :return: A list of class names
         """
-        # TODO: This is not considering that an anchor of a struct can be in a nested struct (only at first level)
+        # TODO: This is not considering that an anchor of a struct can be in a nested struct (only as root at first level)
         association_ends = self.query(f"""
             SELECT end_class
             FROM struct_association_ends

@@ -30,17 +30,18 @@ class FirstNormalForm(Relational):
         consistent = super().is_consistent(design)
         # Not worth to check anything if the more basic stuff is already not consistent
         if consistent:
-            firstlevel_names = self.get_inbound_firstLevel().index.get_level_values("edges")
+            root_names = self.get_root_edges()["name"]
 
             # ---------------------------------------------------------------- ICs about being a First Normal Form catalog
             custom_progress("    Checking 1NF constraints")
 
-            # IC-FirstNormalForm1: Sets can only appear at the first level
+            # IC-FirstNormalForm1: Sets can only appear as root edges
             logger.info("Checking IC-FirstNormalForm1")
-            violations7_1 = self.get_sets()[~self.get_sets().index.isin(firstlevel_names)]
+            sets = self.get_sets()
+            violations7_1 = sets[~sets["name"].isin(root_names)]
             if not violations7_1.empty:
                 consistent = False
-                print(f"🚨 IC-FirstNormalForm1 violation: Some sets are not at first level")
+                print(f"🚨 IC-FirstNormalForm1 violation: Some sets are not root edges")
                 display(violations7_1)
 
             # IC-FirstNormalForm2: Sets can only contain structs
@@ -55,7 +56,7 @@ class FirstNormalForm(Relational):
             # IC-FirstNormalForm3: Structs can only appear at the second level
             logger.info("Checking IC-FirstNormalForm3")
             struct_phantom_names = self.get_phantom_structs()["name"]
-            violations7_3 = self.get_outbounds()[self.get_outbounds().index.to_frame().apply(lambda row: row["edges"] not in firstlevel_names and row["nodes"] in struct_phantom_names, axis=1)]
+            violations7_3 = self.get_outbounds()[self.get_outbounds().index.to_frame().apply(lambda row: row["edges"] not in root_names and row["nodes"] in struct_phantom_names, axis=1)]
             if not violations7_3.empty:
                 consistent = False
                 print("🚨 IC-FirstNormalForm3 violation: Some structs are not at the second level")
@@ -64,7 +65,7 @@ class FirstNormalForm(Relational):
             # IC-FirstNormalForm4: All associations from the anchor of a class must be to one (at most)
             logger.info("Checking IC-FirstNormalForm4")
             # For each table
-            for set_name in firstlevel_names:
+            for set_name in root_names:
                 for struct_phantom in self.get_outbound_set_by_name(set_name).index.get_level_values("nodes"):
                     struct_name = self.get_edge_by_phantom_name(struct_phantom)
                     members = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
@@ -91,7 +92,7 @@ class FirstNormalForm(Relational):
 
     def generate_create_table_statements(self) -> list[str]:
         """
-        Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
+        Generated the DDL for the tables in the design. One table is created for every set which is a root (i.e., without parent).
         One or more structs are expected inside the set, but all of them should generate the same attributes.
         Inside each table, there are all the attributes in the struct, plus the IDs of the classes, plus the loose ends
         of the associations.
@@ -99,7 +100,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating create table statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n"
@@ -151,7 +152,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating primary key declaration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating primary key declaration statements", leave=config.show_progress):
             logger.info(f"-- Altering table {table_name} to add the PK")
             sentence = "ALTER TABLE " + table_name + " ADD"
             # Create the PK
@@ -178,7 +179,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_referee_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating foreign key declaration statements", leave=config.show_progress):
+        for table_referee_name in tqdm(self.get_root_edges()["name"], desc="Generating foreign key declaration statements", leave=config.show_progress):
             # Get all the attributes in all the structs
             attribute_list = []
             for struct_name in self.get_struct_names_inside_set_name(table_referee_name):
@@ -207,7 +208,7 @@ class FirstNormalForm(Relational):
                     # Follow the hierarchy bottom to top in order until a superclass is found to point to
                     found = False
                     for class_name in hierarchy:
-                        for table_referred_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+                        for table_referred_name in self.get_root_edges()["name"]:
                             # We can take any struct in the set, because all must share the anchor
                             struct_name = self.get_struct_names_inside_set_name(table_referred_name)[0]
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)

@@ -154,8 +154,9 @@ class Relational(Catalog, ABC):
 
             # IC-Relational1:
             logger.info("Checking IC-Relational1")
-            matches6_1 = self.get_inbound_firstLevel().index.get_level_values("edges")
-            violations6_1 = self.get_sets()[self.get_sets().apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
+            matches6_1 = self.get_root_edges()["name"]
+            sets = self.get_sets()
+            violations6_1 = sets[sets.apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
             if not violations6_1.empty:
                 consistent = False
                 print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL")
@@ -258,7 +259,7 @@ class Relational(Catalog, ABC):
             warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
         statements = []
         # For each table
-        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating migration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating migration statements", leave=config.show_progress):
             logger.info(f"-- Generating data migration for table {table_name}")
             # For each struct in the table, we have to create a different extraction query
             for struct_name in self.get_struct_names_inside_set_name(table_name):

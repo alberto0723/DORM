@@ -367,8 +367,10 @@ class Catalog(HyperNetXWrapper):
         associations = self.get_associations().set_index("name", drop=False)
         associations.index.name = "edges"
         generalizations = self.get_generalizations()
-        structs = self.get_structs()
-        sets = self.get_sets()
+        structs = self.get_structs().set_index("name", drop=False)
+        structs.index.name = "edges"
+        sets = self.get_sets().set_index("name", drop=False)
+        sets.index.name = "edges"
         inbounds = self.get_inbounds()
         outbounds = self.get_outbounds()
         structOutbounds = self.get_outbound_structs()
@@ -401,7 +403,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic3: Every phantom belongs to one edge
         logger.info("Checking IC-Generic3")
         matches1_3 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
-        violations1_3 = phantoms[~phantoms["name"].isin((matches1_3.reset_index(drop=False))["nodes"])]
+        violations1_3 = phantoms[~phantoms["name"].isin(matches1_3["nodes"])]
         if not violations1_3.empty:
             consistent = False
             print("🚨 IC-Generic3 violation: There are phantoms without an edge")
@@ -409,7 +411,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Generic4: Every edge has at least one inbound
         logger.info("Checking IC-Generic4")
-        matches1_4 = self.get_inbounds().reset_index(level='nodes', drop=True).reset_index(drop=False)['edges']
+        matches1_4 = inbounds['edges']
         violations1_4 = df_difference(edges.reset_index(drop=False)['edges'], matches1_4)
         if not violations1_4.empty:
             consistent = False
@@ -430,7 +432,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Generic6: An edge cannot have more than one inbound
         logger.info("Checking IC-Generic6")
-        violations1_6 = inbounds.groupby(inbounds.index.get_level_values('edges')).size()
+        violations1_6 = inbounds.groupby(inbounds['edges']).size()
         if not violations1_6[violations1_6 > 1].empty:
             consistent = False
             print("🚨 IC-Generic6 violation: There are edges with more than one inbound")
@@ -438,7 +440,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Generic7: A hyperedge cannot be cyclic
         logger.info("Checking IC-Generic7")
-        matches1_7 = pd.concat([self.get_sets(), self.get_structs()])
+        matches1_7 = pd.concat([sets, structs])
         violations1_7 = matches1_7[matches1_7.apply(lambda row: self.has_cycle(row["name"]), axis=1)]
         if not violations1_7.empty:
             consistent = False
@@ -499,7 +501,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms6: Every association has one phantom
         logger.info("Checking IC-Atoms6")
         matches2_6 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-        violations2_6 = associations[~associations["name"].isin((matches2_6.reset_index(drop=False))["edges"])]
+        violations2_6 = associations[~associations["name"].isin(matches2_6["edges"])]
         if not violations2_6.empty:
             consistent = False
             print("🚨 IC-Atoms6 violation: There are associations without phantom")
@@ -624,7 +626,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Sets1: Every set has one phantom
             logger.info("Checking IC-Sets1")
             matches4_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-            violations4_1 = sets[~sets["name"].isin((matches4_1.reset_index(drop=False))["edges"])]
+            violations4_1 = sets[~sets["name"].isin(matches4_1["edges"])]
             if not violations4_1.empty:
                 consistent = False
                 print("🚨 IC-Sets1 violation: There are sets without phantom")
@@ -688,7 +690,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs1: Every struct has one phantom
             logger.info("Checking IC-Structs1")
             matches3_1 = inbounds.join(phantoms, on='nodes', rsuffix='_nodes', how='inner')
-            violations3_1 = structs[~structs["name"].isin((matches3_1.reset_index(drop=False))["edges"])]
+            violations3_1 = structs[~structs["name"].isin(matches3_1["edges"])]
             if not violations3_1.empty:
                 consistent = False
                 print("🚨 IC-Structs1 violation: There are structs without phantom")
@@ -723,7 +725,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs5: Anchors are connected
             logger.info("Checking IC-Structs5")
-            for struct in self.get_structs().index:
+            for struct in structs["name"]:
                 edge_names = []
                 struct_outbounds = self.get_outbound_struct_by_name(struct)
                 for elem in struct_outbounds[struct_outbounds["Anchor"]]["nodes"]:
@@ -751,7 +753,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs7: Loose association ends in the anchor must still be loose ends in the whole struct
             logger.info("Checking IC-Structs7")
-            for struct_name in structs.index:
+            for struct_name in structs["name"]:
                 loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
                 for anchor_end_name in self.get_anchor_end_names_by_struct_name(struct_name):
                     if not self.is_class(anchor_end_name) and anchor_end_name not in loose_ends:
@@ -760,7 +762,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs8: A struct containing siblings by some generalization must also contain the discriminant attribute
             logger.info("Checking IC-Structs8")
-            for struct_name in self.get_structs().index:
+            for struct_name in structs["name"]:
                 discriminants = []
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 restricted_classes = restricted_struct.get_classes()
@@ -789,7 +791,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs-b: All attributes in a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-b)
             logger.info("Checking IC-Structs-b")
-            for struct_name in structs.index:
+            for struct_name in structs["name"]:
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
@@ -810,7 +812,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs-c: All anchors of structs inside a struct are connected to its anchor by a unique path of associations, which are all part of the struct, too (Definition 7-c)
             #               Also need to check that max multiplicity is one (otherwise, it should be a set)
             logger.info("Checking IC-Structs-c")
-            for external_struct_name in self.get_structs().index:
+            for external_struct_name in structs["name"]:
                 for elem_name in self.get_outbound_struct_by_name(external_struct_name)["nodes"]:
                     if self.is_phantom(elem_name):
                         edge_name = self.get_edge_by_phantom_name(elem_name)
@@ -861,7 +863,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs-e: All associations inside a struct connect either a class or another struct (Definition 7-e)
             #               This needs to be relaxed to simply structs being connected
             logger.info("Checking IC-Structs-e (relaxed)")
-            for struct_name in self.get_structs().index:
+            for struct_name in structs["name"]:
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
                 if not restricted_struct.H.is_connected(s=1):
@@ -872,26 +874,26 @@ class Catalog(HyperNetXWrapper):
             # ----------------------------------------------------------------------------------------- ICs about design
             custom_progress("    Checking generic design constraints")
 
-            # IC-Design1: All the first levels must be sets
+            # IC-Design1: All roots must be sets
             logger.info("Checking IC-Design1")
-            matches5_1 = self.get_inbound_firstLevel()
-            violations5_1 = matches5_1[~matches5_1["misc_properties"].apply(lambda x: x['Kind'] == 'SetIncidence')]
+            matches5_1 = self.get_root_edges()
+            violations5_1 = matches5_1[~matches5_1["is_set"]]
             if not violations5_1.empty:
                 consistent = False
-                print("🚨 IC-Design1 violation: All first levels must be sets")
+                print("🚨 IC-Design1 violation: All root edges must be sets")
                 display(violations5_1)
 
-            # IC-Design2: All the attributes and associations in the domain are connected to the first level
+            # IC-Design2: All the attributes and associations in the domain are connected to some root edge
             #             Classes are excluded from the check because of generalization
             logger.info("Checking IC-Design2")
             matches5_2 = []
-            for set_name in self.get_inbound_firstLevel().index.get_level_values("edges"):
+            for set_name in self.get_root_edges()["name"]:
                 matches5_2.extend(self.get_atoms_including_transitivity_by_edge_name(set_name))
             atoms5_2 = pd.concat([attributes["name"], self.get_phantom_associations()])
             violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2)]
             if not violations5_2.empty:
                 consistent = False
-                print("🚨 IC-Design2 violation: Atoms disconnected from the first level")
+                print("🚨 IC-Design2 violation: Atoms disconnected from the root edges")
                 display(violations5_2)
 
             # IC-Design3: All domain elements must appear in some struct or set
@@ -913,7 +915,7 @@ class Catalog(HyperNetXWrapper):
             logger.info("Checking IC-Design4")
             logger.info("Checking IC-Design5")
             logger.info("Checking IC-Design6")
-            for set_name in sets.index:
+            for set_name in sets["name"]:
                 anchor_concepts = []
                 anchor_attributes = []
                 set_attributes = []
@@ -974,7 +976,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Design7: Any struct with a class with subclasses must contain the corresponding discriminants
             #             It is implemented as a warning, because it could be acceptable as soon as the class is not used in the queries
             logger.info("Checking IC-Design7 (produces just warnings)")
-            for struct_name in self.get_structs().index:
+            for struct_name in structs["name"]:
                 # Get all class names in the current struct
                 class_names = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]["edges"]
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
@@ -993,7 +995,7 @@ class Catalog(HyperNetXWrapper):
             for class_name in self.get_classes()["name"].values:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
                 found = False
-                for struct_name in self.get_structs().index:
+                for struct_name in structs["name"]:
                     # Check if the class is in this struct
                     if class_phantom in self.get_outbound_struct_by_name(struct_name)["nodes"].values:
                         dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
@@ -1003,7 +1005,7 @@ class Catalog(HyperNetXWrapper):
                         for anchor_point in anchor_points:
                             if self.is_class(anchor_point):
                                 paths = list(nx.all_simple_paths(bipartite, source=class_phantom, target=anchor_point))
-                                # There can be more than one path from a class to the first level, as soon as it goes through different structs, but this is not relevant here
+                                # There can be more than one path from a class to the root edge, as soon as it goes through different structs, but this is not relevant here
                                 for path in paths:
                                     # First position in the tuple is the min multiplicity
                                     found = self.check_multiplicities_to_one(path)[0]
@@ -1023,12 +1025,12 @@ class Catalog(HyperNetXWrapper):
                         if found: break
                 if not found:
                     # consistent = False
-                    warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any set at the first level with associations of minimum multiplicity one")
+                    warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any root set with associations of minimum multiplicity one")
 
             # IC-Design9: All attributes in the structs in a set must have the same paths
             #             In already considers nested structs and sets, because get_struct_attributes already does
             logger.info("Checking IC-Design9")
-            for set_name in self.get_sets().index:
+            for set_name in sets["name"]:
                 inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")
                 if len(inner_structs_phantom_names) > 1:
                     attribute_paths = []
@@ -1175,7 +1177,7 @@ class Catalog(HyperNetXWrapper):
             hierarchy = [elem]
             if self.is_class(elem):
                 hierarchy.extend(self.get_generalizations_by_class_name(elem, return_superclasses=True))
-            first_levels = list(set(self.get_transitive_firstLevels(hierarchy)))
+            first_levels = list(set(self.get_transitive_roots(hierarchy)))
             # Sorting the list of tables is important to drop duplicates later
             first_levels.sort()
             # Split join edges into classes and associations
@@ -1198,12 +1200,12 @@ class Catalog(HyperNetXWrapper):
                 # Get the tables independently for every attribute in the class
                 for attr in current_attributes:
                     if not self.is_id(attr) or len(current_attributes) == 1:
-                        firstlevels_with_attr = []
+                        roots_with_attr = []
                         for set_name in first_levels:
                             if self.is_atom_in_fist_level(attr, set_name):
-                                firstlevels_with_attr.append(set_name)
-                        assert firstlevels_with_attr, f"The attribute {attr} is not found in any of the fist levels of the corresponding class {elem}"
-                        buckets.append(firstlevels_with_attr)
+                                roots_with_attr.append(set_name)
+                        assert roots_with_attr, f"The attribute {attr} is not found in any of the fist levels of the corresponding class {elem}"
+                        buckets.append(roots_with_attr)
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
@@ -1255,7 +1257,7 @@ class Catalog(HyperNetXWrapper):
     def get_discriminants(self, sets_combination, pattern_class_names) -> list[str]:
         """
         Based on the existence of superclasses, this method finds the corresponding discriminants.
-        :param sets_combination: The set of firstlevel element that is to be accessed by a query.
+        :param sets_combination: The set of root edges that is to be accessed by a query.
         :param pattern_class_names: The set of classes in the pattern of the query.
         :return: List of discriminants necessary in the query.
         """
@@ -1265,7 +1267,7 @@ class Catalog(HyperNetXWrapper):
         for pattern_class_name in pattern_class_names:
             pattern_superclasses = self.get_generalizations_by_class_name(pattern_class_name, return_superclasses=True)
             if pattern_superclasses:
-                # For every first level set required in the query
+                # For every root set required in the query
                 for set_name in sets_combination:
                     for struct_name in self.get_struct_names_inside_set_name(set_name):
                         # Get all classes in the current struct of the current table

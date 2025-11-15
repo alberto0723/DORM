@@ -122,13 +122,13 @@ class NonFirstNormalFormJSON(Relational):
 
     def generate_create_table_statements(self) -> list[str]:
         """
-        Generated the DDL for the tables in the design. One table is created for every set in the first level (i.e., without parent).
+        Generated the DDL for the tables in the design. One table is created for every root set (i.e., without parent).
         The same table is generated irrespectively of the attributes: one numerical key and one JSON value that will contain all the data.
         :return: List of statements generated (one per table)
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating create table statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL,\n  value JSONB\n  );"
@@ -144,7 +144,7 @@ class NonFirstNormalFormJSON(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating primary key declaration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating primary key declaration statements", leave=config.show_progress):
             logger.info(f"-- Altering table {table_name} to add the surrogate PK and a UNIQUE index for the true PK")
             statements.append(f"ALTER TABLE {table_name} ADD PRIMARY KEY (key);")
             sentence = "CREATE UNIQUE INDEX pk_" + table_name + " ON " + table_name
