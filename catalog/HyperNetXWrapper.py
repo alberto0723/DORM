@@ -343,15 +343,11 @@ class HyperNetXWrapper:
             with open(file_path, "wb") as f:
                 pickle.dump(self.H, f)
 
-    def get_nodes(self) -> pd.DataFrame:
-        nodes = self.H.nodes.dataframe.rename_axis("nodes")
-        nodes["name"] = nodes.index
-        return nodes
+    def get_nodes(self) -> list[str]:
+        return self.H.nodes.index.to_pylist()
 
-    def get_edges(self) -> pd.DataFrame:
-        edges = self.H.edges.dataframe.rename_axis("edges")
-        edges["name"] = edges.index
-        return edges
+    def get_edges(self) -> list[str]:
+        return self.H.edges.index.to_pylist()
 
     def get_incidences(self) -> pd.DataFrame:
         incidences = self.H.incidences.dataframe
@@ -665,14 +661,14 @@ class HyperNetXWrapper:
         # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
         result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
         to_be_removed = []
-        for attr_name in result.get_attributes()["name"].values.tolist():
+        for attr_name in result.get_attributes()["name"].values:
             if attr_name not in outbounds:
                 to_be_removed.append(attr_name)
         result.H.remove_nodes(to_be_removed, inplace=True)
         return result
 
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
-        return self.query(f"SELECT attribute FROM struct_attributes WHERE struct='{struct_name}';")["attribute"].to_list()
+        return self.str_list_query(f"SELECT attribute FROM struct_attributes WHERE struct='{struct_name}';")
 
     def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """

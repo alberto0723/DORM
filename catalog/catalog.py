@@ -8,6 +8,7 @@ import pandas as pd
 import sqlparse
 from pathlib import Path
 from tqdm import tqdm
+from collections import Counter
 
 from . import config
 from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
@@ -71,7 +72,7 @@ class Catalog(HyperNetXWrapper):
                                     'DistinctVals': att['prop'].pop('DistinctVals'),
                                     'Identifier': att['prop'].pop('Identifier', False)}
             incidences.append((class_name, att['name'], incidence_properties))
-            if att['name'] in self.get_nodes()["name"].values:
+            if att['name'] in self.get_nodes():
                 if att['prop']['DataType'] != self.H.get_properties(att['name'], level=1, prop_name="DataType"):
                     raise ValueError(f"🚨 Some node called '{att['name']}' already exists, but its DataType does not coincide")
                 if att['prop']['Size'] != self.H.get_properties(att['name'], level=1, prop_name="Size"):
@@ -182,7 +183,7 @@ class Catalog(HyperNetXWrapper):
 
     def add_set(self, set_name, elements) -> None:
         logger.info("Adding set "+set_name)
-        if set_name in self.get_edges()["name"].values:
+        if set_name in self.get_edges():
             raise ValueError(f"🚨 The hyperedge '{set_name}' already exists")
         if len(elements) == 0:
             raise ValueError(f"🚨 The set '{set_name}' should have some elements, but has {len(elements)}")
@@ -381,18 +382,17 @@ class Catalog(HyperNetXWrapper):
 
         # Pre-check emptiness
         logger.info("Checking emptiness")
-        if self.get_nodes().empty or self.get_edges().empty or self.get_incidences().empty:
-            print(f"This is a degenerated hypergraph: {self.get_nodes().shape[0]} nodes, {self.get_edges().shape[0]} edges, and {self.get_incidences().shape[0]} incidences")
+        if not self.get_nodes() or not self.get_edges() or self.get_incidences().empty:
+            print(f"This is a degenerated hypergraph: {len(self.get_nodes())} nodes, {len(self.get_edges())} edges, and {self.get_incidences().shape[0]} incidences")
             return False
 
         # IC-Generic1: Names must be unique
         logger.info("Checking IC-Generic1")
-        union1_1 = pd.concat([self.get_nodes()["name"], self.get_edges()["name"]], ignore_index=True)
-        violations1_1 = union1_1.groupby(union1_1).size()
-        if not violations1_1[violations1_1 > 1].empty:
+        union1_1 = self.get_nodes() + self.get_edges()
+        violations1_1 = [item for item, count in Counter(union1_1).items() if count > 1]
+        if violations1_1:
             consistent = False
-            print("🚨 IC-Generic1 violation: Some names are not unique")
-            display(violations1_1[violations1_1 > 1])
+            print("🚨 IC-Generic1 violation: Some names are not unique", violations1_)
 
         # IC-Generic2: The catalog must be connected
         logger.info("Checking IC-Generic2")
@@ -402,8 +402,8 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Generic3: Every phantom belongs to one edge
         logger.info("Checking IC-Generic3")
-        matches1_3 = inbounds.join(edges, on='edges', rsuffix='_edges', how='inner')
-        violations1_3 = [p for p in phantoms if p not in matches1_3["nodes"].to_list()]
+        matches1_3 = inbounds[inbounds["edges"].isin(edges)]
+        violations1_3 = [p for p in phantoms if p not in matches1_3["nodes"].values]
         if violations1_3:
             consistent = False
             print("🚨 IC-Generic3 violation: There are phantoms without an edge ", violations1_3)
@@ -451,7 +451,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms2: Every ID belongs to one class which is outbound
         logger.info("Checking IC-Atoms2")
-        violations2_2 = [i for i in ids if i not in classOutbounds["nodes"].tolist()]
+        violations2_2 = [i for i in ids if i not in classOutbounds["nodes"].values]
         if violations2_2:
             consistent = False
             print("🚨 IC-Atoms2 violation: There are IDs without a class ", violations2_2)
@@ -849,7 +849,7 @@ class Catalog(HyperNetXWrapper):
                     assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not a class, should be a struct, but it is not"
                     for anchor_point in self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(internal_elem_name)):
                         elem_name = self.get_phantom_of_edge_by_name(anchor_point)
-                        if elem_name not in restricted_struct.get_nodes().index:
+                        if elem_name not in restricted_struct.get_nodes():
                             consistent = False
                             print(f"🚨 IC-Structs-d violation: Anchor point '{anchor_point}' of struct '{internal_elem_name}' and included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
 
