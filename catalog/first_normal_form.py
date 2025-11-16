@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from . import config
 from .relational import Relational
-from .tools import custom_warning, custom_progress, drop_duplicates
+from .tools import custom_warning, custom_progress, drop_duplicates, str_list_difference
 
 # Library initialization
 pd.set_option('display.max_columns', None)
@@ -38,11 +38,10 @@ class FirstNormalForm(Relational):
             # IC-FirstNormalForm1: Sets can only appear as root edges
             logger.info("Checking IC-FirstNormalForm1")
             sets = self.get_sets()
-            violations7_1 = sets[~sets["name"].isin(root_names)]
-            if not violations7_1.empty:
+            violations7_1 = str_list_difference(sets, root_names)
+            if violations7_1:
                 consistent = False
-                print(f"🚨 IC-FirstNormalForm1 violation: Some sets are not root edges")
-                display(violations7_1)
+                print(f"🚨 IC-FirstNormalForm1 violation: Some sets are not root edges", violations7_1)
 
             # IC-FirstNormalForm2: Sets can only contain structs
             logger.info("Checking IC-FirstNormalForm2")

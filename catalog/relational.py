@@ -156,11 +156,10 @@ class Relational(Catalog, ABC):
             logger.info("Checking IC-Relational1")
             matches6_1 = self.get_root_edges()
             sets = self.get_sets()
-            violations6_1 = sets[sets.apply(lambda row: row["name"] not in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row["name"]), axis=1)]
-            if not violations6_1.empty:
+            violations6_1 = [s for s in sets if s not in matches6_1 and self.contains_set_including_transitivity_by_edge_name(s)]
+            if violations6_1:
                 consistent = False
-                print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL")
-                display(violations6_1)
+                print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL", violations6_1)
 
         return consistent
 

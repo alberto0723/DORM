@@ -47,7 +47,7 @@ class HyperNetXWrapper:
                 self.H = pickle.load(f)
             self.fill_duckDB()
         else:
-            # In this case, the hypergraph will be filled with load_domain or load_design, hence, the views must be created afterward
+            # In this case, the hypergraph will be filled with load_domain or load_design
             self.H = hnx.Hypergraph([])
 
     def __del__(self):
@@ -184,10 +184,7 @@ class HyperNetXWrapper:
             if required not in df_incidences_flattened.columns:
                 df_incidences_flattened[required] = None
         self.sql.register("incidences", df_incidences_flattened)
-        # display(self.query("SELECT * FROM nodes;"))
-        # display(self.query("SELECT * FROM edges;"))
-        # display(self.query("SELECT * FROM incidences;"))
-        # Create other derived viewes in DuckDB
+        # Create other derived views in DuckDB
         self.query("""
             CREATE TEMP TABLE class_ids AS
                 SELECT edges, nodes
@@ -275,7 +272,7 @@ class HyperNetXWrapper:
                                         AND i_external.nodes = i_internal.nodes);
                     """)
         self.query("CREATE TEMP TABLE struct_attribute_list (struct TEXT, attribute_list BLOB);")
-        for struct_name in self.get_structs()["name"]:
+        for struct_name in self.get_structs():
             attribute_list = self.generate_struct_attribute_list(struct_name)
             self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
                             (struct_name, pickle.dumps(attribute_list)))
@@ -423,13 +420,11 @@ class HyperNetXWrapper:
     def get_generalizations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Complete, Disjoint FROM edges WHERE Kind='Generalization';")
 
-    # TODO: return list[str]
-    def get_structs(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM edges WHERE Kind='Struct';")
+    def get_structs(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM edges WHERE Kind='Struct';")
 
-    # TODO: return list[str]
-    def get_sets(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM edges WHERE Kind='Set';")
+    def get_sets(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM edges WHERE Kind='Set';")
 
     def get_inbounds(self) -> pd.DataFrame:
         return self.query("SELECT edges, nodes FROM incidences WHERE Direction = 'Inbound';")
