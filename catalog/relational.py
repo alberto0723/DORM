@@ -154,7 +154,7 @@ class Relational(Catalog, ABC):
 
             # IC-Relational1:
             logger.info("Checking IC-Relational1")
-            matches6_1 = self.get_root_edges()["name"]
+            matches6_1 = self.get_root_edges()
             sets = self.get_sets()
             violations6_1 = sets[sets.apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
             if not violations6_1.empty:
@@ -259,7 +259,7 @@ class Relational(Catalog, ABC):
             warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
         statements = []
         # For each table
-        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating migration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges(), desc="Generating migration statements", leave=config.show_progress):
             logger.info(f"-- Generating data migration for table {table_name}")
             # For each struct in the table, we have to create a different extraction query
             for struct_name in self.get_struct_names_by_set_name(table_name):

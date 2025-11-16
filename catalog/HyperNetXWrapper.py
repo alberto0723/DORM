@@ -280,7 +280,7 @@ class HyperNetXWrapper:
             self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
                             (struct_name, pickle.dumps(attribute_list)))
         self.query("CREATE TEMP TABLE atoms_including_transitivity_by_edge_name (edge TEXT, atom TEXT);")
-        for edge_name in self.get_root_edges()["name"]:
+        for edge_name in self.get_root_edges():
             for attribute_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name):
                 self.sql.execute("INSERT INTO atoms_including_transitivity_by_edge_name (edge, atom) VALUES (?, ?);",
                              (edge_name, attribute_name))
@@ -362,6 +362,7 @@ class HyperNetXWrapper:
     def get_association_ends(self) -> pd.DataFrame:
         return self.query("SELECT * FROM association_ends;")
 
+    # TODO: remove *
     def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
         return self.query(f"SELECT * FROM association_ends WHERE association='{association_name}';")
 
@@ -390,21 +391,27 @@ class HyperNetXWrapper:
     def get_phantoms(self) -> list[str]:
         return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom';")
 
+    # TODO: return list[str]
     def get_phantom_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Class';")
 
+    # TODO: return list[str]
     def get_phantom_associations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Association';")
 
+    # TODO: return list[str]
     def get_phantom_generalizations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Generalization';")
 
+    # TODO: return list[str]
     def get_phantom_sets(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Set';")
 
+    # TODO: return list[str]
     def get_phantom_structs(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Struct';")
 
+    # TODO: return list[str]
     def get_phantom_design_edges(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind IN ('Set', 'Struct');")
 
@@ -417,6 +424,7 @@ class HyperNetXWrapper:
     def get_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Count FROM edges WHERE Kind='Class';")
 
+    # TODO: return list[str]
     def get_associations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM edges WHERE Kind='Association';")
 
@@ -426,9 +434,11 @@ class HyperNetXWrapper:
     def get_generalizations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Complete, Disjoint FROM edges WHERE Kind='Generalization';")
 
+    # TODO: return list[str]
     def get_structs(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM edges WHERE Kind='Struct';")
 
+    # TODO: return list[str]
     def get_sets(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM edges WHERE Kind='Set';")
 
@@ -565,8 +575,8 @@ class HyperNetXWrapper:
     def get_atoms_including_transitivity_by_edge_name(self, edge_name) -> list[str]:
         return self.str_list_query(f"SELECT atom FROM atoms_including_transitivity_by_edge_name WHERE edge='{edge_name}';")
 
-    def get_root_edges(self, is_set: bool = True) -> pd.DataFrame:
-        return self.query(f"SELECT name FROM root_edges WHERE is_set={is_set};")
+    def get_root_edges(self, is_set: bool = True) -> list[str]:
+        return self.str_list_query(f"SELECT name FROM root_edges WHERE is_set={is_set};")
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         anchor_elements = self.get_anchors_by_struct_name(struct_name)

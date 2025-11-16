@@ -128,7 +128,7 @@ class NonFirstNormalFormJSON(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating create table statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges(), desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL,\n  value JSONB\n  );"
@@ -144,7 +144,7 @@ class NonFirstNormalFormJSON(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating primary key declaration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges(), desc="Generating primary key declaration statements", leave=config.show_progress):
             logger.info(f"-- Altering table {table_name} to add the surrogate PK and a UNIQUE index for the true PK")
             statements.append(f"ALTER TABLE {table_name} ADD PRIMARY KEY (key);")
             sentence = "CREATE UNIQUE INDEX pk_" + table_name + " ON " + table_name

@@ -868,16 +868,15 @@ class Catalog(HyperNetXWrapper):
             # IC-Design1: All roots must be sets
             logger.info("Checking IC-Design1")
             violations5_1 = self.get_root_edges(is_set=False)
-            if not violations5_1.empty:
+            if violations5_1:
                 consistent = False
-                print("🚨 IC-Design1 violation: All root edges must be sets")
-                display(violations5_1)
+                print("🚨 IC-Design1 violation: All root edges must be sets", violations5_1)
 
             # IC-Design2: All the attributes and associations in the domain are connected to some root edge
             #             Classes are excluded from the check because of generalization
             logger.info("Checking IC-Design2")
             matches5_2 = []
-            for set_name in self.get_root_edges()["name"]:
+            for set_name in self.get_root_edges():
                 matches5_2.extend(self.get_atoms_including_transitivity_by_edge_name(set_name))
             atoms5_2 = pd.concat([attributes["name"], self.get_phantom_associations()])
             violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2)]

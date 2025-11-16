@@ -30,7 +30,7 @@ class FirstNormalForm(Relational):
         consistent = super().is_consistent(design)
         # Not worth to check anything if the more basic stuff is already not consistent
         if consistent:
-            root_names = self.get_root_edges()["name"]
+            root_names = self.get_root_edges()
 
             # ---------------------------------------------------------------- ICs about being a First Normal Form catalog
             custom_progress("    Checking 1NF constraints")
@@ -100,7 +100,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating create table statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges(), desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n"
@@ -152,7 +152,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_name in tqdm(self.get_root_edges()["name"], desc="Generating primary key declaration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges(), desc="Generating primary key declaration statements", leave=config.show_progress):
             logger.info(f"-- Altering table {table_name} to add the PK")
             sentence = "ALTER TABLE " + table_name + " ADD"
             # Create the PK
@@ -179,7 +179,7 @@ class FirstNormalForm(Relational):
         """
         statements = []
         # For each table
-        for table_referee_name in tqdm(self.get_root_edges()["name"], desc="Generating foreign key declaration statements", leave=config.show_progress):
+        for table_referee_name in tqdm(self.get_root_edges(), desc="Generating foreign key declaration statements", leave=config.show_progress):
             # Get all the attributes in all the structs
             attribute_list = []
             for struct_name in self.get_struct_names_by_set_name(table_referee_name):
@@ -208,7 +208,7 @@ class FirstNormalForm(Relational):
                     # Follow the hierarchy bottom to top in order until a superclass is found to point to
                     found = False
                     for class_name in hierarchy:
-                        for table_referred_name in self.get_root_edges()["name"]:
+                        for table_referred_name in self.get_root_edges():
                             # We can take any struct in the set, because all must share the anchor
                             struct_name = self.get_struct_names_by_set_name(table_referred_name)[0]
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
