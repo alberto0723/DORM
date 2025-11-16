@@ -130,12 +130,12 @@ class Relational(Catalog, ABC):
         else:
            raise ValueError("🚨 No connection to the database or file provided")
 
-    def contains_set_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> bool:
+    def contains_set_including_transitivity_by_edge_name(self, edge_name: str, visited: list[str] = None) -> bool:
         if visited is None:
             visited = [edge_name]
         else:
             visited.append(edge_name)
-        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"')["nodes"].values:
             if self.is_phantom(node_name):
                 next_edge = self.get_edge_by_phantom_name(node_name)
                 assert next_edge not in visited, f"☠️ Cycle of edges detected: {visited}"
@@ -145,7 +145,7 @@ class Relational(Catalog, ABC):
                     return self.contains_set_including_transitivity_by_edge_name(next_edge, visited)
         return False
 
-    def is_consistent(self, design=False) -> bool:
+    def is_consistent(self, design: bool = False) -> bool:
         consistent = super().is_consistent(design)
         # Only needs to run further checks if the basic one succeeded
         if consistent:
@@ -156,7 +156,7 @@ class Relational(Catalog, ABC):
             logger.info("Checking IC-Relational1")
             matches6_1 = self.get_root_edges()
             sets = self.get_sets()
-            violations6_1 = sets[sets.apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
+            violations6_1 = sets[sets.apply(lambda row: row["name"] not in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row["name"]), axis=1)]
             if not violations6_1.empty:
                 consistent = False
                 print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL")
@@ -164,7 +164,7 @@ class Relational(Catalog, ABC):
 
         return consistent
 
-    def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
+    def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql: bool = False) -> None:
         """
         Creates the tables according to the design, and potentially populates them with data.
         Finally, it updates the statistics.

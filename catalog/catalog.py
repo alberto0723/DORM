@@ -364,8 +364,7 @@ class Catalog(HyperNetXWrapper):
         attributes.index.name = "nodes"
         classes = self.get_classes().set_index("name", drop=False)
         classes.index.name = "edges"
-        associations = self.get_associations().set_index("name", drop=False)
-        associations.index.name = "edges"
+        associations = self.get_associations()
         generalizations = self.get_generalizations()
         structs = self.get_structs().set_index("name", drop=False)
         structs.index.name = "edges"
@@ -382,8 +381,8 @@ class Catalog(HyperNetXWrapper):
 
         # Pre-check emptiness
         logger.info("Checking emptiness")
-        if not self.get_nodes() or not self.get_edges() or self.get_incidences().empty:
-            print(f"This is a degenerated hypergraph: {len(self.get_nodes())} nodes, {len(self.get_edges())} edges, and {self.get_incidences().shape[0]} incidences")
+        if not self.get_nodes() or not edges or incidences.empty:
+            print(f"This is a degenerated hypergraph: {len(self.get_nodes())} nodes, {len(edges)} edges, and {incidences.shape[0]} incidences")
             return False
 
         # IC-Generic1: Names must be unique
@@ -464,8 +463,8 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms4: An attribute cannot belong to more than one class
         logger.info("Checking IC-Atoms4")
-        matches2_4 = incidences.join(classes, on='edges', rsuffix='_edges', how='inner').join(attributes, on='nodes', rsuffix='_nodes', how='inner')
-        violations2_4 = matches2_4.groupby(matches2_4.index.get_level_values('nodes')).size()
+        matches2_4 = incidences[(incidences["edges"].isin(classes["name"])) & (incidences["nodes"].isin(attributes["name"]))]
+        violations2_4 = matches2_4.groupby(matches2_4['nodes']).size()
         if not violations2_4[violations2_4 > 1].empty:
             consistent = False
             print("🚨 IC-Atoms4 violation: There are attributes with more than one class")
@@ -494,7 +493,7 @@ class Catalog(HyperNetXWrapper):
         # IC-Atoms6: Every association has one phantom
         logger.info("Checking IC-Atoms6")
         matches2_6 = inbounds[inbounds["nodes"].isin(phantoms)]
-        violations2_6 = associations[~associations["name"].isin(matches2_6["edges"])]
+        violations2_6 = str_list_difference(associations, matches2_6["edges"].values.tolist())
         if not violations2_6.empty:
             consistent = False
             print("🚨 IC-Atoms6 violation: There are associations without phantom")
@@ -502,7 +501,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms7: Every association has two ends (Definition 4)
         logger.info("Checking IC-Atoms7")
-        matches2_7 = incidences[incidences.index.get_level_values("nodes").isin(ids)].join(associations, on='edges', rsuffix='_edges', how='inner').groupby(['edges']).size()
+        matches2_7 = incidences[(incidences["nodes"].isin(ids)) & (incidences["edges"].isin(associations))].groupby(['edges']).size()
         violations2_7 = matches2_7[matches2_7 != 2]
         if not violations2_7.empty:
             consistent = False
@@ -643,7 +642,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets4: Sets cannot directly contain other sets
             logger.info("Checking IC-Sets4")
-            violations4_4 = setOutbounds[setOutbounds["nodes"].isin(self.get_phantom_sets()["name"])]
+            violations4_4 = setOutbounds[setOutbounds["nodes"].isin(self.get_phantom_sets())]
             if not violations4_4.empty:
                 consistent = False
                 print("🚨 IC-Sets4 violation: There are sets that contain other sets")
@@ -659,7 +658,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Sets6: Sets cannot directly contain generalizations
             logger.info("Checking IC-Sets6")
-            violations4_6 = setOutbounds[setOutbounds["nodes"].isin(self.get_phantom_generalizations()["name"])]
+            violations4_6 = setOutbounds[setOutbounds["nodes"].isin(self.get_phantom_generalizations())]
             if not violations4_6.empty:
                 consistent = False
                 print("🚨 IC-Sets6 violation: There are sets that contain generalizations")
@@ -690,11 +689,10 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs2: Every struct must be inside another struct or set
             logger.info("Checking IC-Structs2")
             matches3_2 = pd.concat([setOutbounds["nodes"], structOutbounds["nodes"]])
-            violations3_2 = df_difference(self.get_phantom_structs()['name'], matches3_2)
-            if not violations3_2.empty:
+            violations3_2 = str_list_difference(self.get_phantom_structs(), matches3_2.values.tolist())
+            if violations3_2:
                 consistent = False
-                print("🚨 IC-Structs2 violation: There are structs that do not belong to any other struct or set")
-                display(violations3_2)
+                print("🚨 IC-Structs2 violation: There are structs that do not belong to any other struct or set", violations3_2)
 
             # IC-Structs3: Every struct has at least one anchor
             logger.info("Checking IC-Structs3")
@@ -708,11 +706,10 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs4: Anchors can be either classes or associations
             logger.info("Checking IC-Structs3")
             matches3_4 = structOutbounds[structOutbounds["Anchor"]]
-            violations3_4 = df_difference(matches3_4['nodes'], pd.concat([self.get_phantom_classes(), self.get_phantom_associations()])["name"])
-            if not violations3_4.empty:
+            violations3_4 = str_list_difference(matches3_4['nodes'].values.tolist(), self.get_phantom_classes() + self.get_phantom_associations())
+            if violations3_4:
                 consistent = False
-                print("🚨 IC-Structs4 violation: There are structs with an anchor which is neither class nor association")
-                display(violations3_4)
+                print("🚨 IC-Structs4 violation: There are structs with an anchor which is neither class nor association", violations3_4)
 
             # IC-Structs5: Anchors are connected
             logger.info("Checking IC-Structs5")
@@ -828,7 +825,7 @@ class Catalog(HyperNetXWrapper):
             # IC-Structs-d: All sets inside a struct must contain a unique path of associations connecting the parent struct to either the class or anchor of the struct inside the set (Definition 7-d)
             #               Actually, this just checks that the parent struct has an association to either the class or every element in the anchor
             logger.info("Checking IC-Structs-d")
-            sets_within_struct = structOutbounds.reset_index(drop=False).merge(self.get_phantom_sets(), left_on='nodes', right_on='name', suffixes=('_struct', '_set'), how='inner')
+            sets_within_struct = structOutbounds[structOutbounds["nodes"].isin(self.get_phantom_sets())]
             for set_struct in sets_within_struct.itertuples():
                 external_struct_name = set_struct.edges
                 # The content of a set can be either one single class, or several structs
@@ -878,7 +875,7 @@ class Catalog(HyperNetXWrapper):
             matches5_2 = []
             for set_name in self.get_root_edges():
                 matches5_2.extend(self.get_atoms_including_transitivity_by_edge_name(set_name))
-            atoms5_2 = pd.concat([attributes["name"], self.get_phantom_associations()])
+            atoms5_2 = pd.concat([attributes["name"], pd.DataFrame(self.get_phantom_associations(), columns=["name"])])
             violations5_2 = atoms5_2[~atoms5_2["name"].isin(matches5_2)]
             if not violations5_2.empty:
                 consistent = False

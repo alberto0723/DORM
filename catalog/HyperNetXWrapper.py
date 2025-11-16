@@ -351,7 +351,7 @@ class HyperNetXWrapper:
 
     def get_incidences(self) -> pd.DataFrame:
         incidences = self.H.incidences.dataframe
-        return incidences
+        return incidences.reset_index(drop=False)[["edges", "nodes"]]
 
     def get_attributes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, DataType, Size FROM nodes WHERE Kind='Attribute';")
@@ -362,7 +362,6 @@ class HyperNetXWrapper:
     def get_association_ends(self) -> pd.DataFrame:
         return self.query("SELECT * FROM association_ends;")
 
-    # TODO: remove *
     def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
         return self.query(f"SELECT * FROM association_ends WHERE association='{association_name}';")
 
@@ -391,29 +390,20 @@ class HyperNetXWrapper:
     def get_phantoms(self) -> list[str]:
         return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom';")
 
-    # TODO: return list[str]
-    def get_phantom_classes(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Class';")
+    def get_phantom_classes(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Class';")
 
-    # TODO: return list[str]
-    def get_phantom_associations(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Association';")
+    def get_phantom_associations(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Association';")
 
-    # TODO: return list[str]
-    def get_phantom_generalizations(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Generalization';")
+    def get_phantom_generalizations(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Generalization';")
 
-    # TODO: return list[str]
-    def get_phantom_sets(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Set';")
+    def get_phantom_sets(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Set';")
 
-    # TODO: return list[str]
-    def get_phantom_structs(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Struct';")
-
-    # TODO: return list[str]
-    def get_phantom_design_edges(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind IN ('Set', 'Struct');")
+    def get_phantom_structs(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Struct';")
 
     def get_edge_by_phantom_name(self, phantom_name) -> str:
         return self.str_list_query(f"SELECT edges FROM incidences WHERE Direction = 'Inbound' AND nodes='{phantom_name}';")[0]
@@ -424,9 +414,8 @@ class HyperNetXWrapper:
     def get_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Count FROM edges WHERE Kind='Class';")
 
-    # TODO: return list[str]
-    def get_associations(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM edges WHERE Kind='Association';")
+    def get_associations(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM edges WHERE Kind='Association';")
 
     def get_class_and_association_names(self) -> list[str]:
         return self.str_list_query("SELECT uid AS name FROM edges WHERE Kind IN ('Class','Association');")
