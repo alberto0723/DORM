@@ -11,7 +11,7 @@ from tqdm import tqdm
 from collections import Counter
 
 from . import config
-from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, df_difference, str_list_difference, extract_up_to_folder
+from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, str_list_difference, extract_up_to_folder
 from .HyperNetXWrapper import HyperNetXWrapper
 from .XML2JSON.domain.DomainTranslator import translate as translate_domain
 from .XML2JSON.design.DesignTranslator import translate as translate_design
@@ -418,7 +418,7 @@ class Catalog(HyperNetXWrapper):
         # Empty classes tentatively violate the constraint
         tentative_violations1_5 = str_list_difference(edges, matches1_5.values)
         # Remove those violations that correspond to empty subclasses
-        violations1_5 = str_list_difference(tentative_violations1_5, self.get_outbound_generalization_subclasses()["subclass"].values)
+        violations1_5 = str_list_difference(list(tentative_violations1_5), self.get_outbound_generalization_subclasses()["subclass"].values)
         if violations1_5:
             consistent = False
             print("🚨 IC-Generic5 violation: There are edges without outbound (a.k.a. attributes), and they are not specialized classes", violations1_5)
@@ -570,7 +570,7 @@ class Catalog(HyperNetXWrapper):
 
         # IC-Atoms15: The top of every hierarchy has an ID
         logger.info("Checking IC-Atoms15")
-        matches2_15 = df_difference(self.get_outbound_generalization_superclasses().rename(columns={"superclass": "class"})["class"], self.get_outbound_generalization_subclasses().rename(columns={"subclass": "class"})["class"])
+        matches2_15 = str_list_difference(self.get_outbound_generalization_superclasses(), self.get_outbound_generalization_subclasses()["subclass"].values.tolist())
         for top_class in matches2_15:
             if self.get_class_id_by_name(top_class) is None:
                 consistent = False
@@ -1045,20 +1045,22 @@ class Catalog(HyperNetXWrapper):
             raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes and association ends
-        missing_attributes = df_difference(pd.DataFrame(required_attributes).rename(columns={0: "name"}), self.get_attribute_names_from_hypergraph(restricted_domain))
-        if not missing_attributes.empty:
-            raise ValueError(f"🚨 Some attributes {missing_attributes.values.tolist()} in the request are not covered by the elements in the pattern {pattern_edges}")
+        missing_attributes = str_list_difference(required_attributes, self.get_attribute_names_from_hypergraph(restricted_domain))
+        if missing_attributes:
+            raise ValueError(f"🚨 Some attributes {missing_attributes} in the request are not covered by the elements in the pattern {pattern_edges}")
 
     def check_query_structure(self, project_attributes, filter_attributes, pattern_edges, required_attributes) -> None:
+        existing_attributes = self.get_attributes()["name"].values.tolist() + self.get_association_ends()["name"].values.tolist()
+
         # Check if the hypergraph contains all the projected attributes
-        non_existing_attributes = df_difference(pd.DataFrame(project_attributes), pd.concat([self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+        non_existing_attributes = str_list_difference(project_attributes, existing_attributes)
+        if non_existing_attributes:
+            raise ValueError(f"🚨 Some attribute in the projection does not belong to the catalog: {non_existing_attributes}")
 
         # Check if the hypergraph contains all the filter attributes
-        non_existing_attributes = df_difference(pd.DataFrame(filter_attributes), pd.concat([self.get_attributes(), self.get_association_ends()])["name"].reset_index(drop=True))
-        if not non_existing_attributes.empty:
-            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes.values.tolist()[0]}")
+        non_existing_attributes = str_list_difference(filter_attributes, existing_attributes)
+        if non_existing_attributes:
+            raise ValueError(f"🚨 Some attribute in the filter does not belong to the catalog: {non_existing_attributes}")
 
         self.check_basic_request_structure(pattern_edges, required_attributes)
 
