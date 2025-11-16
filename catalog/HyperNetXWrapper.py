@@ -344,10 +344,10 @@ class HyperNetXWrapper:
                 pickle.dump(self.H, f)
 
     def get_nodes(self) -> list[str]:
-        return self.H.nodes.index.to_pylist()
+        return self.H.nodes.dataframe.index.to_list()
 
     def get_edges(self) -> list[str]:
-        return self.H.edges.index.to_pylist()
+        return self.H.edges.dataframe.index.to_list()
 
     def get_incidences(self) -> pd.DataFrame:
         incidences = self.H.incidences.dataframe
@@ -513,8 +513,8 @@ class HyperNetXWrapper:
             FROM incidences
             WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND nodes IN ('""" + "','".join(phantom_list) + "');")
 
-    def get_anchors_by_struct_name(self, struct_name) -> pd.DataFrame:
-        return self.query(f"SELECT nodes FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;")
+    def get_anchors_by_struct_name(self, struct_name) -> list[str]:
+        return self.str_list_query(f"SELECT nodes FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;")
 
     def get_struct_names_by_set_name(self, set_name) -> list[str]:
         return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}';")
@@ -570,9 +570,8 @@ class HyperNetXWrapper:
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         anchor_elements = self.get_anchors_by_struct_name(struct_name)
-        inbounds = self.get_inbound_associations()
-        anchor_associations = anchor_elements[anchor_elements["nodes"].isin(inbounds["nodes"])]["edges"].to_list()
-        return anchor_associations
+        associations = self.get_inbound_associations()["nodes"]
+        return [a for a in anchor_elements if a in associations.values]
 
     def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
         """

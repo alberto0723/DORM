@@ -11,7 +11,7 @@ from tqdm import tqdm
 from collections import Counter
 
 from . import config
-from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, df_difference, extract_up_to_folder
+from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, df_difference, str_list_difference, extract_up_to_folder
 from .HyperNetXWrapper import HyperNetXWrapper
 from .XML2JSON.domain.DomainTranslator import translate as translate_domain
 from .XML2JSON.design.DesignTranslator import translate as translate_design
@@ -392,7 +392,7 @@ class Catalog(HyperNetXWrapper):
         violations1_1 = [item for item, count in Counter(union1_1).items() if count > 1]
         if violations1_1:
             consistent = False
-            print("🚨 IC-Generic1 violation: Some names are not unique", violations1_)
+            print("🚨 IC-Generic1 violation: Some names are not unique", violations1_1)
 
         # IC-Generic2: The catalog must be connected
         logger.info("Checking IC-Generic2")
@@ -411,23 +411,21 @@ class Catalog(HyperNetXWrapper):
         # IC-Generic4: Every edge has at least one inbound
         logger.info("Checking IC-Generic4")
         matches1_4 = inbounds['edges']
-        violations1_4 = df_difference(edges.reset_index(drop=False)['edges'], matches1_4)
-        if not violations1_4.empty:
+        violations1_4 = str_list_difference(edges, matches1_4.values.tolist())
+        if violations1_4:
             consistent = False
-            print("🚨 IC-Generic4 violation: There are edges without inbound")
-            display(violations1_4)
+            print("🚨 IC-Generic4 violation: There are edges without inbound", violations1_4)
 
         # IC-Generic5: Every edge has at least one outbound
         logger.info("Checking IC-Generic5")
         matches1_5 = outbounds['edges']
         # Empty classes tentatively violate the constraint
-        tentative_violations1_5 = df_difference(edges.reset_index(drop=False)['edges'], matches1_5)
+        tentative_violations1_5 = str_list_difference(edges, matches1_5.values)
         # Remove those violations that correspond to empty subclasses
-        violations1_5 = df_difference(tentative_violations1_5, self.get_outbound_generalization_subclasses().rename(columns={"subclass": "edges"})["edges"])
-        if not violations1_5.empty:
+        violations1_5 = str_list_difference(tentative_violations1_5, self.get_outbound_generalization_subclasses()["subclass"].values)
+        if violations1_5:
             consistent = False
-            print("🚨 IC-Generic5 violation: There are edges without outbound (a.k.a. attributes), and they are not specialized classes")
-            display(violations1_5)
+            print("🚨 IC-Generic5 violation: There are edges without outbound (a.k.a. attributes), and they are not specialized classes", violations1_5)
 
         # IC-Generic6: An edge cannot have more than one inbound
         logger.info("Checking IC-Generic6")
