@@ -440,7 +440,7 @@ class Relational(Catalog, ABC):
                             if subclass in pattern_edges:
                                 subclasses[class_name] = [subclass]+self.get_generalizations_by_class_name(subclass, return_superclasses=True)
                                 subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
-                                struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
+                                struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs()["nodes"].isin(subphantoms)]['edges'])
                 struct_containers_for_attribute = self.get_unique_outbound_struct_by_phantom_list([current_attribute_name])
                 # Check if there is any struct that contains both the attribute and any one of the classes
                 if not set(struct_containers_for_attribute).intersection(struct_containers_for_class[class_name]):
@@ -540,9 +540,8 @@ class Relational(Catalog, ABC):
                 taken_generalization = generalizations.iloc[0].Generalization
             else:
                 taken_generalization = complete_generalizations.iloc[0].Generalization
-            subclasses = self.get_outbound_generalization_subclasses_by_gen_name(taken_generalization.edges)
             subqueries = []
-            for subclass_phantom_name in subclasses["nodes"]:
+            for subclass_phantom_name in self.get_outbound_generalization_subclasses_by_gen_name(taken_generalization.edges):
                 custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern

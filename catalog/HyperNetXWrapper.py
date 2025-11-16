@@ -372,8 +372,8 @@ class HyperNetXWrapper:
     def get_class_name_by_end_name(self, end_name) -> str:
         return self.str_list_query(f"SELECT class FROM association_ends WHERE name='{end_name}';")[0]
 
-    def get_ids(self) -> pd.DataFrame:
-        return self.query("SELECT nodes as name FROM class_ids;")
+    def get_ids(self) -> list[str]:
+        return self.str_list_query("SELECT nodes as name FROM class_ids;")
 
     def get_class_id_by_name(self, class_name) -> str:
         superclasses = self.get_generalizations_by_class_name(class_name, return_superclasses=True)
@@ -391,8 +391,8 @@ class HyperNetXWrapper:
         assert len(classes) == 1, f"Attribute {attribute_name} does not have exactly one class"
         return classes[0]
 
-    def get_phantoms(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom';")
+    def get_phantoms(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom';")
 
     def get_phantom_classes(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM nodes WHERE Kind='Phantom' AND Subkind='Class';")
@@ -424,8 +424,8 @@ class HyperNetXWrapper:
     def get_associations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name FROM edges WHERE Kind='Association';")
 
-    def get_class_and_association_names(self) -> pd.DataFrame:
-        return self.query("SELECT uid AS name FROM edges WHERE Kind IN ('Class','Association');")
+    def get_class_and_association_names(self) -> list[str]:
+        return self.str_list_query("SELECT uid AS name FROM edges WHERE Kind IN ('Class','Association');")
 
     def get_generalizations(self) -> pd.DataFrame:
         return self.query("SELECT uid AS name, Complete, Disjoint FROM edges WHERE Kind='Generalization';")
@@ -446,21 +446,25 @@ class HyperNetXWrapper:
         return self.query("SELECT edges, nodes FROM incidences WHERE Direction = 'Inbound' AND Kind='AssociationIncidence';")
 
     def get_outbounds(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
-            return outbounds
+        return self.query("SELECT edges, nodes FROM incidences WHERE Direction = 'Outbound';")
 
-    def get_outbound_atoms_by_name(self, edge_name) -> pd.DataFrame:
-        return self.query(f"SELECT atom FROM outgoing_atoms WHERE edge='{edge_name}';")
+    def get_outbound_classes(self) -> pd.DataFrame:
+        return self.query("SELECT edges, nodes, Identifier, DistinctVals FROM incidences WHERE Direction = 'Outbound' AND Kind='ClassIncidence';")
 
-    def get_outbound_design_edges_by_name(self, edge_name) -> pd.DataFrame:
-        return self.query(f"SELECT child_edge AS design_edge FROM containments WHERE parent_edge='{edge_name}' AND child_kind IN ('Set', 'Struct');")
+    def get_outbound_atoms_by_name(self, edge_name) -> list[str]:
+        return self.str_list_query(f"SELECT atom FROM outgoing_atoms WHERE edge='{edge_name}';")
+
+    def get_outbound_design_edges_by_name(self, edge_name) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge AS design_edge FROM containments WHERE parent_edge='{edge_name}' AND child_kind IN ('Set', 'Struct');")
 
     def get_outbound_associations(self) -> pd.DataFrame:
         return self.query("SELECT edges, nodes, End_name, MultiplicityMax, MultiplicityMin FROM incidences WHERE Direction = 'Outbound' AND Kind='AssociationIncidence';")
+
+    def get_outbound_structs(self) -> pd.DataFrame:
+        return self.query(f"SELECT edges, nodes, Anchor FROM incidences WHERE Direction='Outbound' AND Kind='StructIncidence';")
+
+    def get_outbound_sets(self) -> pd.DataFrame:
+        return self.query(f"SELECT edges, nodes FROM incidences WHERE Direction='Outbound' AND Kind='SetIncidence';")
 
     def get_outbound_generalization_superclasses(self) -> pd.DataFrame:
         return self.query(f"""
@@ -490,17 +494,8 @@ class HyperNetXWrapper:
                 AND c.Direction='Inbound' AND c.Kind='ClassIncidence';
             """)
 
-    def get_outbound_generalization_subclasses_by_gen_name(self, gen_name: str) -> pd.DataFrame:
-        return self.query(f"SELECT nodes FROM incidences WHERE Direction='Outbound' AND Kind='GeneralizationIncidence' AND Subkind='Subclass' AND edges='{gen_name}';")
-
-    def get_outbound_structs(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'StructIncidence')]
-            return outbounds
+    def get_outbound_generalization_subclasses_by_gen_name(self, gen_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT nodes AS phantom FROM incidences WHERE Direction='Outbound' AND Kind='GeneralizationIncidence' AND Subkind='Subclass' AND edges='{gen_name}';")
 
     def get_outbound_association_by_phantom_name(self, phantom_name) -> pd.DataFrame:
         return self.query(f"""
@@ -543,18 +538,6 @@ class HyperNetXWrapper:
     def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
         return self.query(f"SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';")
 
-    def get_outbound_sets(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'SetIncidence')]
-            return outbounds
-
-    def get_outbound_classes(self) -> pd.DataFrame:
-        return self.query("SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound';")
-
     def get_transitive_roots(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
         """
         Given some edges, returns the list of roots containing them, following nested structs and sets.
@@ -585,8 +568,8 @@ class HyperNetXWrapper:
             visited = [edge_name]
         else:
             visited.append(edge_name)
-        atom_names = self.get_outbound_atoms_by_name(edge_name)["atom"].tolist()
-        for next_edge in self.get_outbound_design_edges_by_name(edge_name)["design_edge"]:
+        atom_names = self.get_outbound_atoms_by_name(edge_name)
+        for next_edge in self.get_outbound_design_edges_by_name(edge_name):
             assert next_edge not in visited, f"☠️ Cycle of edges detected while generating atoms inside an edge including_transitivity: {next_edge} already in {visited}"
             atom_names.extend(self.generate_atoms_including_transitivity_by_edge_name(next_edge, visited))
         visited.pop()
@@ -657,7 +640,7 @@ class HyperNetXWrapper:
             """)
         classes = self.query(f"SELECT phantom, class FROM struct_classes WHERE struct='{struct_name}';")
         tight_ends = []
-        for edge_name in self.get_outbound_design_edges_by_name(struct_name)["design_edge"]:
+        for edge_name in self.get_outbound_design_edges_by_name(struct_name):
             if self.is_struct(edge_name):
                 tight_ends.extend(self.get_anchor_points_by_struct_name(edge_name))
             if self.is_set(edge_name):
@@ -808,14 +791,11 @@ class HyperNetXWrapper:
         else:
             visited.append(edge_name)
         cyclic = False
-        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
-            if self.is_phantom(node_name):
-                next_edge = self.get_edge_by_phantom_name(node_name)
-                if self.is_struct(next_edge) or self.is_set(next_edge):
-                    if next_edge in visited:
-                        cyclic = True
-                    else:
-                        cyclic = cyclic or self.has_cycle(next_edge, visited)
+        for next_edge in self.get_outbound_design_edges_by_name(edge_name):
+            if next_edge in visited:
+                cyclic = True
+            else:
+                cyclic = cyclic or self.has_cycle(next_edge, visited)
         visited.pop()
         return cyclic
 

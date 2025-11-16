@@ -47,7 +47,7 @@ class FirstNormalForm(Relational):
             # IC-FirstNormalForm2: Sets can only contain structs
             logger.info("Checking IC-FirstNormalForm2")
             struct_phantom_names = self.get_phantom_structs()["name"]
-            violations7_2 = self.get_outbound_sets()[~self.get_outbound_sets().index.get_level_values("nodes").isin(struct_phantom_names)]
+            violations7_2 = self.get_outbound_sets()[~self.get_outbound_sets()["nodes"].isin(struct_phantom_names)]
             if not violations7_2.empty:
                 consistent = False
                 print("🚨 IC-FirstNormalForm2 violation: Some sets contain elements that are not structs")
@@ -56,7 +56,7 @@ class FirstNormalForm(Relational):
             # IC-FirstNormalForm3: Structs can only appear at the second level
             logger.info("Checking IC-FirstNormalForm3")
             struct_phantom_names = self.get_phantom_structs()["name"]
-            violations7_3 = self.get_outbounds()[self.get_outbounds().index.to_frame().apply(lambda row: row["edges"] not in root_names and row["nodes"] in struct_phantom_names, axis=1)]
+            violations7_3 = self.get_outbounds()[self.get_outbounds().apply(lambda row: row["edges"] not in root_names and row["nodes"] in struct_phantom_names, axis=1)]
             if not violations7_3.empty:
                 consistent = False
                 print("🚨 IC-FirstNormalForm3 violation: Some structs are not at the second level")
