@@ -520,20 +520,11 @@ class HyperNetXWrapper:
     def get_anchors_by_struct_name(self, struct_name) -> pd.DataFrame:
         return self.query(f"SELECT nodes FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;")
 
-    def get_struct_names_inside_set_name(self, set_name) -> list[str]:
+    def get_struct_names_by_set_name(self, set_name) -> list[str]:
         return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}';")
 
-    def get_outbound_set_by_name(self, set_name) -> pd.DataFrame:
-        # elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(set_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'SetIncidence')]
-            return outbounds
+    def get_phantom_names_by_set_name(self, set_name) -> list[str]:
+        return self.str_list_query(f"SELECT nodes AS name FROM incidences WHERE Direction = 'Outbound' AND Kind='SetIncidence' AND edges='{set_name}';")
 
     def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
         return self.query(f"SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';")
@@ -584,7 +575,7 @@ class HyperNetXWrapper:
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         anchor_elements = self.get_anchors_by_struct_name(struct_name)
         inbounds = self.get_inbound_associations()
-        anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].to_list()
+        anchor_associations = anchor_elements[anchor_elements["nodes"].isin(inbounds["nodes"])]["edges"].to_list()
         return anchor_associations
 
     def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
@@ -644,7 +635,7 @@ class HyperNetXWrapper:
             if self.is_struct(edge_name):
                 tight_ends.extend(self.get_anchor_points_by_struct_name(edge_name))
             if self.is_set(edge_name):
-                hop_elem_phantom_name = self.get_outbound_set_by_name(edge_name).index.get_level_values("nodes").to_list()[0]
+                hop_elem_phantom_name = self.get_phantom_names_by_set_name(edge_name)[0]
                 assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{edge_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
                 if self.is_struct_phantom(hop_elem_phantom_name):
                     tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
@@ -832,7 +823,7 @@ class HyperNetXWrapper:
         for key in self.get_anchor_end_names_by_struct_name(struct_name):
             if self.is_class(key):
                 struct_anchor_classes.append(key)
-        for current_struct_name in self.get_struct_names_inside_set_name(set_name):
+        for current_struct_name in self.get_struct_names_by_set_name(set_name):
             if current_struct_name != struct_name:
                 current_struct_anchor_classes = []
                 for key in self.get_anchor_end_names_by_struct_name(current_struct_name):

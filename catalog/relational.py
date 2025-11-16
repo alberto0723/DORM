@@ -262,7 +262,7 @@ class Relational(Catalog, ABC):
         for table_name in tqdm(self.get_root_edges()["name"], desc="Generating migration statements", leave=config.show_progress):
             logger.info(f"-- Generating data migration for table {table_name}")
             # For each struct in the table, we have to create a different extraction query
-            for struct_name in self.get_struct_names_inside_set_name(table_name):
+            for struct_name in self.get_struct_names_by_set_name(table_name):
                 # TODO: Ignore sibling overlapping subclasses in the set (otherwise, data will be migrated twice and violate PK)
                 if not self.exists_more_generic_struct_in_set(struct_name, table_name):
                     project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
@@ -275,7 +275,7 @@ class Relational(Catalog, ABC):
                         if self.is_struct_phantom(node_name):
                             node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name))["nodes"].to_list())
                         if self.is_set_phantom(node_name):
-                            node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
+                            node_list.extend(self.get_phantom_names_by_set_name(self.get_edge_by_phantom_name(node_name)))
                     sentence = self.generate_migration_insert_statement(table_name, project, pattern, source)
                     statements.append(sentence)
         return statements
@@ -335,7 +335,7 @@ class Relational(Catalog, ABC):
             # Get potential attributes to plug the current table
             plugs = []  # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
             # For every struct in the table
-            struct_name_list = self.get_struct_names_inside_set_name(current_table)
+            struct_name_list = self.get_struct_names_by_set_name(current_table)
             for struct_name in struct_name_list:
                 node_name_list = self.get_outbound_struct_by_name(struct_name)["nodes"].values.tolist()
                 # TODO: Current bottleneck is in this loop (in the presence of hundreds of attributes)
@@ -346,7 +346,7 @@ class Relational(Catalog, ABC):
                     if self.is_struct_phantom(node_name):
                         struct_name_list.append(self.get_edge_by_phantom_name(node_name))
                     elif self.is_set_phantom(node_name):
-                        for hop_node_name in self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list():
+                        for hop_node_name in self.get_phantom_names_by_set_name(self.get_edge_by_phantom_name(node_name)):
                             node_name_list.append(hop_node_name)
                     elif self.is_class_phantom(node_name):
                         class_name = self.get_edge_by_phantom_name(node_name)

@@ -86,7 +86,7 @@ class NonFirstNormalFormJSON(Relational):
         """
         # This is more complex than the 1NF, because we have to generate the paths of attributes inside the JSON
         attr_paths = []
-        for struct_name in self.get_struct_names_inside_set_name(table_name):
+        for struct_name in self.get_struct_names_by_set_name(table_name):
             attr_paths.extend(self.get_struct_attributes(struct_name))
         attr_paths = drop_duplicates(attr_paths)
         mismatch = [attr for attr in project if attr not in [attr2 for attr2, _ in attr_paths]]
@@ -110,7 +110,7 @@ class NonFirstNormalFormJSON(Relational):
         :return: String representation of the values to be inserted
         """
         attr_paths = []
-        for struct_name in self.get_struct_names_inside_set_name(table_name):
+        for struct_name in self.get_struct_names_by_set_name(table_name):
             attr_paths.extend(self.get_struct_attributes(struct_name))
         attr_paths = drop_duplicates(attr_paths)
         obj, grouping = self.build_jsonb_object(attr_paths)
@@ -150,7 +150,7 @@ class NonFirstNormalFormJSON(Relational):
             sentence = "CREATE UNIQUE INDEX pk_" + table_name + " ON " + table_name
             # Create the PK
             # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-            struct_name = self.get_struct_names_inside_set_name(table_name)[0]
+            struct_name = self.get_struct_names_by_set_name(table_name)[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
                 if self.is_class(key):

@@ -325,7 +325,7 @@ class Catalog(HyperNetXWrapper):
                     attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
             elif self.is_set_phantom(elem_name):
                 nested_set_name = self.get_edge_by_phantom_name(elem_name)
-                for nested_element_phantom_name in self.get_outbound_set_by_name(nested_set_name).index.get_level_values("nodes"):
+                for nested_element_phantom_name in self.get_phantom_names_by_set_name(nested_set_name):
                     assert self.is_class_phantom(nested_element_phantom_name) or self.is_struct_phantom(nested_element_phantom_name), f"☠️ Set '{nested_set_name}' contains '{nested_element_phantom_name}', which is neither a class nor a struct"
                     nested_element_name = self.get_edge_by_phantom_name(nested_element_phantom_name)
                     if self.is_class(nested_element_name):
@@ -835,7 +835,7 @@ class Catalog(HyperNetXWrapper):
                 external_struct_name = set_struct.edges
                 # The content of a set can be either one single class, or several structs
                 # In the case of several structs, all must share the same anchor, so anyway, taking the fist element is enough
-                internal_elem_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(set_struct.nodes)).index[0][1]
+                internal_elem_name = self.get_phantom_names_by_set_name(self.get_edge_by_phantom_name(set_struct.nodes))[0]
                 restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
                 if self.is_class_phantom(internal_elem_name):
                     # By IC-Sets7 a set can have at most one class
@@ -911,7 +911,7 @@ class Catalog(HyperNetXWrapper):
                 anchor_concepts = []
                 anchor_attributes = []
                 set_attributes = []
-                structs_list = self.get_struct_names_inside_set_name(set_name)
+                structs_list = self.get_struct_names_by_set_name(set_name)
                 for struct_name in structs_list:
                     set_attributes.extend(self.get_attribute_names_by_struct_name(struct_name))
                     attribute_list = []
@@ -1023,7 +1023,7 @@ class Catalog(HyperNetXWrapper):
             #             In already considers nested structs and sets, because get_struct_attributes already does
             logger.info("Checking IC-Design9")
             for set_name in sets["name"]:
-                inner_structs_phantom_names = self.get_outbound_set_by_name(set_name).index.get_level_values("nodes")
+                inner_structs_phantom_names = self.get_phantom_names_by_set_name(set_name)
                 if len(inner_structs_phantom_names) > 1:
                     attribute_paths = []
                     for phantom_name in inner_structs_phantom_names:
@@ -1218,7 +1218,7 @@ class Catalog(HyperNetXWrapper):
         for index, set_name in enumerate(reversed(sets_combination)):
             # Determine the aliases of tables and required attributes
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
-            for struct_name in self.get_struct_names_inside_set_name(set_name):
+            for struct_name in self.get_struct_names_by_set_name(set_name):
                 custom_progress(f"--------Processing {struct_name}")
                 for dom_attr_name, attr_path in tqdm(self.get_struct_attributes(struct_name), desc=f"----------Attributes in {struct_name}", leave=config.show_progress):
                     # In case of generalization, the attribute may be overwritten, but they should coincide
@@ -1261,7 +1261,7 @@ class Catalog(HyperNetXWrapper):
             if pattern_superclasses:
                 # For every root set required in the query
                 for set_name in sets_combination:
-                    for struct_name in self.get_struct_names_inside_set_name(set_name):
+                    for struct_name in self.get_struct_names_by_set_name(set_name):
                         # Get all classes in the current struct of the current table
                         table_classes = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]
                         # For all classes in the table
@@ -1295,7 +1295,7 @@ class Catalog(HyperNetXWrapper):
             warnings.warn(f"⚠️ The insertion may be ambiguous or there is redundancy in the design, since it affects different tables: {insert_points}")
         result = []
         for set_name in insert_points:
-            struct_name_list = self.get_struct_names_inside_set_name(set_name)
+            struct_name_list = self.get_struct_names_by_set_name(set_name)
             # Check that all anchor points are provided
             # Get the anchor attributes of the set
             anchor_attributes = []

@@ -66,7 +66,7 @@ class FirstNormalForm(Relational):
             logger.info("Checking IC-FirstNormalForm4")
             # For each table
             for set_name in root_names:
-                for struct_phantom in self.get_outbound_set_by_name(set_name).index.get_level_values("nodes"):
+                for struct_phantom in self.get_phantom_names_by_set_name(set_name):
                     struct_name = self.get_edge_by_phantom_name(struct_phantom)
                     members = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
@@ -106,7 +106,7 @@ class FirstNormalForm(Relational):
             sentence = "CREATE TABLE " + table_name + " (\n"
             # Get all the attributes in all the structs
             attr_paths = []
-            for struct_name in self.get_struct_names_inside_set_name(table_name):
+            for struct_name in self.get_struct_names_by_set_name(table_name):
                 attr_paths.extend(self.get_struct_attributes(struct_name))
             attr_paths = drop_duplicates(attr_paths)
             assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths])) == len(attr_paths), f"☠️ Table '{table_name}' has the same attribute defined twice: {attr_paths}"
@@ -157,7 +157,7 @@ class FirstNormalForm(Relational):
             sentence = "ALTER TABLE " + table_name + " ADD"
             # Create the PK
             # All structs in a set must share the anchor attributes (IC-Design4), so we can take any of them
-            struct_name = self.get_struct_names_inside_set_name(table_name)[0]
+            struct_name = self.get_struct_names_by_set_name(table_name)[0]
             key_list = []
             for key in self.get_anchor_end_names_by_struct_name(struct_name):
                 if self.is_class(key):
@@ -182,7 +182,7 @@ class FirstNormalForm(Relational):
         for table_referee_name in tqdm(self.get_root_edges()["name"], desc="Generating foreign key declaration statements", leave=config.show_progress):
             # Get all the attributes in all the structs
             attribute_list = []
-            for struct_name in self.get_struct_names_inside_set_name(table_referee_name):
+            for struct_name in self.get_struct_names_by_set_name(table_referee_name):
                 attribute_list.extend(self.get_struct_attributes(struct_name))
             # Check all the attributes to see if they require an FK
             for dom_attr_name, attr_path in attribute_list:
@@ -196,7 +196,7 @@ class FirstNormalForm(Relational):
                     else:
                         # Get the classes in the struct that provide the ID
                         hierarchies = []
-                        for struct_name in self.get_struct_names_inside_set_name(table_referee_name):
+                        for struct_name in self.get_struct_names_by_set_name(table_referee_name):
                             for elem in self.get_outbound_struct_by_name(struct_name)["nodes"]:
                                 if self.is_class_phantom(elem):
                                     class_name = self.get_edge_by_phantom_name(elem)
@@ -210,7 +210,7 @@ class FirstNormalForm(Relational):
                     for class_name in hierarchy:
                         for table_referred_name in self.get_root_edges()["name"]:
                             # We can take any struct in the set, because all must share the anchor
-                            struct_name = self.get_struct_names_inside_set_name(table_referred_name)[0]
+                            struct_name = self.get_struct_names_by_set_name(table_referred_name)[0]
                             anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                             assert len(anchor_points) > 0, f"☠️ Struct '{struct_name}' should have at least one anchor point"
                             assert self.is_class(anchor_points[0]), f"☠️ Anchor point '{anchor_points[0]}' must be class phantoms"
