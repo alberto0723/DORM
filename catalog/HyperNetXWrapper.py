@@ -526,8 +526,8 @@ class HyperNetXWrapper:
     def get_phantom_names_by_set_name(self, set_name) -> list[str]:
         return self.str_list_query(f"SELECT nodes AS name FROM incidences WHERE Direction = 'Outbound' AND Kind='SetIncidence' AND edges='{set_name}';")
 
-    def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
-        return self.query(f"SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';")
+    def get_outbound_class_by_name(self, class_name) -> list[str]:
+        return self.str_list_query(f"SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';")
 
     def get_transitive_roots(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
         """

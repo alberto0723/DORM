@@ -61,8 +61,12 @@ def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:
         return minimal_combinations
 
 
-def df_difference(df1, df2):
+def df_difference(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([df1, df2, df2], ignore_index=True).drop_duplicates(keep=False)
+
+
+def str_list_difference(l1: list[str], l2: list[str]) -> list[str]:
+    return list(set(l1) - set(l2))
 
 
 def read_db_conf(filename: str) -> dict[str, str]:

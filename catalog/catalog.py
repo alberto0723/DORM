@@ -311,7 +311,7 @@ class Catalog(HyperNetXWrapper):
             elif self.is_class_phantom(elem_name):
                 # Add the class identifier if there is not any other attribute of the same class
                 class_name = self.get_edge_by_phantom_name(elem_name)
-                if not self.get_outbound_class_by_name(class_name)["attribute"].isin(elem_names).any():
+                if set(self.get_outbound_class_by_name(class_name)).isdisjoint(elem_names):
                     id_attribute = self.get_class_id_by_name(class_name)
                     attribute_list.append((id_attribute, [{"kind": "Attribute", "name": id_attribute}]))
             elif self.is_association_phantom(elem_name):
@@ -1110,11 +1110,11 @@ class Catalog(HyperNetXWrapper):
                     if self.is_class(edge):
                         class_list = [edge] + self.get_generalizations_by_class_name(edge, return_superclasses=True)
                         for class_name in class_list:
-                            project_attributes.extend(self.get_outbound_class_by_name(class_name)["attribute"])
+                            project_attributes.extend(self.get_outbound_class_by_name(class_name))
                         # for attr in self.get_outbound_class_by_name(edge).itertuples():
                         #     project_attributes.append(attr.Index[1])
             elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
-                project_attributes.extend(self.get_outbound_class_by_name(requested[:-2])["attribute"])
+                project_attributes.extend(self.get_outbound_class_by_name(requested[:-2]))
                 # for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
                 #     project_attributes.append(attr.Index[1])
             else:
@@ -1182,7 +1182,7 @@ class Catalog(HyperNetXWrapper):
                 current_attributes = []
                 # Take the required attributes in the class that are in the current table
                 for class_name in hierarchy:
-                    current_attributes.extend([a for a in self.get_outbound_class_by_name(class_name)["attribute"] if a in required_attributes])
+                    current_attributes.extend([a for a in self.get_outbound_class_by_name(class_name) if a in required_attributes])
                 # If it is a class, the id always belongs to the table, hence we add it even if not required
                 class_id = self.get_class_id_by_name(elem)
                 if class_id not in current_attributes:
