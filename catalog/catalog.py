@@ -768,21 +768,22 @@ class Catalog(HyperNetXWrapper):
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 restricted_classes = restricted_struct.get_classes()
                 # Foll all classes in the current struct
-                for class_name1 in restricted_classes["name"]:
+                for class_name1 in restricted_classes["name"].values:
                     superclasses1 = restricted_struct.get_generalizations_by_class_name(class_name1, return_superclasses=True)
                     # If it has superclasses
                     if superclasses1:
                         # Check all other classes in the struct
-                        for class_name2 in restricted_classes["name"]:
+                        for class_name2 in restricted_classes["name"].values:
                             # Get their superclasses
                             superclasses2 = restricted_struct.get_generalizations_by_class_name(class_name2, return_superclasses=True)
                             # Check this is not actually itself or an ancestor
                             if class_name1 != class_name2 and class_name2 not in superclasses1 and class_name1 not in superclasses2:
                                 # Check if they are siblings
                                 if [s for s in superclasses1 if s in superclasses2]:
+                                    outbound_subclasses = restricted_struct.get_outbound_generalization_subclasses()
                                     # Check if the corresponding discriminant attribute is present (this works because we have single inheritance)
-                                    discriminants.append(
-                                        restricted_struct.get_outbound_generalization_subclasses()[restricted_struct.get_outbound_generalization_subclasses()["subclass"] == class_name1]["Constraint"])
+                                    discriminants.extend(
+                                        outbound_subclasses[outbound_subclasses["subclass"] == class_name1]["Constraint"].values.tolist())
                 attribute_names = list(set(self.parse_predicate(" AND ".join(discriminants))))
                 for attr in attribute_names:
                     kind = self.H.get_cell_properties(struct_name, attr, "Kind")
