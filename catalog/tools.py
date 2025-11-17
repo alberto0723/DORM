@@ -25,10 +25,14 @@ def extract_up_to_folder(path_str, folder_name) -> Path:
     return sub_path
 
 
-def drop_duplicates(dirty_list):
+def drop_complex_duplicates(dirty_list: list) -> list:
     unique_elems = []
     [unique_elems.append(elem) for elem in dirty_list if elem not in unique_elems]
     return unique_elems
+
+
+def drop_str_duplicates(dirty_list: list[str]) -> list[str]:
+    return list(set(dirty_list))
 
 
 def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:

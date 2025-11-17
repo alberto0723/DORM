@@ -11,7 +11,7 @@ from tqdm import tqdm
 from collections import Counter
 
 from . import config
-from .tools import custom_warning, custom_progress, combine_buckets, drop_duplicates, str_list_difference, extract_up_to_folder
+from .tools import custom_warning, custom_progress, combine_buckets, drop_complex_duplicates, drop_str_duplicates, str_list_difference, extract_up_to_folder
 from .HyperNetXWrapper import HyperNetXWrapper
 from .XML2JSON.domain.DomainTranslator import translate as translate_domain
 from .XML2JSON.design.DesignTranslator import translate as translate_design
@@ -710,7 +710,7 @@ class Catalog(HyperNetXWrapper):
 
             # IC-Structs3: Every struct has at least one anchor
             logger.info("Checking IC-Structs3")
-            matches3_3 = structOutbounds[structOutbounds["Anchor"]].drop_duplicates(subset=["edges"])
+            matches3_3 = structOutbounds[structOutbounds["Anchor"]].drop_duplicates()
             violations3_3 = str_list_difference(structs, matches3_3["edges"].values.tolist())
             if violations3_3:
                 consistent = False
@@ -934,14 +934,14 @@ class Catalog(HyperNetXWrapper):
                     attribute_list.sort()
                     anchor_concepts.append(concept_list)
                     anchor_attributes.append(attribute_list)
-                set_attributes = list(set(set_attributes))
+                set_attributes = drop_str_duplicates(set_attributes)
                 # Check IC-Design4
-                if len(drop_duplicates(anchor_attributes)) > 1:
+                if len(drop_complex_duplicates(anchor_attributes)) > 1:
                     consistent = False
                     print(f"🚨 IC-Design4 violation: Anchor attributes of structs in set '{set_name}' do not coincide: '{anchor_attributes}'")
                 # Check IC-Design5
                 # Not really necessary to check if they are generalization, because attributes already coincide
-                elif len(drop_duplicates(anchor_concepts)) != len(structs_list):
+                elif len(drop_complex_duplicates(anchor_concepts)) != len(structs_list):
                     consistent = False
                     print(f"🚨 IC-Design5 violation: Anchor concepts (aka classes) of structs in set '{set_name}' do exactly coincide and should not: '{anchor_concepts}'")
                 # Check IC-Design6
@@ -1215,7 +1215,7 @@ class Catalog(HyperNetXWrapper):
                         assert roots_with_attr, f"The attribute {attr} is not found in any of the fist levels of the corresponding class {elem}"
                         buckets.append(roots_with_attr)
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
-        return combine_buckets(drop_duplicates(buckets)), classes, associations
+        return combine_buckets(drop_complex_duplicates(buckets)), classes, associations
 
     def get_aliases(self, sets_combination: list[str], required_attributes: list[str]) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
         """
@@ -1238,7 +1238,7 @@ class Catalog(HyperNetXWrapper):
             atoms = self.get_atoms_including_transitivity_by_edge_name(set_name)
             associations = [self.get_edge_by_phantom_name(p) for p in self.get_phantom_associations() if p in atoms]
             class_phantoms = [p for p in self.get_phantom_classes() if p in atoms]
-            ids = drop_duplicates([self.get_class_id_by_name(self.get_edge_by_phantom_name(c)) for c in class_phantoms])
+            ids = drop_str_duplicates([self.get_class_id_by_name(self.get_edge_by_phantom_name(c)) for c in class_phantoms])
             for struct_name in self.get_struct_names_by_set_name(set_name):
                 custom_progress(f"--------Processing {struct_name}")
                 struct_attributes = self.get_struct_attributes(struct_name)
@@ -1284,7 +1284,7 @@ class Catalog(HyperNetXWrapper):
                     for struct_name in self.get_struct_names_by_set_name(set_name):
                         # Get all classes in the current struct of the current table
                         table_classes.extend(self.get_class_names_by_struct_name(struct_name))
-                    drop_duplicates(table_classes)
+                    drop_complex_duplicates(table_classes)
                     # For all classes in the table
                     for table_class_name in table_classes:
                         # Check if they are siblings

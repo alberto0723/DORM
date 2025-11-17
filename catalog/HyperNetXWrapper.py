@@ -12,7 +12,7 @@ import duckdb
 import uuid
 
 from .config import Config
-from .tools import drop_duplicates
+from .tools import drop_str_duplicates
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -595,7 +595,7 @@ class HyperNetXWrapper:
         # TODO: This is not considering that an anchor of a struct can be in a nested struct (only as root at first level)
         association_ends = self.str_list_query(f"SELECT end_class FROM struct_association_ends WHERE struct='{struct_name}' AND Anchor;")
         classes = self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}' AND Anchor;")
-        return drop_duplicates(association_ends + classes)
+        return drop_str_duplicates(association_ends + classes)
 
     def get_anchor_end_names_by_struct_name(self, struct_name) -> list[str]:
         """

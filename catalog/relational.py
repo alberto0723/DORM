@@ -16,7 +16,7 @@ from tqdm import tqdm
 RelationalType = TypeVar('RelationalType', bound='Relational')
 
 from . import config
-from .tools import custom_warning, drop_duplicates, custom_progress
+from .tools import custom_warning, drop_complex_duplicates, drop_str_duplicates, custom_progress
 from .catalog import Catalog
 
 # Libraries initialization
@@ -478,8 +478,8 @@ class Relational(Catalog, ABC):
                 condition_attributes = []
                 for condition in conditions:
                     condition_attributes.extend(self.parse_predicate(condition))
-                condition_attributes = drop_duplicates(condition_attributes)
-                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination, drop_duplicates(required_attributes + condition_attributes))
+                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination,
+                                                                                    drop_str_duplicates(required_attributes + condition_attributes))
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
                 # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
                 custom_progress("------Preparing filter predicate")
@@ -550,7 +550,7 @@ class Relational(Catalog, ABC):
                 union_clause = "\nUNION ALL\n"
             else:
                 union_clause = "\nUNION\n"
-            for combination in list(itertools.product(*drop_duplicates(subqueries))):
+            for combination in list(itertools.product(*drop_complex_duplicates(subqueries))):
                 sentences.append("(" + union_clause.join(combination) + ")")
         return sentences
 
