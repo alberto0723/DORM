@@ -674,6 +674,9 @@ class HyperNetXWrapper:
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
         return self.str_list_query(f"SELECT attribute FROM struct_attributes WHERE struct='{struct_name}';")
 
+    def get_class_names_by_struct_name(self, struct_name) -> list[str]:
+        return self.str_list_query(f"SELECT class FROM struct_classes WHERE struct='{struct_name}';")
+
     def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """
         Gives the names of the subclasses of a given class (the class itself is not included in the list)

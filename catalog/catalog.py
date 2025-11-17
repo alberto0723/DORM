@@ -1277,20 +1277,22 @@ class Catalog(HyperNetXWrapper):
             if pattern_superclasses:
                 # For every root set required in the query
                 for set_name in sets_combination:
+                    table_classes = []
                     for struct_name in self.get_struct_names_by_set_name(set_name):
                         # Get all classes in the current struct of the current table
-                        table_classes = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_inbound_classes(), on="nodes", how="inner")["nodes"])]
-                        # For all classes in the table
-                        for table_class_name in table_classes["edges"]:
-                            # Check if they are siblings
-                            if table_class_name in pattern_superclasses:
-                                discriminant = self.get_discriminant_by_class_name(pattern_class_name)
-                                assert discriminant is not None, f"☠️ No discriminant for '{pattern_class_name}'"
-                                missing_discriminants = [a for a in self.parse_predicate(discriminant) if a not in self.get_attribute_names_by_struct_name(struct_name)]
-                                if missing_discriminants:
-                                    raise ValueError(f"🚨 Some discriminant attribute '{missing_discriminants}' missing in struct '{struct_name}' of table '{set_name}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
-                                # Add the corresponding discriminant (this works because we have single inheritance)
-                                discriminants.append(discriminant)
+                        table_classes.extend(self.get_class_names_by_struct_name(struct_name))
+                    drop_duplicates(table_classes)
+                    # For all classes in the table
+                    for table_class_name in table_classes:
+                        # Check if they are siblings
+                        if table_class_name in pattern_superclasses:
+                            discriminant = self.get_discriminant_by_class_name(pattern_class_name)
+                            assert discriminant is not None, f"☠️ No discriminant for '{pattern_class_name}'"
+                            missing_discriminants = [a for a in self.parse_predicate(discriminant) if a not in self.get_attribute_names_by_struct_name(struct_name)]
+                            if missing_discriminants:
+                                raise ValueError(f"🚨 Some discriminant attribute '{missing_discriminants}' missing in struct '{struct_name}' of table '{set_name}' for '{pattern_class_name}' in the query (IC-Design7 should have warned about this)")
+                            # Add the corresponding discriminant (this works because we have single inheritance)
+                            discriminants.append(discriminant)
         # It should not be necessary to remove duplicates if design and query are sound (some extra check may be needed)
         # Right now, the same discriminant twice is useless, because attribute alias can come from only one table
         return list(set(discriminants))
