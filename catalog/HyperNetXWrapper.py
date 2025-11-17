@@ -386,6 +386,15 @@ class HyperNetXWrapper:
         assert len(classes) == 1, f"Attribute {attribute_name} does not have exactly one class"
         return classes[0]
 
+    def get_struct_list_per_attribute(self, attr_list: list[str]) -> pd.DataFrame:
+        return self.query("""
+            SELECT i1.edges AS class_name, i1.nodes AS attribute_name, ARRAY_AGG(i2.edges) AS struct_list
+            FROM incidences i1
+                JOIN incidences i2 ON i1.nodes = i2.nodes
+            WHERE i1.Direction = 'Outbound' AND i1.Kind = 'ClassIncidence'
+                AND i2.Direction = 'Outbound' AND i2.Kind='StructIncidence' AND i2.nodes IN ('""" + "','".join(attr_list) + """')
+            GROUP BY i1.edges, i1.nodes;""")
+
     def get_phantoms(self) -> list[str]:
         return self.str_list_query("SELECT uid AS name FROM nodes WHERE Kind='Phantom';")
 

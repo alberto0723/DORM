@@ -421,29 +421,33 @@ class Relational(Catalog, ABC):
             return join_clause+'\n'+self.generate_joins(tables, query_classes, query_associations, alias_table, join_attr, schema_name, visited, previous_laterals)
 
     def find_implicit_class(self, required_attributes, pattern_edges) -> str:
-        # TODO: The loop cannot be avoided, but the dictionary of subclasses for every attribute could be pre-computed
         subclasses = {}
         struct_containers_for_class = {}
-        for current_attribute_name in required_attributes:
-            if not self.is_association_end(current_attribute_name):
-                time_before = time.time()
-                class_name = self.get_class_by_attribute_name(current_attribute_name)
-                # Since the query must be connected, some class must appear in the pattern
-                if class_name not in subclasses:
-                    if class_name in pattern_edges:
-                        subclasses[class_name] = [class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True)
-                        subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
-                        struct_containers_for_class[class_name] = self.get_unique_outbound_struct_by_phantom_list(subphantoms)
-                    else:
-                        for subclass in self.get_subclasses_by_class_name(class_name):
-                            if subclass in pattern_edges:
-                                subclasses[class_name] = [subclass]+self.get_generalizations_by_class_name(subclass, return_superclasses=True)
-                                subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
-                                struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs()["nodes"].isin(subphantoms)]['edges'])
-                struct_containers_for_attribute = self.get_unique_outbound_struct_by_phantom_list([current_attribute_name])
-                # Check if there is any struct that contains both the attribute and any one of the classes
-                if not set(struct_containers_for_attribute).intersection(struct_containers_for_class[class_name]):
-                    return subclasses[class_name][0]
+
+        # Get the classes of the required attributes (without association ends)
+        required_tuples = self.get_struct_list_per_attribute(required_attributes)
+
+        # Get the structs containing every class or subclass
+        for class_name in required_tuples["class_name"].values:
+            if class_name not in subclasses:
+                if class_name in pattern_edges:
+                    subclasses[class_name] = [class_name] + self.get_generalizations_by_class_name(class_name, return_superclasses=True)
+                    subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
+                    struct_containers_for_class[class_name] = self.get_unique_outbound_struct_by_phantom_list(subphantoms)
+                else:
+                    for subclass in self.get_subclasses_by_class_name(class_name):
+                        if subclass in pattern_edges:
+                            subclasses[class_name] = [subclass] + self.get_generalizations_by_class_name(subclass, return_superclasses=True)
+                            subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
+                            struct_containers_for_class[class_name] = set(
+                                self.get_outbound_structs()[self.get_outbound_structs()["nodes"].isin(subphantoms)]['edges'])
+
+        # Check if every attribute is in some struct of those containing the corresponding class
+        for tuple in required_tuples.itertuples():
+            # Since the query must be connected, some class must appear in the pattern
+            # Check if there is any struct that contains both the attribute and any one of the classes
+            if not set(tuple.struct_list).intersection(struct_containers_for_class[tuple.class_name]):
+                return subclasses[tuple.class_name][0]
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
