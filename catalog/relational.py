@@ -533,11 +533,11 @@ class Relational(Catalog, ABC):
             complete_generalizations = generalizations[generalizations["Complete"]]
             # TODO: This takes the first complete generalization, but actually it should generate alternative executions with each of them
             if complete_generalizations.empty:
-                taken_generalization = generalizations.iloc[0].Generalization
+                taken_generalization = generalizations.iloc[0]
             else:
-                taken_generalization = complete_generalizations.iloc[0].Generalization
+                taken_generalization = complete_generalizations.iloc[0]
             subqueries = []
-            for subclass_phantom_name in self.get_outbound_generalization_subclasses_by_gen_name(taken_generalization.edges):
+            for subclass_phantom_name in self.get_outbound_generalization_subclasses_by_gen_name(taken_generalization.name):
                 custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
@@ -546,7 +546,7 @@ class Relational(Catalog, ABC):
                 new_query["project"] = project_attributes
                 subqueries.append(self.generate_query_statement(new_query, explicit_schema))
             # We need to combine it, because a query may be solved in many different ways
-            if taken_generalization.misc_properties_node.get("Disjoint", False) or complete_generalizations.empty:
+            if taken_generalization.Disjoint or complete_generalizations.empty:
                 union_clause = "\nUNION ALL\n"
             else:
                 union_clause = "\nUNION\n"

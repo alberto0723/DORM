@@ -471,10 +471,10 @@ class HyperNetXWrapper:
 
     def get_outbound_generalization_by_superclasses_name(self, class_name: str) -> pd.DataFrame:
         return self.query(f"""
-            SELECT gen.uid AS generalization, gen.Complete, gen.Disjoint
+            SELECT gen.uid AS name, gen.Complete, gen.Disjoint
             FROM incidences gen_inc
-                JOIN incidences class_inc ON gen.nodes=class.nodes
-                JOIN nodes gen
+                JOIN incidences class_inc ON gen_inc.nodes=class_inc.nodes
+                JOIN edges gen ON gen.uid=gen_inc.edges
             WHERE gen_inc.Direction = 'Outbound' AND gen_inc.Kind='GeneralizationIncidence' AND gen_inc.Subkind='Superclass' 
                 AND class_inc.Direction='Inbound' AND class_inc.Kind='ClassIncidence' AND class_inc.edges='{class_name}';
             """)
