@@ -312,9 +312,9 @@ class HyperNetXWrapper:
             UNION ALL
             SELECT a.End_name AS name
             FROM tmp_incidences a
-                LEFT OUTER JOIN tmp_incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
+                --LEFT OUTER JOIN tmp_incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
             WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
-                AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
+                --AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
             """)
 
     def query(self, query: str) -> pd.DataFrame:
