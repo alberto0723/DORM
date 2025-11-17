@@ -458,7 +458,7 @@ class Relational(Catalog, ABC):
         logger.info("Resolving query")
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
-        custom_progress(f"Parsing query")
+        custom_progress(f"--Parsing query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
             schema_name = self.dbschema + "."

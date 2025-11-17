@@ -1039,9 +1039,14 @@ class Catalog(HyperNetXWrapper):
             if self.is_class(e):
                 superclasses.extend(self.get_generalizations_by_class_name(e, return_superclasses=True))
                 superclasses.extend(self.get_generalizations_by_class_name(e, return_superclasses=False))
+
+        # This call is right now the slowest in the parsing of the query, but hardly avoidable
         restricted_domain = self.H.restrict_to_edges(pattern_edges+superclasses)
-        # Next call is the current main bottleneck in the parsing of queries
-        if not restricted_domain.is_connected(s=1):
+        # Next call is a bottleneck, because it takes too much
+        #     if not restricted_domain.is_connected(s=1):
+        # Instead, transforming the graph into a bipartite and checking its connectivity is much faster.
+        bipartite_graph = restricted_domain.bipartite()
+        if not nx.is_connected(bipartite_graph):
             raise ValueError(f"🚨 Some pattern elements (i.e., classes and associations) are not connected")
 
         # Check if the restricted domain contains all the required attributes and association ends

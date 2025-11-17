@@ -303,6 +303,7 @@ class HyperNetXWrapper:
             if required not in df_nodes_flattened.columns:
                 df_nodes_flattened[required] = None
         self.sql.register("tmp_nodes", df_nodes_flattened)
+
         df_incidences = temp_H.incidences.to_dataframe.reset_index()
         df_incidences_with_json = pd.json_normalize(df_incidences["misc_properties"])
         df_incidences_flattened = pd.concat([df_incidences.drop(columns="misc_properties"), df_incidences_with_json], axis=1)
@@ -310,6 +311,7 @@ class HyperNetXWrapper:
             if required not in df_incidences_flattened.columns:
                 df_incidences_flattened[required] = None
         self.sql.register("tmp_incidences", df_incidences_flattened)
+
         return self.str_list_query("""
             SELECT uid AS name
             FROM tmp_nodes 
