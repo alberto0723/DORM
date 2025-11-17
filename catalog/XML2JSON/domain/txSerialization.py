@@ -28,13 +28,13 @@ class TxSerialization:
         if classes:
             lines.append('  "classes": [')
             lines.append(self.createJSON_Classes(classes))
-            lines.append('    ],')
+            lines.append('    ]')
         if assocs:
-            lines.append('  "associations": [')
+            lines.append(',  "associations": [')
             lines.append(self.createJSON_Associations(assocs))
-            lines.append('    ],')
+            lines.append('    ]')
         if generals:
-            lines.append('  "generalizations": [')
+            lines.append(',  "generalizations": [')
             lines.append(self.createJSON_Generalitzacions(generals))
             lines.append('    ]')
         lines.append('  }')
