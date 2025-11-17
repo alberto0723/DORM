@@ -5,7 +5,6 @@ from IPython.display import display
 from tqdm import tqdm
 
 from . import config
-from .tools import drop_duplicates
 from .relational import Relational
 
 # Library initialization
@@ -45,14 +44,14 @@ class NonFirstNormalFormJSON(Relational):
         path += "->>'" + attr_path[-1].get("name") + "'"
         return path
 
-    def build_jsonb_object(self, attr_paths: list[tuple[str, list[dict[str, str]]]]) -> [str, list[str]]:
+    def build_jsonb_object(self, attr_paths: dict[str, list[dict[str, str]]]) -> [str, list[str]]:
         # TODO: Generalize this to any number of nested sets
         #       The limitation is the multiple grouping sets and nested 'jsonb_agg', which PostgreSQL that does not allow
         formatted_pairs = []
         pending_attributes = {}
         tmp_grouping = []
         final_grouping = []
-        for dom_attr_name, attr_path in attr_paths:
+        for dom_attr_name, attr_path in attr_paths.items():
             current_name = attr_path[0].get("name")
             if len(attr_path) == 1:
                 formatted_pairs.append("('" + current_name + "', to_jsonb(" + dom_attr_name + "))")
@@ -85,14 +84,14 @@ class NonFirstNormalFormJSON(Relational):
         :return: The SQL statement that moves the data from one schema to another.
         """
         # This is more complex than the 1NF, because we have to generate the paths of attributes inside the JSON
-        attr_paths = []
+        # First, we merge all the attributes in all the structs
+        attr_paths = {}
         for struct_name in self.get_struct_names_by_set_name(table_name):
-            attr_paths.extend(self.get_struct_attributes(struct_name))
-        attr_paths = drop_duplicates(attr_paths)
-        mismatch = [attr for attr in project if attr not in [attr2 for attr2, _ in attr_paths]]
+            attr_paths |= self.get_struct_attributes(struct_name)
+        mismatch = [attr for attr in project if attr not in [attr2 for attr2, _ in attr_paths.items()]]
         assert not mismatch, f"Attributes '{mismatch}' found in the required projection of the migration table '{table_name}' are not found in the paths of table"
         # Remove unnecessary paths, whose attributes are actually not being migrated (this would be unnecessary if the struct name would be known)
-        attr_paths = [(attr, paths) for attr, paths in attr_paths if attr in project]
+        attr_paths = {attr: paths for attr, paths in attr_paths if attr in project}
         obj, grouping = self.build_jsonb_object(attr_paths)
         if grouping:
             return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
@@ -109,10 +108,10 @@ class NonFirstNormalFormJSON(Relational):
         :param data_values: Dictionary with pairs attribute name and value
         :return: String representation of the values to be inserted
         """
-        attr_paths = []
+        # Merge all the attributes in all the structs
+        attr_paths = {}
         for struct_name in self.get_struct_names_by_set_name(table_name):
-            attr_paths.extend(self.get_struct_attributes(struct_name))
-        attr_paths = drop_duplicates(attr_paths)
+            attr_paths |= self.get_struct_attributes(struct_name)
         obj, grouping = self.build_jsonb_object(attr_paths)
         if grouping:
             assert False, f"☠️ Unexpected grouping '{grouping}' in the insertion of '{data_values}' into '{table_name}' (insertions are not allowed in the presence of nested sets)"

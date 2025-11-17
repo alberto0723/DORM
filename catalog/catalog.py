@@ -1027,21 +1027,23 @@ class Catalog(HyperNetXWrapper):
                     warnings.warn(f"⚠️ IC-Design8 violation: Instances of class '{class_name}' may be lost, because it is not linked to any root set with associations of minimum multiplicity one")
 
             # IC-Design9: All attributes in the structs in a set must have the same paths
-            #             In already considers nested structs and sets, because get_struct_attributes already does
+            #             It already considers nested structs and sets, because get_struct_attributes already does
             logger.info("Checking IC-Design9")
             for set_name in sets:
                 inner_structs_phantom_names = self.get_phantom_names_by_set_name(set_name)
                 if len(inner_structs_phantom_names) > 1:
+                    # This is a list of dictionaries (one per struct)
                     attribute_paths = []
                     for phantom_name in inner_structs_phantom_names:
                         attribute_paths.append(self.get_struct_attributes(self.get_edge_by_phantom_name(phantom_name)))
                     for i in range(len(attribute_paths)):
+                        dict_i = attribute_paths[i]
                         for j in range(i+1, len(attribute_paths)):
-                            for pair_i in attribute_paths[i]:
-                                for pair_j in attribute_paths[j]:
-                                    if pair_i[0] == pair_j[0] and pair_i[1] != pair_j[1]:
-                                        consistent = False
-                                        print(f"🚨 IC-Design9 violation: Attribute '{pair_i[0]}' has a different path depending on the struct inside '{set_name}': {pair_i[1]} vs {pair_j[1]}")
+                            dict_j = attribute_paths[j]
+                            for key in dict_i.keys() & dict_j.keys():
+                                if dict_i[key] != dict_j[key]:
+                                    consistent = False
+                                    print(f"🚨 IC-Design9 violation: Attribute '{key}' has a different path depending on the struct inside '{set_name}': {dict_i[key]} vs {dict_j[key]}")
         return consistent
 
     def check_basic_request_structure(self, pattern_edges: list[str], required_attributes: list[str]) -> None:
@@ -1215,10 +1217,11 @@ class Catalog(HyperNetXWrapper):
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
-    def get_aliases(self, sets_combination, required_attributes) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
+    def get_aliases(self, sets_combination: list[str], required_attributes: list[str]) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param sets_combination: The set of tables in the FROM clause of a query.
+        :param required_attributes: The attributes being used in the query.
         :return: Dictionary of aliases of tables.
         :return: Dictionary of projections of domain attributes.
         :return: Dictionary of joins of domain attributes.

@@ -13,8 +13,6 @@ import re
 from typing import Type, TypeVar
 from tqdm import tqdm
 
-import time
-
 RelationalType = TypeVar('RelationalType', bound='Relational')
 
 from . import config
@@ -264,7 +262,7 @@ class Relational(Catalog, ABC):
             for struct_name in self.get_struct_names_by_set_name(table_name):
                 # TODO: Ignore sibling overlapping subclasses in the set (otherwise, data will be migrated twice and violate PK)
                 if not self.exists_more_generic_struct_in_set(struct_name, table_name):
-                    project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
+                    project = [attr for attr, _ in self.get_struct_attributes(struct_name).items()]
                     pattern = []
                     node_list = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
                     # The node_list is extended inside the loop itself (kind of a recursive call)
@@ -336,26 +334,19 @@ class Relational(Catalog, ABC):
             # For every struct in the table
             struct_name_list = self.get_struct_names_by_set_name(current_table)
             for struct_name in struct_name_list:
-                node_name_list = self.get_outbound_struct_by_name(struct_name)["nodes"].values.tolist()
-                # TODO: Current bottleneck is in this loop (in the presence of hundreds of attributes)
-                for node_name in node_name_list:
-                    # This comparison pays off as soon as there are more attributes than anything else
-                    if self.is_attribute(node_name):
-                        continue
-                    if self.is_struct_phantom(node_name):
-                        struct_name_list.append(self.get_edge_by_phantom_name(node_name))
-                    elif self.is_set_phantom(node_name):
-                        for hop_node_name in self.get_phantom_names_by_set_name(self.get_edge_by_phantom_name(node_name)):
-                            node_name_list.append(hop_node_name)
-                    elif self.is_class_phantom(node_name):
-                        class_name = self.get_edge_by_phantom_name(node_name)
-                        if class_name in query_superclasses:
-                            # Any class in the query is a potential connection point per se
-                            plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
-                            # Also, it can connect to a loose end if it participates in an association
-                            for ass in associations.itertuples():
-                                if self.get_edge_by_phantom_name(ass.nodes) in [class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True):
-                                    plugs.append((self.get_class_id_by_name(class_name), ass.End_name))
+                struct_name_list.extend(self.get_struct_names_by_struct_name(struct_name))
+                class_name_list = self.get_class_names_by_struct_name(struct_name)
+                for set_name in self.get_set_names_by_struct_name(struct_name):
+                    struct_name_list.extend(self.get_struct_names_by_set_name(set_name))
+                    class_name_list.extend(self.get_class_names_by_set_name(set_name))
+                for class_name in class_name_list:
+                    if class_name in query_superclasses:
+                        # Any class in the query is a potential connection point per se
+                        plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
+                        # Also, it can connect to a loose end if it participates in an association
+                        for ass in associations.itertuples():
+                            if self.get_edge_by_phantom_name(ass.nodes) in [class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True):
+                                plugs.append((self.get_class_id_by_name(class_name), ass.End_name))
                 for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
                     for ass in associations.itertuples():
                         if end_name == ass.End_name:

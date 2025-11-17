@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from . import config
 from .relational import Relational
-from .tools import custom_warning, custom_progress, drop_duplicates, str_list_difference
+from .tools import custom_warning, custom_progress, str_list_difference
 
 # Library initialization
 pd.set_option('display.max_columns', None)
@@ -104,14 +104,14 @@ class FirstNormalForm(Relational):
             # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n"
             # Get all the attributes in all the structs
-            attr_paths = []
+            attr_paths = {}
+            # This merges the attributes in all the structs
             for struct_name in self.get_struct_names_by_set_name(table_name):
-                attr_paths.extend(self.get_struct_attributes(struct_name))
-            attr_paths = drop_duplicates(attr_paths)
-            assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths])) == len(attr_paths), f"☠️ Table '{table_name}' has the same attribute defined twice: {attr_paths}"
+                attr_paths |= self.get_struct_attributes(struct_name)
+            assert len(set([self.generate_attr_projection_clause(path) for _, path in attr_paths.items()])) == len(attr_paths), f"☠️ Table '{table_name}' has the same attribute defined twice: {attr_paths}"
             # Add all the attributes to the CREATE TABLE sentence
             attribute_list = []
-            for _, attr_path in attr_paths:
+            for _, attr_path in attr_paths.items():
                 attribute = self.get_attribute_by_name(self.get_domain_attribute_from_path(attr_path))
                 if attribute["DataType"] == "String":
                     attribute_list.append("  " + self.generate_attr_projection_clause(attr_path) + " VarChar(" + str(int(attribute["Size"])) + ")")
@@ -180,11 +180,11 @@ class FirstNormalForm(Relational):
         # For each table
         for table_referee_name in tqdm(self.get_root_edges(), desc="Generating foreign key declaration statements", leave=config.show_progress):
             # Get all the attributes in all the structs
-            attribute_list = []
+            attribute_list = {}
             for struct_name in self.get_struct_names_by_set_name(table_referee_name):
-                attribute_list.extend(self.get_struct_attributes(struct_name))
+                attribute_list |= self.get_struct_attributes(struct_name)
             # Check all the attributes to see if they require an FK
-            for dom_attr_name, attr_path in attribute_list:
+            for dom_attr_name, attr_path in attribute_list.items():
                 attr_correspondence = self.get_domain_attribute_from_path(attr_path)
                 if self.is_id(attr_correspondence):
                     # If it comes from an association

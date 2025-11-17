@@ -12,6 +12,7 @@ import duckdb
 import uuid
 
 from .config import Config
+from .tools import drop_duplicates
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -224,14 +225,6 @@ class HyperNetXWrapper:
                     AND classes.Direction='Inbound' AND classes.Kind='ClassIncidence';
             """)
         self.query("""
-            CREATE TEMP TABLE struct_classes AS
-                SELECT outgoing.edges AS struct, outgoing.nodes AS phantom, incoming.edges AS class, outgoing.Anchor
-                FROM incidences outgoing
-                    JOIN incidences incoming ON incoming.nodes=outgoing.nodes
-                WHERE outgoing.Direction='Outbound' AND outgoing.Kind='StructIncidence'
-                    AND incoming.Direction='Inbound' and incoming.Kind='ClassIncidence';
-            """)
-        self.query("""
             CREATE TEMP TABLE struct_attributes AS
                 SELECT i.edges AS struct, n.uid AS attribute
                 FROM incidences i 
@@ -241,17 +234,17 @@ class HyperNetXWrapper:
             """)
         self.query("""
             CREATE TEMP TABLE containments AS
-                SELECT outgoing.edges AS parent_edge, incomming.edges AS child_edge, n.Subkind AS child_kind, 
+                SELECT outgoing.edges AS parent_edge, outgoing.Anchor, n.uid AS phantom, incomming.edges AS child_edge, n.Subkind AS child_kind, 
                     CASE WHEN outgoing.Kind='SetIncidence' THEN 'Set'
                          WHEN outgoing.Kind='StructIncidence' THEN 'Struct'
                          ELSE NULL
                     END AS parent_kind
                 FROM nodes n
-                    JOIN incidences incomming ON n.uid=incomming.nodes
                     JOIN incidences outgoing ON n.uid=outgoing.nodes
+                    JOIN incidences incomming ON n.uid=incomming.nodes
                 WHERE n.Kind='Phantom'  
-                    AND incomming.Direction = 'Inbound'
                     AND outgoing.Direction = 'Outbound' AND outgoing.Kind IN ('SetIncidence', 'StructIncidence')
+                    AND incomming.Direction = 'Inbound'
             """)
         self.query("""
             CREATE TEMP TABLE outgoing_atoms AS
@@ -512,6 +505,21 @@ class HyperNetXWrapper:
     def get_outbound_struct_by_name(self, struct_name: str) -> pd.DataFrame:
         return self.query(f"SELECT nodes, Anchor FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';")
 
+    def get_struct_names_by_struct_name(self, struct_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Struct' AND parent_edge='{struct_name}';")
+
+    def get_set_names_by_struct_name(self, struct_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Set' AND parent_edge='{struct_name}';")
+
+    def get_class_names_by_struct_name(self, struct_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}';")
+
+    def get_struct_names_by_set_name(self, set_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}';")
+
+    def get_class_names_by_set_name(self, set_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Class' AND parent_edge='{set_name}';")
+
     def get_unique_outbound_struct_by_phantom_list(self, phantom_list: list[str]) -> list[str]:
         return self.str_list_query("""
             SELECT DISTINCT edges
@@ -585,9 +593,9 @@ class HyperNetXWrapper:
         :return: A list of class names
         """
         # TODO: This is not considering that an anchor of a struct can be in a nested struct (only as root at first level)
-        association_ends = self.query(f"SELECT end_class FROM struct_association_ends WHERE struct='{struct_name}' AND Anchor;")
-        classes = self.query(f"SELECT class FROM struct_classes WHERE struct='{struct_name}' AND Anchor;")
-        return list(set(association_ends["end_class"].values.tolist()+classes["class"].values.tolist()))
+        association_ends = self.str_list_query(f"SELECT end_class FROM struct_association_ends WHERE struct='{struct_name}' AND Anchor;")
+        classes = self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}' AND Anchor;")
+        return drop_duplicates(association_ends + classes)
 
     def get_anchor_end_names_by_struct_name(self, struct_name) -> list[str]:
         """
@@ -605,13 +613,13 @@ class HyperNetXWrapper:
                 WHERE struct='{struct_name}' AND Anchor AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
                 );
             """)
-        classes = self.query(f"SELECT phantom, class FROM struct_classes WHERE struct='{struct_name}' AND Anchor;")
+        classes = self.query(f"SELECT phantom, child_edge AS name FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}' AND Anchor;")
         superclasses = []
-        for class_name in classes["class"]:
+        for class_name in classes["name"].values:
             superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms)]
-        return classes["class"].values.tolist()+loose_ends["End_name"].values.tolist()
+        return classes["name"].values.tolist()+loose_ends["End_name"].values.tolist()
 
     def get_loose_association_end_names_by_struct_name(self, struct_name) -> list[str]:
         """
@@ -629,7 +637,7 @@ class HyperNetXWrapper:
                 WHERE struct='{struct_name}' AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
                 );
             """)
-        classes = self.query(f"SELECT phantom, class FROM struct_classes WHERE struct='{struct_name}';")
+        classes = self.query(f"SELECT phantom, child_edge AS name FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}';")
         tight_ends = []
         for edge_name in self.get_outbound_design_edges_by_name(struct_name):
             if self.is_struct(edge_name):
@@ -642,7 +650,7 @@ class HyperNetXWrapper:
                 else:
                     tight_ends.append(hop_elem_phantom_name)
         superclasses = []
-        for class_name in classes["class"]:
+        for class_name in classes["name"].values:
             superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
         superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms+tight_ends)]
@@ -673,9 +681,6 @@ class HyperNetXWrapper:
 
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
         return self.str_list_query(f"SELECT attribute FROM struct_attributes WHERE struct='{struct_name}';")
-
-    def get_class_names_by_struct_name(self, struct_name) -> list[str]:
-        return self.str_list_query(f"SELECT class FROM struct_classes WHERE struct='{struct_name}';")
 
     def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
         """
