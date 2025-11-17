@@ -458,7 +458,6 @@ class Relational(Catalog, ABC):
         :param explicit_schema: Adds the dbschema to every table in the FROM clause.
         :return: A list with all possible SQL statements ascendantly sorted by the number of tables.
         """
-
         logger.info("Resolving query")
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
@@ -482,18 +481,21 @@ class Relational(Catalog, ABC):
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 custom_progress(f"----Generating the query with tables {tables_combination}")
-                custom_progress("------Getting aliases")
-                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
                 custom_progress("------Getting discriminants")
                 conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
+                custom_progress("------Getting aliases")
+                condition_attributes = []
+                for condition in conditions:
+                    condition_attributes.extend(self.parse_predicate(condition))
+                condition_attributes = drop_duplicates(condition_attributes)
+                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination, drop_duplicates(required_attributes + condition_attributes))
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
                 # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
                 custom_progress("------Preparing filter predicate")
                 conditions_internal = []
                 conditions_external = []
                 for condition in conditions:
-                    condition_attributes = self.parse_predicate(condition)
-                    if any('jsonb_array_elements' in proj_attr[a] for a in condition_attributes):
+                    if any('jsonb_array_elements' in proj_attr[a] for a in self.parse_predicate(condition)):
                         conditions_external.append(condition)
                     else:
                         conditions_internal.append(condition)

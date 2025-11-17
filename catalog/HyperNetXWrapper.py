@@ -158,7 +158,7 @@ class HyperNetXWrapper:
     # Methods to fill the views in DuckDB
     ##############################################################################################
     @abstractmethod
-    def generate_struct_attributes(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
+    def generate_struct_attribute_list(self, struct_name: str) -> dict[str, list[dict[str, str]]]:
         pass
 
     def fill_duckDB(self):
@@ -285,7 +285,7 @@ class HyperNetXWrapper:
     ##############################################################################################
     # Methods that use the views in DuckDB
     ##############################################################################################
-    def get_struct_attribute_list(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
+    def get_struct_attribute_list(self, struct_name: str) -> dict[str, list[dict[str, str]]]:
         return pickle.loads(self.sql.execute(f"SELECT attribute_list FROM struct_attribute_list WHERE struct='{struct_name}';").fetchone()[0])
 
     def get_parents(self, edge_name):

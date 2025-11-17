@@ -290,7 +290,7 @@ class Catalog(HyperNetXWrapper):
         assert attr_path[-1].get("kind", "") in ["Attribute", "AssociationEnd"], f"☠️ Incorrect attribute path '{attr_path}', whose last hop should be either an Attribute or AssociationEnd"
         return None
 
-    def generate_struct_attribute_list(self, struct_name: str) -> list[tuple[str, list[dict[str, str]]]]:
+    def generate_struct_attribute_list(self, struct_name: str) -> dict[str, list[dict[str, str]]]:
         """
         This generates the correspondence between attribute names in a struct and their corresponding attribute.
         It is necessary to do it to consider loose ends (i.e., associations without class), which generate foreign keys.
@@ -300,31 +300,48 @@ class Catalog(HyperNetXWrapper):
                  Each element is a dictionary itself, which represents a hop in the design (though sets and structs).
                  The last element corresponds to the "domain_name" in the hypergraph for the attribute, which can be the same attribute or association end.
         """
+        # TODO: check if this is true
         # This cannot be a dictionary with the domain attribute name as key, because two loose ends over the same class would use the same entry
         # Hence, this is a list of tuples, with the first element being an attribute name, and the second a path to it
-        attribute_list = []
+        attribute_dict = {}
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the struct
         elem_names = self.get_outbound_struct_by_name(struct_name)["nodes"]
         for elem_name in elem_names:
             assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
             if self.is_attribute(elem_name):
-                attribute_list.append((elem_name, [{"kind": "Attribute", "name": elem_name}]))
+                value = [{"kind": "Attribute", "name": elem_name}]
+                if elem_name not in attribute_dict:
+                    attribute_dict[elem_name] = value
+                else:
+                    assert attribute_dict[elem_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[elem_name]}, {value}"
             elif self.is_class_phantom(elem_name):
                 # Add the class identifier if there is not any other attribute of the same class
                 class_name = self.get_edge_by_phantom_name(elem_name)
                 if set(self.get_outbound_class_by_name(class_name)).isdisjoint(elem_names):
                     id_attribute = self.get_class_id_by_name(class_name)
-                    attribute_list.append((id_attribute, [{"kind": "Attribute", "name": id_attribute}]))
+                    value = [{"kind": "Attribute", "name": id_attribute}]
+                    if id_attribute not in attribute_dict:
+                        attribute_dict[id_attribute] = value
+                    else:
+                        assert attribute_dict[id_attribute] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[id_attribute]}, {value}"
             elif self.is_association_phantom(elem_name):
                 ends = self.get_outbound_association_by_phantom_name(elem_name)
                 for end in ends.itertuples():
                     if end.End_name in loose_ends:
-                        attribute_list.append((end.End_name, [{"kind": "AssociationEnd", "name": end.End_name, "id": self.get_class_id_by_name(end.Class)}]))
+                        value = [{"kind": "AssociationEnd", "name": end.End_name, "id": self.get_class_id_by_name(end.Class)}]
+                        if end.End_name not in attribute_dict:
+                            attribute_dict[end.End_name] = value
+                        else:
+                            assert attribute_dict[end.End_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[end.End_name]}, {value}"
             elif self.is_struct_phantom(elem_name):
                 nested_struct_name = self.get_edge_by_phantom_name(elem_name)
                 for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
-                    attribute_list.append((attr_name, [{"kind": "Struct", "name": nested_struct_name}]+attr_path))
+                    value = [{"kind": "Struct", "name": nested_struct_name}] + attr_path
+                    if attr_name not in attribute_dict:
+                        attribute_dict[attr_name] = value
+                    else:
+                        assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
             elif self.is_set_phantom(elem_name):
                 nested_set_name = self.get_edge_by_phantom_name(elem_name)
                 for nested_element_phantom_name in self.get_phantom_names_by_set_name(nested_set_name):
@@ -332,17 +349,22 @@ class Catalog(HyperNetXWrapper):
                     nested_element_name = self.get_edge_by_phantom_name(nested_element_phantom_name)
                     if self.is_class(nested_element_name):
                         attr_name = self.get_class_id_by_name(nested_element_name)
-                        attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]))
+                        value = [{"kind": "Set", "name": nested_set_name}, {"kind": "Attribute", "name": attr_name}]
+                        if attr_name not in attribute_dict:
+                            attribute_dict[attr_name] = value
+                        else:
+                            assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
                     # If not a class, it must be a struct
                     else:
                         for attr_name, attr_path in self.get_struct_attributes(nested_element_name):
-                            attribute_list.append((attr_name, [{"kind": "Set", "name": nested_set_name}] + attr_path))
-        # We need to remove duplicates to avoid ids appearing twice
-        attribute_list = drop_duplicates(attribute_list)
-        assert len(attribute_list) == len(set([t[0] for t in attribute_list])), f"☠️ There is some ambiguous attribute name in '{struct_name}': {attribute_list}"
-        return attribute_list
+                            value = [{"kind": "Set", "name": nested_set_name}] + attr_path
+                            if attr_name not in attribute_dict:
+                                attribute_dict[attr_name] = value
+                            else:
+                                assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
+        return attribute_dict
 
-    def get_struct_attributes(self, struct_name) -> list[tuple[str, list[dict[str, str]]]]:
+    def get_struct_attributes(self, struct_name) -> dict[str, list[dict[str, str]]]:
         """
         This just retrieves the list of attributes as pre-computed in generate_struct_attribute_list
         """
@@ -1193,7 +1215,7 @@ class Catalog(HyperNetXWrapper):
         # Generate combinations of the buckets of each element to get the minimal combinations of tables that cover all of them
         return combine_buckets(drop_duplicates(buckets)), classes, associations
 
-    def get_aliases(self, sets_combination) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
+    def get_aliases(self, sets_combination, required_attributes) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
         """
         This method generates correspondences of aliases of tables and renamings of attributes in a query.
         :param sets_combination: The set of tables in the FROM clause of a query.
@@ -1210,9 +1232,17 @@ class Catalog(HyperNetXWrapper):
         for index, set_name in enumerate(reversed(sets_combination)):
             # Determine the aliases of tables and required attributes
             alias_set[set_name] = self.config.prepend_table_alias + str(len(sets_combination) - index)
+            atoms = self.get_atoms_including_transitivity_by_edge_name(set_name)
+            associations = [self.get_edge_by_phantom_name(p) for p in self.get_phantom_associations() if p in atoms]
+            class_phantoms = [p for p in self.get_phantom_classes() if p in atoms]
+            ids = drop_duplicates([self.get_class_id_by_name(self.get_edge_by_phantom_name(c)) for c in class_phantoms])
             for struct_name in self.get_struct_names_by_set_name(set_name):
                 custom_progress(f"--------Processing {struct_name}")
-                for dom_attr_name, attr_path in tqdm(self.get_struct_attributes(struct_name), desc=f"----------Attributes in {struct_name}", leave=config.show_progress):
+                struct_attributes = self.get_struct_attributes(struct_name)
+                loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
+                necessary_attributes = [a for a in required_attributes + loose_ends + ids if a in struct_attributes.keys()]
+                for dom_attr_name in tqdm(necessary_attributes, desc=f"----------Attributes in {struct_name}", leave=config.show_progress):
+                    attr_path = struct_attributes[dom_attr_name]
                     # In case of generalization, the attribute may be overwritten, but they should coincide
                     # It is fine that two classes appear in a struct, as soon as they are queried based on the corresponding association end
                     assert dom_attr_name not in location_attr or location_attr[dom_attr_name] != alias_set[set_name] or self.generate_attr_projection_clause(attr_path) == proj_attr[dom_attr_name], f"☠️ Attribute '{dom_attr_name}' ambiguous in struct '{struct_name}': '{proj_attr[dom_attr_name]}' and '{self.generate_attr_projection_clause(attr_path)}' (it should not be used in the query)"
@@ -1221,14 +1251,8 @@ class Catalog(HyperNetXWrapper):
                     join_attr[dom_attr_name + "@" + set_name] = self.generate_attr_projection_clause(attr_path)
                 custom_progress(f"----------Processing its association ends")
                 # From here on in the loop is necessary to translate queries based on association ends, when the design actually stores the class ID
-                atoms = self.get_atoms_including_transitivity_by_edge_name(struct_name)
-                associations = self.get_inbound_associations()[self.get_inbound_associations()["nodes"].isin(atoms)]
-                classes = self.get_inbound_classes()[self.get_inbound_classes()["nodes"].isin(atoms)]
-                association_ends = self.get_outbound_associations()[
-                    (self.get_outbound_associations()["edges"].isin(
-                        associations["edges"])) & (
-                        self.get_outbound_associations()["nodes"].isin(
-                            classes["nodes"]))]
+                outbound_associations = self.get_outbound_associations()
+                association_ends = outbound_associations[(outbound_associations["edges"].isin(associations)) & (outbound_associations["nodes"].isin(class_phantoms))]
                 # Set the location of all association ends that have a class in the struct (i.e., non-loose ends)
                 for end in association_ends.itertuples():
                     location_attr[end.End_name] = alias_set[set_name]
