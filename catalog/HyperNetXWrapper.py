@@ -582,9 +582,8 @@ class HyperNetXWrapper:
         return self.str_list_query(f"SELECT name FROM root_edges WHERE is_set={is_set};")
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
-        anchor_elements = self.get_anchors_by_struct_name(struct_name)
-        associations = self.get_inbound_associations()["nodes"]
-        return [a for a in anchor_elements if a in associations.values]
+        return self.str_list_query(
+                f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Association' AND parent_edge='{struct_name}' and Anchor;")
 
     def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
         """

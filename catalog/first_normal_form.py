@@ -65,8 +65,7 @@ class FirstNormalForm(Relational):
             logger.info("Checking IC-FirstNormalForm4")
             # For each table
             for set_name in root_names:
-                for struct_phantom in self.get_phantom_names_by_set_name(set_name):
-                    struct_name = self.get_edge_by_phantom_name(struct_phantom)
+                for struct_name in self.get_struct_names_by_set_name(set_name):
                     members = self.get_outbound_struct_by_name(struct_name)["nodes"].values.tolist()
                     anchor_points = self.get_anchor_points_by_struct_name(struct_name)
                     dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
