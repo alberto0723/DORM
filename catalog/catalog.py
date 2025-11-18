@@ -336,7 +336,7 @@ class Catalog(HyperNetXWrapper):
                             assert attribute_dict[end.End_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[end.End_name]}, {value}"
             elif self.is_struct_phantom(elem_name):
                 nested_struct_name = self.get_edge_by_phantom_name(elem_name)
-                for attr_name, attr_path in self.get_struct_attributes(nested_struct_name):
+                for attr_name, attr_path in self.get_struct_attributes(nested_struct_name).items():
                     value = [{"kind": "Struct", "name": nested_struct_name}] + attr_path
                     if attr_name not in attribute_dict:
                         attribute_dict[attr_name] = value
