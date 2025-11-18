@@ -656,7 +656,7 @@ class HyperNetXWrapper:
         return loose_ends["End_name"].values.tolist()
 
     def recursive_contents_by_struct_name(self, struct_name: str) -> [list[str], list[str]]:
-        edge_names = self.get_class_names_by_struct_name(struct_name) + self.get_association_names_by_struct_name(struct_name)
+        edge_names = self.get_anchor_points_by_struct_name(struct_name) + self.get_class_names_by_struct_name(struct_name) + self.get_association_names_by_struct_name(struct_name)
         attribute_names = self.get_attribute_names_by_struct_name(struct_name)
         sub_struct_names = self.get_struct_names_by_struct_name(struct_name)
         for sub_set in self.get_set_names_by_struct_name(struct_name):
@@ -683,15 +683,17 @@ class HyperNetXWrapper:
             attribute_names = []
         else:
             edge_names, attribute_names = self.recursive_contents_by_struct_name(struct_name)
+            edge_names = drop_str_duplicates(edge_names)
         extended_edge_names = []
         for elem in edge_names:
             if self.is_class(elem):
                 extended_edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=True))
                 extended_edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=False))
+        edge_names = drop_str_duplicates(edge_names + extended_edge_names)
         # It takes all attributes in the classes, but we only want those in the outbounds of the struct, so we remove them one by one
         # TODO: This has a problem, because we remove the attributes after having created the views in DuckDB
         #       It could also be better if we do not create the DuckDB views unless necessary
-        result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names + extended_edge_names))
+        result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
         to_be_removed = result.get_attributes()["name"].values.tolist()
         if with_attributes:
             to_be_removed = str_list_difference(to_be_removed, attribute_names)
