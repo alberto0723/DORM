@@ -679,23 +679,23 @@ class Catalog(HyperNetXWrapperWithViews):
             sets_within_struct = structOutbounds[structOutbounds["nodes"].isin(self.get_phantom_sets())]
             for set_struct in sets_within_struct.itertuples():
                 external_struct_name = set_struct.edges
+                restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
                 # The content of a set can be either one single class, or several structs
                 # In the case of several structs, all must share the same anchor, so anyway, taking the fist element is enough
                 internal_elem_name = self.get_phantom_names_by_set_name(self.get_edge_by_phantom_name(set_struct.nodes))[0]
-                restricted_struct = self.get_restricted_struct_hypergraph(external_struct_name)
                 if self.is_class_phantom(internal_elem_name):
                     # By IC-Sets7 a set can have at most one class
                     # It may be that the association is actually inherited from a superclass
                     superclass_phantoms = [self.get_phantom_of_edge_by_name(s) for s in self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(internal_elem_name), return_superclasses=True)]
                     superclass_phantoms.append(internal_elem_name)
-                    if all([p not in restricted_struct.get_association_ends_in_H() for p in superclass_phantoms]):
+                    if all([p not in restricted_struct.get_association_end_class_phantoms_in_H() for p in superclass_phantoms]):
                         consistent = False
                         print(f"🚨 IC-Structs-d violation: Class '{internal_elem_name}' included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
                 else:
                     assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not a class, should be a struct, but it is not"
                     for anchor_point in self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(internal_elem_name)):
                         elem_name = self.get_phantom_of_edge_by_name(anchor_point)
-                        if elem_name not in restricted_struct.get_nodes():
+                        if elem_name not in restricted_struct.H.nodes.index:
                             consistent = False
                             print(f"🚨 IC-Structs-d violation: Anchor point '{anchor_point}' of struct '{internal_elem_name}' and included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
 

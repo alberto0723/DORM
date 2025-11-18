@@ -258,6 +258,14 @@ class HyperNetXWrapper:
         attribute_names = nodes[nodes["misc_properties"].apply(lambda prop: prop['Kind'] == 'Attribute')]
         return attribute_names.index.values.tolist()
 
+    def get_association_end_class_phantoms_in_H(self, H: hnx.Hypergraph = None) -> list[str]:
+        if H is None:
+            incidences = self.H.incidences.dataframe
+        else:
+            incidences = H.incidences.dataframe
+        association_ends = incidences[incidences["misc_properties"].apply(lambda prop: prop['Direction'] == 'Outbound' and prop['Kind'] == 'AssociationIncidence')]
+        return association_ends.index.get_level_values("nodes").tolist()
+
     def get_association_ends_in_H(self, H: hnx.Hypergraph = None) -> list[str]:
         if H is None:
             incidences = self.H.incidences.dataframe
