@@ -90,7 +90,7 @@ class NonFirstNormalFormJSON(Relational):
         mismatch = [attr for attr in project if attr not in [attr2 for attr2, _ in attr_paths.items()]]
         assert not mismatch, f"Attributes '{mismatch}' found in the required projection of the migration table '{table_name}' are not found in the paths of table"
         # Remove unnecessary paths, whose attributes are actually not being migrated (this would be unnecessary if the struct name would be known)
-        attr_paths = {attr: paths for attr, paths in attr_paths if attr in project}
+        attr_paths = {attr: paths for attr, paths in attr_paths.items() if attr in project}
         obj, grouping = self.build_jsonb_object(attr_paths)
         if grouping:
             return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
