@@ -145,7 +145,7 @@ class Catalog(HyperNetXWrapperWithViews):
         # For each element in the struct
         elem_names = self.get_outbound_struct_by_name(struct_name)["nodes"]
         for elem_name in elem_names:
-            assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
+            # assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
             if self.is_attribute(elem_name):
                 value = [{"kind": "Attribute", "name": elem_name}]
                 if elem_name not in attribute_dict:

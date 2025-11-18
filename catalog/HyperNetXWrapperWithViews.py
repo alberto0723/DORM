@@ -144,7 +144,18 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                                     FROM incidences i_internal 
                                     WHERE i_internal.Direction = 'Outbound' 
                                         AND i_external.nodes = i_internal.nodes);
-                    """)
+            """)
+        self.query(f"""
+            CREATE TEMP TABLE unpaired_ends AS
+            SELECT external.struct AS struct_name, end_class AS class_name, End_name AS end_name
+            FROM struct_association_ends external
+            -- This removes association ends that appear in two associations
+            WHERE NOT EXISTS(
+                SELECT 'Found'
+                FROM struct_association_ends internal
+                WHERE internal.struct=external.struct AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
+                );
+            """)
         self.query("CREATE TEMP TABLE struct_attribute_list (struct TEXT, attribute_list BLOB);")
         for struct_name in self.get_structs():
             attribute_list = self.generate_struct_attribute_list(struct_name)
@@ -430,8 +441,16 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
         :param struct_name: Name of the struct
         :return: A list of class names
         """
-        # TODO: This is not considering that an anchor of a struct can be in a nested struct (only as root at first level)
-        association_ends = self.str_list_query(f"SELECT end_class FROM struct_association_ends WHERE struct='{struct_name}' AND Anchor;")
+        # Need to remove association ends that appear in two associations, hence the NOT EXISTS
+        association_ends = self.str_list_query(f"""
+            SELECT external.end_class
+            FROM struct_association_ends external
+            WHERE external.struct='{struct_name}' AND external.Anchor AND NOT EXISTS(
+                SELECT *
+                FROM struct_association_ends internal
+                WHERE internal.struct='{struct_name}' AND internal.Anchor AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
+                );
+            """)
         classes = self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}' AND Anchor;")
         return drop_str_duplicates(association_ends + classes)
 
@@ -441,14 +460,15 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
         :param struct_name: Name of the struct
         :return: A list of class names and association end names
         """
-        # Need to remove association ends that appear in two associations, hence the NOT EXISTS
         association_ends = self.query(f"""
-            SELECT end_phantom, End_name
+            SELECT external.end_phantom, external.End_name
             FROM struct_association_ends external
-            WHERE struct='{struct_name}' AND Anchor AND NOT EXISTS(
-                SELECT *
+            WHERE external.struct='{struct_name}' AND external.Anchor 
+                -- This removes association ends that appear in two associations
+                AND NOT EXISTS(
+                SELECT 'Found'
                 FROM struct_association_ends internal
-                WHERE struct='{struct_name}' AND Anchor AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
+                WHERE internal.struct='{struct_name}' AND internal.Anchor AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
                 );
             """)
         classes = self.query(f"SELECT phantom, child_edge AS name FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}' AND Anchor;")
@@ -465,34 +485,46 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
         :param struct_name: Name of the struct
         :return: A list of association end names
         """
-        # Need to remove association ends that appear in two associations, hence the NOT EXISTS
         association_ends = self.query(f"""
-            SELECT end_phantom, End_name
+            SELECT end_class AS class_name, End_name AS end_name
             FROM struct_association_ends external
-            WHERE struct='{struct_name}' AND NOT EXISTS(
-                SELECT *
+            WHERE external.struct='{struct_name}'
+                -- This removes association ends that appear in two associations
+                AND NOT EXISTS(
+                SELECT 'Found'
                 FROM struct_association_ends internal
-                WHERE struct='{struct_name}' AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
-                );
-            """)
-        classes = self.query(f"SELECT phantom, child_edge AS name FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}';")
-        tight_ends = []
-        for edge_name in self.get_outbound_design_edges_by_name(struct_name):
-            if self.is_struct(edge_name):
-                tight_ends.extend(self.get_anchor_points_by_struct_name(edge_name))
-            if self.is_set(edge_name):
-                hop_elem_phantom_name = self.get_phantom_names_by_set_name(edge_name)[0]
-                assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{edge_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
-                if self.is_struct_phantom(hop_elem_phantom_name):
-                    tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
-                else:
-                    tight_ends.append(hop_elem_phantom_name)
-        superclasses = []
-        for class_name in classes["name"].values:
-            superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
-        superclass_phantoms = [self.get_phantom_of_edge_by_name(p) for p in superclasses]
-        loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms+tight_ends)]
-        return loose_ends["End_name"].values.tolist()
+                WHERE internal.struct='{struct_name}' AND external.end_class=internal.end_class AND external.End_name<>internal.End_name
+                );            
+                """)
+        loose_ends = []
+        for association_end in association_ends.itertuples():
+            found = False
+            for class_name in [association_end.class_name] + self.get_subclasses_by_class_name(association_end.class_name):
+                if (self.bool_query(f""" 
+                        -- This removes association ends that already have a class in the struct
+                        SELECT 'Found' 
+                        FROM containments con
+                        WHERE con.parent_edge='{struct_name}' AND child_kind='Class' AND con.child_edge='{class_name}'
+                        UNION ALL
+                        -- This removes association ends that link to an anchor class of a substruct or a class in a set
+                        SELECT 'Found'
+                        FROM containments con1
+                            JOIN containments con2 ON con1.child_edge=con2.parent_edge
+                        WHERE con1.parent_edge='{struct_name}' AND ((con1.child_kind='Struct' AND con2.Anchor) OR con1.child_kind='Set') AND con2.child_kind='Class' AND con2.child_edge='{class_name}'
+                        UNION ALL 
+                        -- This removes association ends that link to an anchor class of a struct in a set
+                        SELECT 'Found'
+                        FROM containments con1
+                            JOIN containments con2 ON con1.child_edge=con2.parent_edge
+                            JOIN containments con3 ON con2.child_edge=con3.parent_edge
+                        WHERE con1.parent_edge='{struct_name}' AND con1.child_kind='Set' AND con2.child_kind='Struct' AND con3.child_kind='Class' AND con3.Anchor AND con3.child_edge='{class_name}'
+                        LIMIT 1;
+                        """)):
+                    found = True
+                    break
+            if not found:
+                loose_ends.append(association_end.end_name)
+        return loose_ends
 
     def recursive_contents_by_struct_name(self, struct_name: str) -> [list[str], list[str]]:
         edge_names = self.get_anchor_points_by_struct_name(struct_name) + self.get_class_names_by_struct_name(struct_name) + self.get_association_names_by_struct_name(struct_name)
