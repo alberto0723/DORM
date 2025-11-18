@@ -695,7 +695,7 @@ class Catalog(HyperNetXWrapperWithViews):
                     assert self.is_struct_phantom(internal_elem_name), f"☠️ The element '{internal_elem_name}' inside set '{set_struct.nodes}', which is not a class, should be a struct, but it is not"
                     for anchor_point in self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(internal_elem_name)):
                         elem_name = self.get_phantom_of_edge_by_name(anchor_point)
-                        if elem_name not in restricted_struct.H.nodes.index:
+                        if elem_name not in restricted_struct.H.nodes.dataframe.index:
                             consistent = False
                             print(f"🚨 IC-Structs-d violation: Anchor point '{anchor_point}' of struct '{internal_elem_name}' and included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
 
