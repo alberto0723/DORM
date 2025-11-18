@@ -48,7 +48,7 @@ class NonFirstNormalFormJSON(Relational):
         # TODO: Generalize this to any number of nested sets
         #       The limitation is the multiple grouping sets and nested 'jsonb_agg', which PostgreSQL that does not allow
         formatted_pairs = []
-        pending_attributes = {}
+        pending_attributes: dict[str, dict[str, list[dict[str, str]]]] = {}
         tmp_grouping = []
         final_grouping = []
         for dom_attr_name, attr_path in attr_paths.items():
@@ -58,9 +58,11 @@ class NonFirstNormalFormJSON(Relational):
                 tmp_grouping.append(dom_attr_name)
             else:
                 if current_name in pending_attributes:
-                    pending_attributes[current_name] = pending_attributes[current_name]+[(dom_attr_name, attr_path[1:])]
+                    temp_dict = pending_attributes[current_name]
+                    temp_dict.update({dom_attr_name: attr_path[1:]})
+                    pending_attributes.update({current_name: temp_dict})
                 else:
-                    pending_attributes[current_name] = [(dom_attr_name, attr_path[1:])]
+                    pending_attributes.update({current_name: {dom_attr_name: attr_path[1:]}})
         for key, paths in pending_attributes.items():
             assert self.is_struct(key) or self.is_set(key), f"☠️ On creating a nested attribute in a JSONB object, '{key}' should be either a struct or a set"
             nested_object, nested_grouping = self.build_jsonb_object(paths)

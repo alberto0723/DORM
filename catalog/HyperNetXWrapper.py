@@ -12,7 +12,7 @@ import duckdb
 import uuid
 
 from .config import Config
-from .tools import drop_str_duplicates
+from .tools import drop_str_duplicates, str_list_difference
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -174,7 +174,7 @@ class HyperNetXWrapper:
         df_edges = self.H.edges.to_dataframe.reset_index()
         df_edges_with_json = pd.json_normalize(df_edges["misc_properties"])
         df_edges_flattened = pd.concat([df_edges.drop(columns="misc_properties"), df_edges_with_json], axis=1)
-        for required in ['Kind', 'Complete', 'Disjoint']:
+        for required in ['Kind', 'Count', 'Complete', 'Disjoint']:
             if required not in df_edges_flattened.columns:
                 df_edges_flattened[required] = None
         self.sql.register("edges", df_edges_flattened)
@@ -505,6 +505,9 @@ class HyperNetXWrapper:
     def get_outbound_struct_by_name(self, struct_name: str) -> pd.DataFrame:
         return self.query(f"SELECT nodes, Anchor FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';")
 
+    def get_association_names_by_struct_name(self, struct_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Association' AND parent_edge='{struct_name}';")
+
     def get_struct_names_by_struct_name(self, struct_name: str) -> list[str]:
         return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Struct' AND parent_edge='{struct_name}';")
 
@@ -520,6 +523,9 @@ class HyperNetXWrapper:
     def get_class_names_by_set_name(self, set_name: str) -> list[str]:
         return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Class' AND parent_edge='{set_name}';")
 
+    def get_phantom_names_by_set_name(self, set_name: str) -> list[str]:
+        return self.str_list_query(f"SELECT nodes AS name FROM incidences WHERE Direction = 'Outbound' AND Kind='SetIncidence' AND edges='{set_name}';")
+
     def get_unique_outbound_struct_by_phantom_list(self, phantom_list: list[str]) -> list[str]:
         return self.str_list_query("""
             SELECT DISTINCT edges
@@ -528,12 +534,6 @@ class HyperNetXWrapper:
 
     def get_anchors_by_struct_name(self, struct_name) -> list[str]:
         return self.str_list_query(f"SELECT nodes FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}' AND Anchor;")
-
-    def get_struct_names_by_set_name(self, set_name) -> list[str]:
-        return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Set' AND child_kind='Struct' AND parent_edge='{set_name}';")
-
-    def get_phantom_names_by_set_name(self, set_name) -> list[str]:
-        return self.str_list_query(f"SELECT nodes AS name FROM incidences WHERE Direction = 'Outbound' AND Kind='SetIncidence' AND edges='{set_name}';")
 
     def get_outbound_class_by_name(self, class_name) -> list[str]:
         return self.str_list_query(f"SELECT nodes AS attribute FROM incidences WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND edges='{class_name}';")
@@ -655,26 +655,47 @@ class HyperNetXWrapper:
         loose_ends = association_ends[~association_ends["end_phantom"].isin(classes["phantom"].values.tolist()+superclass_phantoms+tight_ends)]
         return loose_ends["End_name"].values.tolist()
 
-    def get_restricted_struct_hypergraph(self, struct_name, only_anchor=False) -> Self:
-        anchor_points = self.get_anchor_points_by_struct_name(struct_name)
+    def recursive_contents_by_struct_name(self, struct_name: str) -> [list[str], list[str]]:
+        edge_names = self.get_class_names_by_struct_name(struct_name) + self.get_association_names_by_struct_name(struct_name)
+        attribute_names = self.get_attribute_names_by_struct_name(struct_name)
+        sub_struct_names = self.get_struct_names_by_struct_name(struct_name)
+        for sub_set in self.get_set_names_by_struct_name(struct_name):
+            # Sets can only contain either classes or structs
+            sub_classes = self.get_class_names_by_set_name(sub_set)
+            edge_names.extend(sub_classes)
+            attribute_names.extend([self.get_class_id_by_name(c) for c in sub_classes])
+            sub_struct_names.extend(self.get_struct_names_by_set_name(sub_set))
+        for sub_struct in sub_struct_names:
+            sub_edge_names, sub_attribute_names = self.recursive_contents_by_struct_name(sub_struct)
+            edge_names.extend(sub_edge_names)
+            attribute_names.extend(sub_attribute_names)
+        return edge_names, attribute_names
+
+    def get_restricted_struct_hypergraph(self, struct_name, only_anchor: bool = False, with_attributes: bool = True) -> Self:
+        """
+        Gives the domain elements inside a given struct.
+        :param struct_name: The name of the struct.
+        :param only_anchor: Restrict the domain to only edges participating in the anchor of the struct.
+        :return: A domain hypergraph.
+        """
         if only_anchor:
-            outbounds = self.get_anchor_associations_by_struct_name(struct_name)
+            edge_names = self.get_anchor_points_by_struct_name(struct_name) + self.get_anchor_associations_by_struct_name(struct_name)
+            attribute_names = []
         else:
-            outbounds = ([self.get_edge_by_phantom_name(n) for n in self.get_outbound_struct_by_name(struct_name)["nodes"] if self.is_phantom(n)] +
-                            [n for n in self.get_outbound_struct_by_name(struct_name)["nodes"] if self.is_attribute(n)])
-        edge_names = []
-        for elem in set(outbounds + anchor_points):
-            if self.is_class(elem) or self.is_association(elem) or self.is_generalization(elem):
-                edge_names.append(elem)
-                if self.is_class(elem) and elem in outbounds:
-                    edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=True))
-                    edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=False))
-        # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
-        result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
-        to_be_removed = []
-        for attr_name in result.get_attributes()["name"].values:
-            if attr_name not in outbounds:
-                to_be_removed.append(attr_name)
+            edge_names, attribute_names = self.recursive_contents_by_struct_name(struct_name)
+        extended_edge_names = []
+        for elem in edge_names:
+            if self.is_class(elem):
+                extended_edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=True))
+                extended_edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=False))
+        # It takes all attributes in the classes, but we only want those in the outbounds of the struct, so we remove them one by one
+        # TODO: This has a problem, because we remove the attributes after having created the views in DuckDB
+        #       It could also be better if we do not create the DuckDB views unless necessary
+        result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names + extended_edge_names))
+        to_be_removed = result.get_attributes()["name"].values.tolist()
+        if with_attributes:
+            to_be_removed = str_list_difference(to_be_removed, attribute_names)
+
         result.H.remove_nodes(to_be_removed, inplace=True)
         return result
 

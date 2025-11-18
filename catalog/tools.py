@@ -65,8 +65,8 @@ def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:
         return minimal_combinations
 
 
-def str_list_difference(l1: list[str], l2: list[str]) -> set[str]:
-    return set(l1) - set(l2)
+def str_list_difference(l1: list[str], l2: list[str]) -> list[str]:
+    return list(set(l1) - set(l2))
 
 
 def read_db_conf(filename: str) -> dict[str, str]:
