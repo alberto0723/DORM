@@ -49,6 +49,7 @@ class Relational(Catalog, ABC):
         if dbconf is None:
             super().__init__(name=Path(file_path).stem, file_path=file_path)
             self.metadata["paradigm"] = paradigm_name
+            self.fill_duckDB()
         else:
             if not ("dbms" in dbconf and "ip" in dbconf and "port" in dbconf and "user" in dbconf and "password" in dbconf and "dbname" in dbconf):
                 raise ValueError(f"🚨 Missing required parameters to create the connection of the catalog in the DBMS (namely dbms, ip, port, user, password, and dbname) in {self.dbconf}")
@@ -70,6 +71,7 @@ class Relational(Catalog, ABC):
                     # This creates either an empty hypergraph or reads it from a file
                     super().__init__(name=dbschema, file_path=file_path)
                     self.metadata["paradigm"] = paradigm_name
+                    # We do not fill DuckDB here under the assumption that the catalog will be loaded and it filled afterwards
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES, self.TABLE_GUARDS]
                     if any(table not in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
@@ -95,6 +97,7 @@ class Relational(Catalog, ABC):
                             raise ValueError(f"🚨 Expected paradigm in the current design of the catalog is {paradigm_name}, '{self.metadata['paradigm']}' found instead in '{self.dbschema}' at '{self.dbconf}'")
                     else:
                         self.metadata["paradigm"] = paradigm_name
+                    self.fill_duckDB()
 
     def save(self, file_path=None, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         if file_path is not None:

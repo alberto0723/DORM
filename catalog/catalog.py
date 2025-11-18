@@ -205,7 +205,7 @@ class Catalog(HyperNetXWrapper):
                 raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside (the element may not exist in the domain)")
         self.H.add_incidences_from(incidences)
 
-    def load_domain(self, file_path: Path, file_format="JSON") -> None:
+    def load_domain(self, file_path: Path, file_format="JSON", fill_duckDB: bool=False) -> None:
         logger.info(f"Loading domain from '{file_path}'")
         self.metadata["domain"] = Path(file_path).stem
         assert file_format in ["JSON", "XML"], "🚨 The format of the domain specification file must be either 'JSON' or 'XML'"
@@ -228,6 +228,8 @@ class Catalog(HyperNetXWrapper):
         for gen in tqdm(domain.get("generalizations", []), desc="Creating generalizations", leave=config.show_progress):
             self.add_generalization(gen.get("name"), gen.get("prop"), gen.get("superclass"), gen.get("subclasses"))
         self.guards = pd.DataFrame(domain.get("guards", []))
+        if fill_duckDB:
+            self.fill_duckDB()
 
     def load_design(self, file_path: Path, file_format="JSON") -> None:
         logger.info(f"Loading design from '{file_path}'")
@@ -245,7 +247,7 @@ class Catalog(HyperNetXWrapper):
             design = json.load(f)
         domain_path = extract_up_to_folder(file_path, "designs").parent.joinpath("domains").joinpath(design.get("domain", None)).with_suffix("."+file_format).resolve()
         if "domain" not in self.metadata:
-            self.load_domain(domain_path, file_format)
+            self.load_domain(domain_path, file_format, fill_duckDB=False)
         # Check if the domain in the catalog and that of the design coincide
         if self.metadata.get("domain", "Non-existent") != Path(domain_path).stem:
             raise ValueError(f"🚨 The domain of the design '{Path(domain_path).stem}' does not coincide with that of the catalog '{self.metadata.get('domain', 'Non-existent')}'")
@@ -259,13 +261,12 @@ class Catalog(HyperNetXWrapper):
                 self.add_set(h.get("name"), h.get("elements"))
             else:
                 raise ValueError(f"🚨 Unknown kind of hyperedge '{h.get('kind')}'")
+        self.fill_duckDB()
 
         logger.info("Checking the insertion guards")
         # Check insertion guards
         for guard in tqdm(self.guards.itertuples(), desc="Checking guards", leave=config.show_progress):
             self.get_insertion_alternatives(guard.pattern, guard.data)
-        custom_progress("Replicating the hypergraph in DuckDB")
-        self.fill_duckDB()
 
     @staticmethod
     def get_domain_attribute_from_path(attr_path: list[dict[str, str]]) -> str:
@@ -356,7 +357,7 @@ class Catalog(HyperNetXWrapper):
                             assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
                     # If not a class, it must be a struct
                     else:
-                        for attr_name, attr_path in self.get_struct_attributes(nested_element_name):
+                        for attr_name, attr_path in self.get_struct_attributes(nested_element_name).items():
                             value = [{"kind": "Set", "name": nested_set_name}] + attr_path
                             if attr_name not in attribute_dict:
                                 attribute_dict[attr_name] = value
@@ -766,21 +767,21 @@ class Catalog(HyperNetXWrapper):
             for struct_name in structs:
                 discriminants = []
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
-                restricted_classes = restricted_struct.get_classes()
+                restricted_classes = restricted_struct.get_classes_in_H()
                 # Foll all classes in the current struct
-                for class_name1 in restricted_classes["name"].values:
-                    superclasses1 = restricted_struct.get_generalizations_by_class_name(class_name1, return_superclasses=True)
+                for class_name1 in restricted_classes:
+                    superclasses1 = self.get_generalizations_by_class_name(class_name1, return_superclasses=True)
                     # If it has superclasses
                     if superclasses1:
                         # Check all other classes in the struct
-                        for class_name2 in restricted_classes["name"].values:
+                        for class_name2 in restricted_classes:
                             # Get their superclasses
-                            superclasses2 = restricted_struct.get_generalizations_by_class_name(class_name2, return_superclasses=True)
+                            superclasses2 = self.get_generalizations_by_class_name(class_name2, return_superclasses=True)
                             # Check this is not actually itself or an ancestor
                             if class_name1 != class_name2 and class_name2 not in superclasses1 and class_name1 not in superclasses2:
                                 # Check if they are siblings
                                 if [s for s in superclasses1 if s in superclasses2]:
-                                    outbound_subclasses = restricted_struct.get_outbound_generalization_subclasses()
+                                    outbound_subclasses = self.get_outbound_generalization_subclasses()
                                     # Check if the corresponding discriminant attribute is present (this works because we have single inheritance)
                                     discriminants.extend(
                                         outbound_subclasses[outbound_subclasses["subclass"] == class_name1]["Constraint"].values.tolist())
@@ -797,7 +798,7 @@ class Catalog(HyperNetXWrapper):
                 attribute_names = self.get_attribute_names_by_struct_name(struct_name)
                 restricted_struct = self.get_restricted_struct_hypergraph(struct_name)
                 # Check if the restricted struct is connected
-                if not restricted_struct.H.is_connected(s=1):
+                if not nx.is_connected(restricted_struct.H.bipartite()):
                     consistent = False
                     print(f"🚨 IC-Structs-b violation: The struct '{struct_name}' is not connected")
                     restricted_struct.show_textual()
@@ -851,7 +852,7 @@ class Catalog(HyperNetXWrapper):
                     # It may be that the association is actually inherited from a superclass
                     superclass_phantoms = [self.get_phantom_of_edge_by_name(s) for s in self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(internal_elem_name), return_superclasses=True)]
                     superclass_phantoms.append(internal_elem_name)
-                    if all([p not in restricted_struct.get_association_ends()["phantom"].values for p in superclass_phantoms]):
+                    if all([p not in restricted_struct.get_association_ends_in_H() for p in superclass_phantoms]):
                         consistent = False
                         print(f"🚨 IC-Structs-d violation: Class '{internal_elem_name}' included in set '{set_struct.nodes}' is not connected to struct '{external_struct_name}', which contains said set")
                 else:

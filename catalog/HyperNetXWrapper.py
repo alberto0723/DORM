@@ -12,7 +12,7 @@ import duckdb
 import uuid
 
 from .config import Config
-from .tools import drop_str_duplicates, str_list_difference
+from .tools import custom_progress, drop_str_duplicates, str_list_difference
 
 # Libraries initialization
 pd.set_option('display.max_columns', None)
@@ -41,12 +41,10 @@ class HyperNetXWrapper:
             raise ValueError(f"🚨 Unable to connect to DuckDB database '{self.duckdb_filename}':", e)
         if hypergraph is not None:
             self.H = hypergraph
-            self.fill_duckDB()
         elif file_path is not None:
             logger.info(f"Loading hypergraph from '{file_path}'")
             with open(file_path, "rb") as f:
                 self.H = pickle.load(f)
-            self.fill_duckDB()
         else:
             # In this case, the hypergraph will be filled with load_domain or load_design
             self.H = hnx.Hypergraph([])
@@ -106,6 +104,15 @@ class HyperNetXWrapper:
                                                                              x['End_name'] == end_name)]
         return not ends.empty
 
+    def get_association_ends_in_H(self) -> list[str]:
+        incidences = self.H.incidences.dataframe
+        association_ends = incidences[incidences["misc_properties"].apply(lambda prop: prop['Direction'] == 'Outbound' and prop['Kind'] == 'AssociationIncidence')]
+        return association_ends['misc_properties'].apply(lambda prop: prop['End_name']).values.tolist()
+
+    def get_classes_in_H(self) -> list[str]:
+        edges = self.H.edges.dataframe
+        return edges[edges['misc_properties'].apply(lambda prop: prop['Kind'] == 'Class')].index.tolist()
+
     def get_edge_by_phantom_name_in_H(self, phantom_name) -> str:
         phantom_incidences = self.H.incidences.dataframe.xs(phantom_name, level="nodes", drop_level=False)
         phantom_inbounds = phantom_incidences[phantom_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
@@ -163,6 +170,7 @@ class HyperNetXWrapper:
         pass
 
     def fill_duckDB(self):
+        custom_progress("Replicating the hypergraph in DuckDB")
         # Create the main views of the hypergraph in DuckDB
         df_nodes = self.H.nodes.to_dataframe.reset_index()
         df_nodes_with_json = pd.json_normalize(df_nodes["misc_properties"])
@@ -676,6 +684,7 @@ class HyperNetXWrapper:
         Gives the domain elements inside a given struct.
         :param struct_name: The name of the struct.
         :param only_anchor: Restrict the domain to only edges participating in the anchor of the struct.
+        :param with_attributes: Indicates if attributes are included in the resulting hypergraph or not.
         :return: A domain hypergraph.
         """
         if only_anchor:
@@ -691,10 +700,9 @@ class HyperNetXWrapper:
                 extended_edge_names.extend(self.get_generalizations_by_class_name(elem, return_superclasses=False))
         edge_names = drop_str_duplicates(edge_names + extended_edge_names)
         # It takes all attributes in the classes, but we only want those in the outbounds of the struct, so we remove them one by one
-        # TODO: This has a problem, because we remove the attributes after having created the views in DuckDB
-        #       It could also be better if we do not create the DuckDB views unless necessary
         result = HyperNetXWrapper(name="restricted_"+uuid.uuid4().hex, hypergraph=self.H.restrict_to_edges(edge_names))
-        to_be_removed = result.get_attributes()["name"].values.tolist()
+        # We use the attributes in the original hypergraph to avoid creating the DuckDB views for restricted structs
+        to_be_removed = self.get_attributes()["name"].values.tolist()
         if with_attributes:
             to_be_removed = str_list_difference(to_be_removed, attribute_names)
 
