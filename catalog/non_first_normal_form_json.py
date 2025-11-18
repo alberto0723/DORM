@@ -71,7 +71,6 @@ class NonFirstNormalFormJSON(Relational):
                 assert not nested_grouping, f"☠️ There is a limitation of PostgreSQL that does not allow to nest 'jsonb_agg', hence, nested sets are not allowed as in '{key}'"
                 formatted_pairs.append("('" + key + "', jsonb_agg(DISTINCT " + nested_object + "))")
                 final_grouping = tmp_grouping
-#        return f"jsonb_build_object({', '.join(formatted_pairs)})", final_grouping
         return f"(SELECT jsonb_object_agg(k,v) FROM (VALUES {', '.join(formatted_pairs)}) AS __kv__(k,v))", final_grouping
 
     def generate_migration_insert_statement(self, table_name: str, project: list[str], pattern: list[str], source: Relational) -> str:
@@ -101,7 +100,7 @@ class NonFirstNormalFormJSON(Relational):
             return (f"INSERT INTO {table_name}(value)\n  SELECT {obj}\n  FROM (\n    " +
                                     source.generate_query_statement({"project": project, "pattern": pattern}, explicit_schema=True)[0] + ") AS foo;")
 
-    def generate_values_clause(self, table_name, data_values) -> str:
+    def generate_values_clause(self, table_name: str, data_values: dict[str, str]) -> str:
         """
         Values generation depends on the concrete implementation strategy.
         :param table_name: Name of the table
@@ -116,7 +115,10 @@ class NonFirstNormalFormJSON(Relational):
         if grouping:
             assert False, f"☠️ Unexpected grouping '{grouping}' in the insertion of '{data_values}' into '{table_name}' (insertions are not allowed in the presence of nested sets)"
         for k, v in data_values.items():
-            obj = obj.replace("', " + k, "', " + v)
+            if v[-1] == "'":
+                obj = obj.replace("(" + k + ")", "(" + v + "::text)")
+            else:
+                obj = obj.replace("(" + k + ")", "(" + v + ")")
         return table_name + "(value) VALUES (" + obj + ")"
 
     def generate_create_table_statements(self) -> list[str]:
@@ -129,7 +131,6 @@ class NonFirstNormalFormJSON(Relational):
         # For each table
         for table_name in tqdm(self.get_root_edges(), desc="Generating create table statements", leave=config.show_progress):
             logger.info("-- Creating table " + table_name)
-            # sentence = "DROP TABLE IF EXISTS " + table.Index[0] +" CASCADE;\n"
             sentence = "CREATE TABLE " + table_name + " (\n  key SERIAL,\n  value JSONB\n  );"
             statements.append(sentence)
         return statements
