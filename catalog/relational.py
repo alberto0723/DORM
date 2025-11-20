@@ -267,7 +267,7 @@ class Relational(Catalog, ABC):
                 if not self.exists_more_generic_struct_in_set(struct_name, table_name):
                     project = [attr for attr, _ in self.get_struct_attributes(struct_name).items()]
                     pattern = []
-                    node_list = self.get_outbound_struct_by_name(struct_name)["nodes"].to_list()
+                    node_list = self.get_outbound_struct_by_name(struct_name)["nodes"].values.to_list()
                     # The node_list is extended inside the loop itself (kind of a recursive call)
                     for node_name in node_list:
                         if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):

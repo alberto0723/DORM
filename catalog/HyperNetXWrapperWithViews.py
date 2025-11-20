@@ -9,6 +9,8 @@ from IPython.display import display
 from .HyperNetXWrapper import HyperNetXWrapper
 from .tools import custom_progress, drop_str_duplicates, str_list_difference
 
+import time
+
 # Libraries initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
@@ -66,6 +68,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
             if required not in df_incidences_flattened.columns:
                 df_incidences_flattened[required] = None
         self.sql.register("incidences", df_incidences_flattened)
+
         # Create other derived views in DuckDB
         self.query("""
             CREATE TEMP TABLE class_ids AS
@@ -73,15 +76,16 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                 FROM incidences
                 WHERE Kind = 'ClassIncidence' AND Direction = 'Outbound' AND Identifier;
             """)
-        # This query requires and outer join to deal with restricted hypergraphs (which may be incomplete)
+
         self.query("""
             CREATE TEMP TABLE association_ends AS
                 SELECT a.edges AS association, a.End_name AS name, c.edges AS class, a.nodes AS phantom, a.MultiplicityMin, a.MultiplicityMax
                 FROM incidences a
-                    LEFT OUTER JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
+                    JOIN incidences c ON a.nodes=c.nodes AND a.edges<>c.edges
                 WHERE a.Kind='AssociationIncidence' AND a.Direction='Outbound'
-                    AND (c.nodes IS NULL OR (c.Kind='ClassIncidence' AND c.Direction='Inbound'));
+                    AND c.Kind='ClassIncidence' AND c.Direction='Inbound';
             """)
+
         self.query("""
             CREATE TEMP TABLE sub_super_pairs AS
                 SELECT sub_phantom.edges AS subclass, super.edges AS generalization, super_phantom.edges AS superclass, sub.Constraint
@@ -93,6 +97,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     AND super.Kind = 'GeneralizationIncidence' AND super.Subkind = 'Superclass' AND super.Direction = 'Outbound'
                     AND sub.Kind = 'GeneralizationIncidence' AND sub.Subkind = 'Subclass' AND sub.Direction = 'Outbound'
             """)
+
         self.query("""
             CREATE TEMP TABLE struct_association_ends AS
                 SELECT outgoing.edges AS struct, incoming.nodes AS association_phantom, incoming.edges AS association, outgoing.Anchor, ending.nodes AS end_phantom, ending.End_name, classes.edges AS end_class
@@ -105,14 +110,15 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     AND ending.Direction = 'Outbound' AND ending.Kind='AssociationIncidence'
                     AND classes.Direction='Inbound' AND classes.Kind='ClassIncidence';
             """)
+
         self.query("""
-            CREATE TEMP TABLE struct_attributes AS
-                SELECT i.edges AS struct, n.uid AS attribute
-                FROM incidences i 
-                    JOIN nodes n ON i.nodes=n.uid
-                WHERE i.Direction='Outbound' AND i.Kind='StructIncidence'
-                    AND n.kind='Attribute';
+            CREATE TEMP TABLE struct_content AS
+                SELECT i.edges AS struct, i.nodes, i.Anchor, n.Kind, n.Subkind
+                FROM incidences i
+                    JOIN nodes n on n.uid=i.nodes
+                WHERE i.Direction='Outbound' AND i.Kind='StructIncidence';
             """)
+
         self.query("""
             CREATE TEMP TABLE containments AS
                 SELECT outgoing.edges AS parent_edge, outgoing.Anchor, n.uid AS phantom, incomming.edges AS child_edge, n.Subkind AS child_kind, 
@@ -127,6 +133,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     AND outgoing.Direction = 'Outbound' AND outgoing.Kind IN ('SetIncidence', 'StructIncidence')
                     AND incomming.Direction = 'Inbound'
             """)
+
         self.query("""
             CREATE TEMP TABLE outgoing_atoms AS
                 SELECT i.edges AS edge, n.uid AS atom
@@ -135,6 +142,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                 WHERE i.Direction='Outbound'
                     AND (n.Kind='Attribute' OR (n.Kind='Phantom' AND n.SubKind IN ('Class', 'Association')));
             """)
+
         self.query(f"""
             CREATE TEMP TABLE root_edges AS
                 SELECT edges AS name, (i_external.Kind='SetIncidence') AS is_set
@@ -145,6 +153,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                                     WHERE i_internal.Direction = 'Outbound' 
                                         AND i_external.nodes = i_internal.nodes);
             """)
+
         self.query("""
             CREATE TEMP TABLE unpaired_ends AS
                 SELECT external.struct AS struct_name, end_phantom, end_class AS class_name, End_name AS end_name
@@ -155,6 +164,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     FROM struct_association_ends internal
                     WHERE internal.struct=external.struct AND external.end_class=internal.end_class AND external.End_name<>internal.End_name);
             """)
+
         self.query("""
             CREATE TEMP TABLE unpaired_anchor_ends AS
                 SELECT external.struct AS struct_name, end_phantom, end_class AS class_name, End_name AS end_name
@@ -165,6 +175,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     FROM struct_association_ends internal
                     WHERE internal.Anchor AND internal.struct=external.struct AND external.end_class=internal.end_class AND external.End_name<>internal.End_name);
             """)
+
         self.query("""
             CREATE TEMP TABLE classes_in_structs AS
                 -- This is used to remove association ends that already have a class in the struct
@@ -184,16 +195,16 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     JOIN containments con2 ON con1.child_edge=con2.parent_edge
                     JOIN containments con3 ON con2.child_edge=con3.parent_edge
                 WHERE con1.parent_kind='Struct' AND con1.child_kind='Set' AND con2.child_kind='Struct' AND con3.child_kind='Class' AND con3.Anchor;""")
+
         self.query("CREATE TEMP TABLE struct_attribute_list (struct TEXT, attribute_list BLOB);")
         for struct_name in self.get_structs():
             attribute_list = self.generate_struct_attribute_list(struct_name)
-            self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",
-                            (struct_name, pickle.dumps(attribute_list)))
+            self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",(struct_name, pickle.dumps(attribute_list)))
+
         self.query("CREATE TEMP TABLE atoms_including_transitivity_by_edge_name (edge TEXT, atom TEXT);")
         for edge_name in self.get_root_edges():
-            for attribute_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name):
-                self.sql.execute("INSERT INTO atoms_including_transitivity_by_edge_name (edge, atom) VALUES (?, ?);",
-                             (edge_name, attribute_name))
+            list_of_tuples = [(edge_name, att_name) for att_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name)]
+            self.sql.executemany("INSERT INTO atoms_including_transitivity_by_edge_name (edge, atom) VALUES (?, ?);", list_of_tuples)
 
     ##############################################################################################
     # Methods that use the views in DuckDB
@@ -378,7 +389,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
             """)
 
     def get_outbound_struct_by_name(self, struct_name: str) -> pd.DataFrame:
-        return self.query(f"SELECT nodes, Anchor FROM incidences WHERE Direction = 'Outbound' AND Kind='StructIncidence' AND edges='{struct_name}';")
+        return self.query(f"SELECT nodes, Anchor, Kind, Subkind FROM struct_content WHERE struct='{struct_name}';")
 
     def get_association_names_by_struct_name(self, struct_name: str) -> list[str]:
         return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Association' AND parent_edge='{struct_name}';")
@@ -393,7 +404,7 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
         return self.str_list_query(f"SELECT child_edge FROM containments WHERE parent_kind='Struct' AND child_kind='Class' AND parent_edge='{struct_name}';")
 
     def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
-        return self.str_list_query(f"SELECT attribute FROM struct_attributes WHERE struct='{struct_name}';")
+        return self.str_list_query(f"SELECT nodes AS attribute FROM struct_content WHERE struct='{struct_name}' AND Kind='Attribute';")
 
     def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
         return self.str_list_query(

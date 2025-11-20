@@ -10,6 +10,8 @@ from pathlib import Path
 from tqdm import tqdm
 from collections import Counter
 
+import time
+
 from . import config
 from .tools import custom_warning, custom_progress, combine_buckets, drop_complex_duplicates, drop_str_duplicates, str_list_difference, extract_up_to_folder
 from .HyperNetXWrapperWithViews import HyperNetXWrapperWithViews
@@ -143,44 +145,45 @@ class Catalog(HyperNetXWrapperWithViews):
         attribute_dict = {}
         loose_ends = self.get_loose_association_end_names_by_struct_name(struct_name)
         # For each element in the struct
-        elem_names = self.get_outbound_struct_by_name(struct_name)["nodes"]
-        for elem_name in elem_names:
+        elems = self.get_outbound_struct_by_name(struct_name)
+        elem_names = elems["nodes"].values.tolist()
+        for elem in elems.itertuples():
             # assert self.is_attribute(elem_name) or self.is_class_phantom(elem_name) or self.is_association_phantom(elem_name) or self.is_generalization_phantom(elem_name) or self.is_struct_phantom(elem_name) or self.is_set_phantom(elem_name), f"☠️ Some element in struct '{struct_name}' is not expected: '{elem_name}'"
-            if self.is_attribute(elem_name):
-                value = [{"kind": "Attribute", "name": elem_name}]
-                if elem_name not in attribute_dict:
-                    attribute_dict[elem_name] = value
+            if elem.Kind == "Attribute":
+                value = [{"kind": "Attribute", "name": elem.nodes}]
+                if elem.nodes not in attribute_dict:
+                    attribute_dict[elem.nodes] = value
                 else:
-                    assert attribute_dict[elem_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[elem_name]}, {value}"
-            elif self.is_class_phantom(elem_name):
+                    assert attribute_dict[elem.nodes] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem.nodes}, {attribute_dict[elem.nodes]}, {value}"
+            elif elem.Kind == "Phantom" and elem.Subkind == "Class":
                 # Add the class identifier if there is not any other attribute of the same class
-                class_name = self.get_edge_by_phantom_name(elem_name)
+                class_name = self.get_edge_by_phantom_name(elem.nodes)
                 if set(self.get_outbound_class_by_name(class_name)).isdisjoint(elem_names):
                     id_attribute = self.get_class_id_by_name(class_name)
                     value = [{"kind": "Attribute", "name": id_attribute}]
                     if id_attribute not in attribute_dict:
                         attribute_dict[id_attribute] = value
                     else:
-                        assert attribute_dict[id_attribute] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[id_attribute]}, {value}"
-            elif self.is_association_phantom(elem_name):
-                ends = self.get_outbound_association_by_phantom_name(elem_name)
+                        assert attribute_dict[id_attribute] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem.nodes}, {attribute_dict[id_attribute]}, {value}"
+            elif elem.Kind == "Phantom" and elem.Subkind == "Association":
+                ends = self.get_outbound_association_by_phantom_name(elem.nodes)
                 for end in ends.itertuples():
                     if end.End_name in loose_ends:
                         value = [{"kind": "AssociationEnd", "name": end.End_name, "id": self.get_class_id_by_name(end.Class)}]
                         if end.End_name not in attribute_dict:
                             attribute_dict[end.End_name] = value
                         else:
-                            assert attribute_dict[end.End_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[end.End_name]}, {value}"
-            elif self.is_struct_phantom(elem_name):
-                nested_struct_name = self.get_edge_by_phantom_name(elem_name)
+                            assert attribute_dict[end.End_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem.nodes}, {attribute_dict[end.End_name]}, {value}"
+            elif elem.Kind == "Phantom" and elem.Subkind == "Struct":
+                nested_struct_name = self.get_edge_by_phantom_name(elem.nodes)
                 for attr_name, attr_path in self.get_struct_attributes(nested_struct_name).items():
                     value = [{"kind": "Struct", "name": nested_struct_name}] + attr_path
                     if attr_name not in attribute_dict:
                         attribute_dict[attr_name] = value
                     else:
-                        assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
-            elif self.is_set_phantom(elem_name):
-                nested_set_name = self.get_edge_by_phantom_name(elem_name)
+                        assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem.nodes}, {attribute_dict[attr_name]}, {value}"
+            elif elem.Kind == "Phantom" and elem.Subkind == "Set":
+                nested_set_name = self.get_edge_by_phantom_name(elem.nodes)
                 for nested_element_phantom_name in self.get_phantom_names_by_set_name(nested_set_name):
                     assert self.is_class_phantom(nested_element_phantom_name) or self.is_struct_phantom(nested_element_phantom_name), f"☠️ Set '{nested_set_name}' contains '{nested_element_phantom_name}', which is neither a class nor a struct"
                     nested_element_name = self.get_edge_by_phantom_name(nested_element_phantom_name)
@@ -190,7 +193,7 @@ class Catalog(HyperNetXWrapperWithViews):
                         if attr_name not in attribute_dict:
                             attribute_dict[attr_name] = value
                         else:
-                            assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
+                            assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem.nodes}, {attribute_dict[attr_name]}, {value}"
                     # If not a class, it must be a struct
                     else:
                         for attr_name, attr_path in self.get_struct_attributes(nested_element_name).items():
@@ -198,7 +201,7 @@ class Catalog(HyperNetXWrapperWithViews):
                             if attr_name not in attribute_dict:
                                 attribute_dict[attr_name] = value
                             else:
-                                assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem_name}, {attribute_dict[attr_name]}, {value}"
+                                assert attribute_dict[attr_name] == value, f"☠️ There is some ambiguous attribute name in '{struct_name}': {elem.nodes}, {attribute_dict[attr_name]}, {value}"
         return attribute_dict
 
     def get_struct_attributes(self, struct_name) -> dict[str, list[dict[str, str]]]:
