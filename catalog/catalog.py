@@ -10,8 +10,6 @@ from pathlib import Path
 from tqdm import tqdm
 from collections import Counter
 
-import time
-
 from . import config
 from .tools import custom_warning, custom_progress, combine_buckets, drop_complex_duplicates, drop_str_duplicates, str_list_difference, extract_up_to_folder
 from .HyperNetXWrapperWithViews import HyperNetXWrapperWithViews

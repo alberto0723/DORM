@@ -9,8 +9,6 @@ from IPython.display import display
 from .HyperNetXWrapper import HyperNetXWrapper
 from .tools import custom_progress, drop_str_duplicates, str_list_difference
 
-import time
-
 # Libraries initialization
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
