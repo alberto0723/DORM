@@ -196,15 +196,17 @@ class HyperNetXWrapperWithViews(HyperNetXWrapper):
                     JOIN containments con3 ON con2.child_edge=con3.parent_edge
                 WHERE con1.parent_kind='Struct' AND con1.child_kind='Set' AND con2.child_kind='Struct' AND con3.child_kind='Class' AND con3.Anchor;""")
 
-        self.query("CREATE TEMP TABLE struct_attribute_list (struct TEXT, attribute_list BLOB);")
+        list_of_tuples = []
         for struct_name in self.get_structs():
-            attribute_list = self.generate_struct_attribute_list(struct_name)
-            self.sql.execute("INSERT INTO struct_attribute_list (struct, attribute_list) VALUES (?, ?);",(struct_name, pickle.dumps(attribute_list)))
+            list_of_tuples.append((struct_name, pickle.dumps(self.generate_struct_attribute_list(struct_name))))
+        # Seems that Pandas does not allow to create a DataFrame with different types in the two columns
+        # attribute_list should be declared as a BLOB in DuckDB (a.k.a. 'object' type in Pandas), which is actually detected properly
+        self.sql.register("struct_attribute_list", pd.DataFrame(list_of_tuples, columns=['struct', 'attribute_list']))
 
-        self.query("CREATE TEMP TABLE atoms_including_transitivity_by_edge_name (edge TEXT, atom TEXT);")
+        list_of_tuples = []
         for edge_name in self.get_root_edges():
-            list_of_tuples = [(edge_name, att_name) for att_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name)]
-            self.sql.executemany("INSERT INTO atoms_including_transitivity_by_edge_name (edge, atom) VALUES (?, ?);", list_of_tuples)
+            list_of_tuples.extend([(edge_name, att_name) for att_name in self.generate_atoms_including_transitivity_by_edge_name(edge_name)])
+        self.sql.register("atoms_including_transitivity_by_edge_name", pd.DataFrame(list_of_tuples, columns=['edge', 'atom'], dtype='string'))
 
     ##############################################################################################
     # Methods that use the views in DuckDB
