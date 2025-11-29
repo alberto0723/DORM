@@ -495,24 +495,33 @@ class Relational(Catalog, ABC):
                         conditions_internal.append(condition)
                 filter_attributes_external = list(set(self.parse_predicate(" AND ".join(conditions_external))))
                 custom_progress("------Generating FROM clause")
-                # Simple case of only one table required by the query
-                if len(tables_combination) == 1:
-                    # Build the FROM clause
-                    from_clause = "\nFROM " + schema_name + tables_combination[0]
-                # Case with several tables that require joins
-                else:
-                    # Build the FROM clause
-                    custom_progress("--------Generating JOIN clauses")
-                    from_clause = "\nFROM " + self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
-                    # Add the alias to all attributes, since there is more than one table now
-                    for dom_attr_name, attr_proj in tqdm(proj_attr.items(), desc="--------Adding table aliases to attributes", leave=config.show_progress):
-                        if 'jsonb_array_elements' in attr_proj:
-                            proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
-                        else:
-                            proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
+                custom_progress("--------Generating JOIN clauses")
+                from_clause = "\nFROM " + self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
+                # Add the alias to all attributes
+                for dom_attr_name, attr_proj in tqdm(proj_attr.items(), desc="--------Adding table aliases to attributes", leave=config.show_progress):
+                    if 'jsonb_array_elements' in attr_proj:
+                        proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
+                    else:
+                        proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
                 custom_progress("------Generating SELECT clause")
                 # Build the SELECT clause
-                sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes + filter_attributes_external]) + from_clause
+                sentence = "SELECT "
+                number_table_aliases = len(alias_table)
+                for a in tqdm(project_attributes + filter_attributes_external, desc="--------Adding attributes", leave=config.show_progress):
+                    # Check if the attribute is inside a json array
+                    match = re.search(r"jsonb_array_elements\((.*?)\)", proj_attr[a])
+                    if match:
+                        prefix = proj_attr[a][:match.end(0)]
+                        postfix = proj_attr[a][match.end(0):]
+                        hash_key = str(hash(prefix))
+                        if hash_key not in alias_table:
+                            alias_table[hash_key] = self.config.prepend_table_alias + str(len(alias_table)+1)
+                            from_clause += "\n  JOIN LATERAL " + prefix + " " + alias_table[hash_key] + " ON TRUE"
+                        sentence += alias_table[hash_key] + postfix + " AS " + a + ", "
+                    else:
+                        sentence += proj_attr[a] + " AS " + a + ", "
+                # Remove the las comma and concatenate the FROM clause
+                sentence = sentence[:-2] + from_clause
                 # Add the WHERE clause
                 custom_progress("------Generating WHERE clause")
                 if conditions_internal != [] and conditions_internal != ["TRUE"]:
