@@ -965,16 +965,15 @@ class Catalog(HyperNetXWrapperWithViews):
                     if self.is_class(edge):
                         class_list = [edge] + self.get_generalizations_by_class_name(edge, return_superclasses=True)
                         for class_name in class_list:
-                            project_attributes.extend(self.get_outbound_class_by_name(class_name))
+                            project_attributes += [a for a in self.get_outbound_class_by_name(class_name) if a not in project_attributes]
                         # for attr in self.get_outbound_class_by_name(edge).itertuples():
                         #     project_attributes.append(attr.Index[1])
             elif len(requested) > 2 and requested[-1] == '*' and self.is_class(requested[:-2]):
-                project_attributes.extend(self.get_outbound_class_by_name(requested[:-2]))
+                project_attributes += [a for a in self.get_outbound_class_by_name(requested[:-2]) if a not in project_attributes]
                 # for attr in self.get_outbound_class_by_name(requested[:-2]).itertuples():
                 #     project_attributes.append(attr.Index[1])
             else:
                 raise ValueError(f"🚨 Projected '{requested}' is neither an attribute, nor an association end, nor an accepted wildcard")
-        project_attributes = list(set(project_attributes))
         identifiers = []
         for e in pattern_edges:
             if not (self.is_class(e) or self.is_association(e)):

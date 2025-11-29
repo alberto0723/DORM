@@ -506,7 +506,6 @@ class Relational(Catalog, ABC):
                 custom_progress("------Generating SELECT clause")
                 # Build the SELECT clause
                 sentence = "SELECT "
-                number_table_aliases = len(alias_table)
                 for a in tqdm(project_attributes + filter_attributes_external, desc="--------Adding attributes", leave=config.show_progress):
                     # Check if the attribute is inside a json array
                     match = re.search(r"jsonb_array_elements\((.*?)\)", proj_attr[a])
