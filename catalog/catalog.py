@@ -832,8 +832,11 @@ class Catalog(HyperNetXWrapperWithViews):
             logger.info("Checking IC-Design8 (produces just warnings)")
             for class_name in self.get_classes()["name"].values:
                 class_phantom = self.get_phantom_of_edge_by_name(class_name)
+                root_structs = []
+                for root_set in self.get_root_edges():
+                    root_structs.extend(self.get_struct_names_by_set_name(root_set))
                 found = False
-                for struct_name in structs:
+                for struct_name in root_structs:
                     # Check if the class is in this struct
                     if class_phantom in self.get_outbound_struct_by_name(struct_name)["nodes"].values:
                         dont_cross = self.get_anchor_associations_by_struct_name(struct_name)
