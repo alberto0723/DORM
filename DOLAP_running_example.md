@@ -108,9 +108,9 @@ END $$
 Once the database is ready, this first creates a folder to leave the CSV files and then runs the queries of two different workloads on the baseline design.
 
 ```bash
-mkdir EDBT_running_example_costs
-python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_time --save_cost --cost_file EDBT_running_example_costs/baseline_202505 --query_file files/queries/SDSS_2505_grounded
-python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_time --save_cost --cost_file EDBT_running_example_costs/baseline_202506 --query_file files/queries/SDSS_2506_grounded
+mkdir DOLAP_running_example_costs
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_time --save_cost --cost_file DOLAP_running_example_costs/baseline_202505 --query_file files/queries/SDSS_2505_grounded
+python queryExecutor.py --hide_warnings --hide_progress --paradigm 1NF --dbconf_file db_conf_unibo.txt --dbschema dorm_edbt_baseline --print_time --save_cost --cost_file DOLAP_running_example_costs/baseline_202506 --query_file files/queries/SDSS_2506_grounded
 ```
 
 # Run the different designs
@@ -119,7 +119,7 @@ There is a batch file that successively creates different alternative designs in
 The execution times of the different queries are left in different CSV files under the same output folder.
 
 ```bash
-EDBT_running_example_withTime.bat
+DOLAP_running_example_withTime.bat
 ```
 
 There is a second faster batch test.
@@ -127,7 +127,7 @@ Since JSON results to be excessively slow when we try to extract hundreds of att
 
 
 ```bash
-EDBT_running_example_withCost.bat
+DOLAP_running_example_withCost.bat
 ```
 
 Unfortunately, PostgreSQL query optimizer returns weird results on estimating the cost of JSON queries (really far from reality in some cases).
