@@ -7,7 +7,7 @@ DECLARE
 BEGIN
     SELECT d.description::JSONB INTO metadata
     FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
-    WHERE n.nspname = 'source';
+    WHERE n.nspname = '<sourcesch>';
 
     EXECUTE format('COMMENT ON SCHEMA <sourcesch> IS %L', metadata || '{"has_data": true}');
 END $$

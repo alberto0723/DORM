@@ -25,10 +25,14 @@ def extract_up_to_folder(path_str, folder_name) -> Path:
     return sub_path
 
 
-def drop_duplicates(dirty_list):
+def drop_complex_duplicates(dirty_list: list) -> list:
     unique_elems = []
     [unique_elems.append(elem) for elem in dirty_list if elem not in unique_elems]
     return unique_elems
+
+
+def drop_str_duplicates(dirty_list: list[str]) -> list[str]:
+    return list(set(dirty_list))
 
 
 def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:
@@ -61,8 +65,8 @@ def combine_buckets(patterns_list: list[list[str]]) -> list[list[str]]:
         return minimal_combinations
 
 
-def df_difference(df1, df2):
-    return pd.concat([df1, df2, df2], ignore_index=True).drop_duplicates(keep=False)
+def str_list_difference(l1: list[str], l2: list[str]) -> list[str]:
+    return list(set(l1) - set(l2))
 
 
 def read_db_conf(filename: str) -> dict[str, str]:

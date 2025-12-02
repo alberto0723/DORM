@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from abc import ABC, abstractmethod
 import logging
 import warnings
@@ -15,7 +16,7 @@ from tqdm import tqdm
 RelationalType = TypeVar('RelationalType', bound='Relational')
 
 from . import config
-from .tools import custom_warning, drop_duplicates, custom_progress
+from .tools import custom_warning, drop_complex_duplicates, drop_str_duplicates, custom_progress
 from .catalog import Catalog
 
 # Libraries initialization
@@ -46,8 +47,9 @@ class Relational(Catalog, ABC):
         custom_progress(f"*********************** {paradigm_name} ***********************")
 
         if dbconf is None:
-            super().__init__(file_path=file_path)
+            super().__init__(name=Path(file_path).stem, file_path=file_path)
             self.metadata["paradigm"] = paradigm_name
+            self.fill_duckDB()
         else:
             if not ("dbms" in dbconf and "ip" in dbconf and "port" in dbconf and "user" in dbconf and "password" in dbconf and "dbname" in dbconf):
                 raise ValueError(f"🚨 Missing required parameters to create the connection of the catalog in the DBMS (namely dbms, ip, port, user, password, and dbname) in {self.dbconf}")
@@ -67,8 +69,9 @@ class Relational(Catalog, ABC):
                     conn.execute(sqlalchemy.text(f"CREATE SCHEMA {dbschema};"))
                     conn.execute(sqlalchemy.text(f"COMMENT ON SCHEMA {dbschema} IS '"+"{}';"))
                     # This creates either an empty hypergraph or reads it from a file
-                    super().__init__(file_path=file_path)
+                    super().__init__(name=dbschema, file_path=file_path)
                     self.metadata["paradigm"] = paradigm_name
+                    # We do not fill DuckDB here under the assumption that the catalog will be loaded and it filled afterwards
                 else:
                     catalog_tables = [self.TABLE_NODES, self.TABLE_EDGES, self.TABLE_INCIDENCES, self.TABLE_GUARDS]
                     if any(table not in sqlalchemy.inspect(self.engine).get_table_names() for table in catalog_tables):
@@ -78,10 +81,10 @@ class Relational(Catalog, ABC):
                     df_edges = pd.read_sql_table(self.TABLE_EDGES, con=self.engine)
                     df_incidences = pd.read_sql_table(self.TABLE_INCIDENCES, con=self.engine)
                     # There is a bug in the library, and the name of the property column for both nodes and edges is taken from "misc_properties_col"
-                    H = hnx.Hypergraph(df_incidences, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
+                    H = hnx.Hypergraph(df_incidences, name=dbschema, edge_col="edges", node_col="nodes", cell_weight_col="weight", misc_cell_properties_col="misc_properties",
                                        node_properties=df_nodes, node_weight_prop_col="weight", misc_properties_col="misc_properties",
                                        edge_properties=df_edges, edge_weight_prop_col="weight")
-                    super().__init__(hypergraph=H)
+                    super().__init__(name=dbschema, hypergraph=H)
                     self.guards = pd.read_sql_table(self.TABLE_GUARDS, con=self.engine)
                     # Get domain and design
                     result = conn.execute(sqlalchemy.text("SELECT n.nspname AS schema_name, d.description AS comment FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid WHERE n.nspname=:schema;"), {"schema": dbschema.lower()})
@@ -94,6 +97,7 @@ class Relational(Catalog, ABC):
                             raise ValueError(f"🚨 Expected paradigm in the current design of the catalog is {paradigm_name}, '{self.metadata['paradigm']}' found instead in '{self.dbschema}' at '{self.dbconf}'")
                     else:
                         self.metadata["paradigm"] = paradigm_name
+                    self.fill_duckDB()
 
     def save(self, file_path=None, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
         if file_path is not None:
@@ -127,12 +131,12 @@ class Relational(Catalog, ABC):
         else:
            raise ValueError("🚨 No connection to the database or file provided")
 
-    def contains_set_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> bool:
+    def contains_set_including_transitivity_by_edge_name(self, edge_name: str, visited: list[str] = None) -> bool:
         if visited is None:
             visited = [edge_name]
         else:
             visited.append(edge_name)
-        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
+        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"')["nodes"].values:
             if self.is_phantom(node_name):
                 next_edge = self.get_edge_by_phantom_name(node_name)
                 assert next_edge not in visited, f"☠️ Cycle of edges detected: {visited}"
@@ -142,7 +146,7 @@ class Relational(Catalog, ABC):
                     return self.contains_set_including_transitivity_by_edge_name(next_edge, visited)
         return False
 
-    def is_consistent(self, design=False) -> bool:
+    def is_consistent(self, design: bool = False) -> bool:
         consistent = super().is_consistent(design)
         # Only needs to run further checks if the basic one succeeded
         if consistent:
@@ -151,16 +155,16 @@ class Relational(Catalog, ABC):
 
             # IC-Relational1:
             logger.info("Checking IC-Relational1")
-            matches6_1 = self.get_inbound_firstLevel().index.get_level_values("edges")
-            violations6_1 = self.get_sets()[self.get_sets().apply(lambda row: not row.name in matches6_1 and self.contains_set_including_transitivity_by_edge_name(row.name), axis=1)]
-            if not violations6_1.empty:
+            matches6_1 = self.get_root_edges()
+            sets = self.get_sets()
+            violations6_1 = [s for s in sets if s not in matches6_1 and self.contains_set_including_transitivity_by_edge_name(s)]
+            if violations6_1:
                 consistent = False
-                print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL")
-                display(violations6_1)
+                print(f"🚨 IC-Relational1 violation: Sets cannot be nested due to not possible to nest 'jsonb_agg' in PostgreSQL", violations6_1)
 
         return consistent
 
-    def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql=False) -> None:
+    def create_schema(self, migration_source_sch=None, migration_source_kind=None, show_sql: bool = False) -> None:
         """
         Creates the tables according to the design, and potentially populates them with data.
         Finally, it updates the statistics.
@@ -255,23 +259,23 @@ class Relational(Catalog, ABC):
             warnings.warn(f"⚠️ The source {migration_source_sch} does not have data to migrate (according to its metadata)")
         statements = []
         # For each table
-        for table_name in tqdm(self.get_inbound_firstLevel().index.get_level_values("edges"), desc="Generating migration statements", leave=config.show_progress):
+        for table_name in tqdm(self.get_root_edges(), desc="Generating migration statements", leave=config.show_progress):
             logger.info(f"-- Generating data migration for table {table_name}")
             # For each struct in the table, we have to create a different extraction query
-            for struct_name in self.get_struct_names_inside_set_name(table_name):
+            for struct_name in self.get_struct_names_by_set_name(table_name):
                 # TODO: Ignore sibling overlapping subclasses in the set (otherwise, data will be migrated twice and violate PK)
                 if not self.exists_more_generic_struct_in_set(struct_name, table_name):
-                    project = [attr for attr, _ in self.get_struct_attributes(struct_name)]
+                    project = [attr for attr, _ in self.get_struct_attributes(struct_name).items()]
                     pattern = []
-                    node_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
+                    node_list = self.get_outbound_struct_by_name(struct_name)["nodes"].values.tolist()
                     # The node_list is extended inside the loop itself (kind of a recursive call)
                     for node_name in node_list:
                         if self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
                             pattern.append(self.get_edge_by_phantom_name(node_name))
                         if self.is_struct_phantom(node_name):
-                            node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
+                            node_list.extend(self.get_outbound_struct_by_name(self.get_edge_by_phantom_name(node_name))["nodes"].values)
                         if self.is_set_phantom(node_name):
-                            node_list.extend(self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list())
+                            node_list.extend(self.get_phantom_names_by_set_name(self.get_edge_by_phantom_name(node_name)))
                     sentence = self.generate_migration_insert_statement(table_name, project, pattern, source)
                     statements.append(sentence)
         return statements
@@ -320,45 +324,42 @@ class Relational(Catalog, ABC):
         else:
             first_table = False
         unjoinable = []
-        associations = self.get_outbound_associations()[self.get_outbound_associations().index.get_level_values("edges").isin(query_associations)]
+        associations = self.get_outbound_associations()[self.get_outbound_associations()["edges"].isin(query_associations)]
         query_superclasses = query_classes.copy()
         for class_name in query_classes:
-            query_superclasses.extend(self.get_superclasses_by_class_name(class_name))
-        query_superclasses = drop_duplicates(query_superclasses)
+            query_superclasses.extend(self.get_generalizations_by_class_name(class_name, return_superclasses=True))
+        query_superclasses = list(set(query_superclasses))
         while tables:
             # Take any table and find all its potentially connection points
             current_table = tables.pop(0)
             # Get potential attributes to plug the current table
             plugs = []  # This will contain pairs of attribute names that can be plugged (first belongs to the current table)
             # For every struct in the table
-            struct_name_list = self.get_struct_names_inside_set_name(current_table)
+            struct_name_list = self.get_struct_names_by_set_name(current_table)
             for struct_name in struct_name_list:
-                node_name_list = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
-                for node_name in node_name_list:
-                    if self.is_struct_phantom(node_name):
-                        struct_name_list.append(self.get_edge_by_phantom_name(node_name))
-                    elif self.is_set_phantom(node_name):
-                        for hop_node_name in self.get_outbound_set_by_name(self.get_edge_by_phantom_name(node_name)).index.get_level_values("nodes").to_list():
-                            node_name_list.append(hop_node_name)
-                    elif self.is_class_phantom(node_name):
-                        class_name = self.get_edge_by_phantom_name(node_name)
-                        if class_name in query_superclasses:
-                            # Any class in the query is a potential connection point per se
-                            plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
-                            # Also, it can connect to a loose end if it participates in an association
-                            for ass in associations.itertuples():
-                                if self.get_edge_by_phantom_name(ass.Index[1]) in [class_name]+self.get_superclasses_by_class_name(class_name):
-                                    plugs.append((self.get_class_id_by_name(class_name), ass.misc_properties["End_name"]))
+                struct_name_list.extend(self.get_struct_names_by_struct_name(struct_name))
+                class_name_list = self.get_class_names_by_struct_name(struct_name)
+                for set_name in self.get_set_names_by_struct_name(struct_name):
+                    struct_name_list.extend(self.get_struct_names_by_set_name(set_name))
+                    class_name_list.extend(self.get_class_names_by_set_name(set_name))
+                for class_name in class_name_list:
+                    if class_name in query_superclasses:
+                        # Any class in the query is a potential connection point per se
+                        plugs.append((self.get_class_id_by_name(class_name), self.get_class_id_by_name(class_name)))
+                        # Also, it can connect to a loose end if it participates in an association
+                        for ass in associations.itertuples():
+                            if self.get_edge_by_phantom_name(ass.nodes) in [class_name]+self.get_generalizations_by_class_name(class_name, return_superclasses=True):
+                                plugs.append((self.get_class_id_by_name(class_name), ass.End_name))
                 for end_name in self.get_loose_association_end_names_by_struct_name(struct_name):
                     for ass in associations.itertuples():
-                        if end_name == ass.misc_properties["End_name"]:
+                        if end_name == ass.End_name:
                             # Loose end can connect to a class id
-                            plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.Index[1]))))
+                            plugs.append((end_name, self.get_class_id_by_name(self.get_edge_by_phantom_name(ass.nodes))))
                             # A loose end in the current table can correspond to another loose end in a visited one, as soon as the corresponding class is not in the query
-                            if self.get_edge_by_phantom_name(ass.Index[1]) not in query_classes:
+                            if self.get_edge_by_phantom_name(ass.nodes) not in query_classes:
                                 for ass2 in associations.itertuples():
-                                    if ass.Index[1] == ass2.Index[1]:
-                                        plugs.append((end_name, ass2.misc_properties["End_name"]))
+                                    if ass.nodes == ass2.nodes:
+                                        plugs.append((end_name, ass2.End_name))
             # Check if the other ends of any of the connection points has been visited before
             joins = []
             laterals = ""
@@ -371,23 +372,23 @@ class Relational(Catalog, ABC):
                         warnings.warn(f"⚠️ A join between two lateral joins should be generated, but this would create a cycle of references to table aliases, which is not implemented, yet (the query might still work, but its behaviour could have been changed)")
                     else:
                         if 'jsonb_array_elements' in join_attr[plug[1]+"@"+visited[plug[1]]]:
-                            # The split is assuming that there is a single parenthesis
-                            lateral_alias = alias_table[visited[plug[1]]] + "_" + plug[1]
+                            expanded_table = join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ")"
+                            hash_key = str(hash(expanded_table))
                             # We avoid repetitions of lateral joins
-                            if lateral_alias not in previous_laterals:
-                                laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+visited[plug[1]]].replace("value", alias_table[visited[plug[1]]] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
-                                previous_laterals.append(lateral_alias)
-                            lhs = lateral_alias + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
+                            if hash_key not in alias_table:
+                                alias_table[hash_key] = self.config.prepend_table_alias + str(len(alias_table) + 1)
+                                laterals += "  JOIN LATERAL " + expanded_table + " " + alias_table[hash_key] + " ON TRUE\n"
+                            lhs = alias_table[hash_key] + join_attr[plug[1]+"@"+visited[plug[1]]].split(")")[1]
                         else:
                             lhs = alias_table[visited[plug[1]]]+"."+join_attr[plug[1]+"@"+visited[plug[1]]]
                         if 'jsonb_array_elements' in join_attr[plug[0]+"@"+current_table]:
-                            # The split is assuming that there is a single parenthesis
-                            lateral_alias = alias_table[current_table] + "_" + plug[1]
+                            expanded_table = join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ")"
+                            hash_key = str(hash(expanded_table))
                             # We avoid repetitions of lateral joins
-                            if lateral_alias not in previous_laterals:
-                                laterals += "  JOIN LATERAL " + join_attr[plug[1]+"@"+current_table].replace("value", alias_table[current_table] + ".value").split(")")[0] + ") AS " + lateral_alias + " ON TRUE\n"
-                                previous_laterals.append(lateral_alias)
-                            rhs = lateral_alias + join_attr[plug[1]+"@"+current_table].split(")")[1]
+                            if hash_key not in alias_table:
+                                alias_table[hash_key] = self.config.prepend_table_alias + str(len(alias_table) + 1)
+                                laterals += "  JOIN LATERAL " + expanded_table + " " + alias_table[hash_key] + " ON TRUE\n"
+                            rhs = alias_table[hash_key] + join_attr[plug[1]+"@"+current_table].split(")")[1]
                         else:
                             rhs = alias_table[current_table]+"."+join_attr[plug[0]+"@"+current_table]
                         joins.append(lhs + "=" + rhs)
@@ -398,7 +399,7 @@ class Relational(Catalog, ABC):
                 unjoinable = []
                 break
         # Duplication removal should not be necessary, but they appear because of multiple structs in a table
-        joins = drop_duplicates(joins)
+        joins = list(set(joins))
         # Get all the connection point in the table and mark them as visited
         for plug in plugs:
             visited[plug[0]] = current_table
@@ -406,7 +407,7 @@ class Relational(Catalog, ABC):
         join_clause = schema_name + current_table + " " + alias_table[current_table]
         if not first_table:
             if unjoinable:
-                raise ValueError(f"🚨 Tables {unjoinable} are not joinable in the query with tables {drop_duplicates(visited.values())}")
+                raise ValueError(f"🚨 Tables {unjoinable} are not joinable in the query with tables {set(visited.values())}")
             join_clause = laterals + "  JOIN "+join_clause+" ON "+" AND ".join(joins)
         if not tables:
             return join_clause
@@ -416,25 +417,31 @@ class Relational(Catalog, ABC):
     def find_implicit_class(self, required_attributes, pattern_edges) -> str:
         subclasses = {}
         struct_containers_for_class = {}
-        for current_attribute_name in required_attributes:
-            if not self.is_association_end(current_attribute_name):
-                class_name = self.get_class_by_attribute_name(current_attribute_name)
-                # Since the query must be connected, some class must appear in the pattern
-                if class_name not in subclasses:
-                    if class_name in pattern_edges:
-                        subclasses[class_name] = [class_name]+self.get_superclasses_by_class_name(class_name)
-                        subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
-                        struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
-                    else:
-                        for subclass in self.get_subclasses_by_class_name(class_name):
-                            if subclass in pattern_edges:
-                                subclasses[class_name] = [subclass]+self.get_superclasses_by_class_name(subclass)
-                                subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
-                                struct_containers_for_class[class_name] = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes").isin(subphantoms)].index.get_level_values('edges'))
-                struct_containers_for_attribute = set(self.get_outbound_structs()[self.get_outbound_structs().index.get_level_values("nodes") == current_attribute_name].index.get_level_values('edges'))
-                # Check if there is any struct that contains both the attribute and any one of the classes
-                if not struct_containers_for_attribute.intersection(struct_containers_for_class[class_name]):
-                    return subclasses[class_name][0]
+
+        # Get the classes of the required attributes (without association ends)
+        required_tuples = self.get_struct_list_per_attribute(required_attributes)
+
+        # Get the structs containing every class or subclass
+        for class_name in required_tuples["class_name"].values:
+            if class_name not in subclasses:
+                if class_name in pattern_edges:
+                    subclasses[class_name] = [class_name] + self.get_generalizations_by_class_name(class_name, return_superclasses=True)
+                    subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
+                    struct_containers_for_class[class_name] = self.get_unique_outbound_struct_by_phantom_list(subphantoms)
+                else:
+                    for subclass in self.get_subclasses_by_class_name(class_name):
+                        if subclass in pattern_edges:
+                            subclasses[class_name] = [subclass] + self.get_generalizations_by_class_name(subclass, return_superclasses=True)
+                            subphantoms = [self.get_phantom_of_edge_by_name(c) for c in subclasses[class_name]]
+                            struct_containers_for_class[class_name] = set(
+                                self.get_outbound_structs()[self.get_outbound_structs()["nodes"].isin(subphantoms)]['edges'])
+
+        # Check if every attribute is in some struct of those containing the corresponding class
+        for tuple in required_tuples.itertuples():
+            # Since the query must be connected, some class must appear in the pattern
+            # Check if there is any struct that contains both the attribute and any one of the classes
+            if not set(tuple.struct_list).intersection(struct_containers_for_class[tuple.class_name]):
+                return subclasses[tuple.class_name][0]
 
     def generate_query_statement(self, spec, explicit_schema=False) -> list[str]:
         """
@@ -448,7 +455,7 @@ class Relational(Catalog, ABC):
         logger.info("Resolving query")
         if not self.metadata.get("tables_created", False):
             warnings.warn(f"⚠️ There are no tables to be queried in the schema '{self.dbschema}'")
-        custom_progress(f"Parsing query")
+        custom_progress(f"--Parsing query")
         project_attributes, filter_attributes, pattern_edges, required_attributes, filter_clause = self.parse_query(spec)
         if explicit_schema:
             schema_name = self.dbschema + "."
@@ -468,41 +475,52 @@ class Relational(Catalog, ABC):
                 query_alternatives = sorted(query_alternatives, key=len)
             for tables_combination in query_alternatives:
                 custom_progress(f"----Generating the query with tables {tables_combination}")
-                custom_progress("------Getting aliases")
-                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination)
                 custom_progress("------Getting discriminants")
                 conditions = [filter_clause] + self.get_discriminants(tables_combination, class_names)
+                custom_progress("------Getting aliases")
+                condition_attributes = []
+                for condition in conditions:
+                    condition_attributes.extend(self.parse_predicate(condition))
+                alias_table, proj_attr, join_attr, location_attr = self.get_aliases(tables_combination,
+                                                                                    drop_str_duplicates(required_attributes + condition_attributes))
                 # We need to generate a subquery if there are filter unwinding jsons, because PostgreSQL does not allow this in the where clause
                 # Thus, the internal query unwinds everything, and the external check the conditions on these attributes
                 custom_progress("------Preparing filter predicate")
                 conditions_internal = []
                 conditions_external = []
                 for condition in conditions:
-                    condition_attributes = self.parse_predicate(condition)
-                    if any('jsonb_array_elements' in proj_attr[a] for a in condition_attributes):
+                    if any('jsonb_array_elements' in proj_attr[a] for a in self.parse_predicate(condition)):
                         conditions_external.append(condition)
                     else:
                         conditions_internal.append(condition)
-                filter_attributes_external = drop_duplicates(self.parse_predicate(" AND ".join(conditions_external)))
+                filter_attributes_external = list(set(self.parse_predicate(" AND ".join(conditions_external))))
                 custom_progress("------Generating FROM clause")
-                # Simple case of only one table required by the query
-                if len(tables_combination) == 1:
-                    # Build the FROM clause
-                    from_clause = "\nFROM " + schema_name + tables_combination[0]
-                # Case with several tables that require joins
-                else:
-                    # Build the FROM clause
-                    custom_progress("--------Generating JOIN clauses")
-                    from_clause = "\nFROM " + self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
-                    # Add the alias to all attributes, since there is more than one table now
-                    for dom_attr_name, attr_proj in tqdm(proj_attr.items(), desc="--------Adding table aliases to attributes", leave=config.show_progress):
-                        if 'jsonb_array_elements' in attr_proj:
-                            proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
-                        else:
-                            proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
+                custom_progress("--------Generating JOIN clauses")
+                from_clause = "\nFROM " + self.generate_joins(tables_combination, class_names, association_names, alias_table, join_attr, schema_name)
+                # Add the alias to all attributes
+                for dom_attr_name, attr_proj in tqdm(proj_attr.items(), desc="--------Adding table aliases to attributes", leave=config.show_progress):
+                    if 'jsonb_array_elements' in attr_proj:
+                        proj_attr[dom_attr_name] = attr_proj.replace("value", location_attr[dom_attr_name] + ".value")
+                    else:
+                        proj_attr[dom_attr_name] = location_attr[dom_attr_name] + "." + attr_proj
                 custom_progress("------Generating SELECT clause")
                 # Build the SELECT clause
-                sentence = "SELECT " + ", ".join([proj_attr[a] + " AS " + a for a in project_attributes + filter_attributes_external]) + from_clause
+                sentence = "SELECT "
+                for a in tqdm(project_attributes + filter_attributes_external, desc="--------Adding attributes", leave=config.show_progress):
+                    # Check if the attribute is inside a json array
+                    match = re.search(r"jsonb_array_elements\((.*?)\)", proj_attr[a])
+                    if match:
+                        prefix = proj_attr[a][:match.end(0)]
+                        postfix = proj_attr[a][match.end(0):]
+                        hash_key = str(hash(prefix))
+                        if hash_key not in alias_table:
+                            alias_table[hash_key] = self.config.prepend_table_alias + str(len(alias_table)+1)
+                            from_clause += "\n  JOIN LATERAL " + prefix + " " + alias_table[hash_key] + " ON TRUE"
+                        sentence += alias_table[hash_key] + postfix + " AS " + a + ", "
+                    else:
+                        sentence += proj_attr[a] + " AS " + a + ", "
+                # Remove the las comma and concatenate the FROM clause
+                sentence = sentence[:-2] + from_clause
                 # Add the WHERE clause
                 custom_progress("------Generating WHERE clause")
                 if conditions_internal != [] and conditions_internal != ["TRUE"]:
@@ -522,19 +540,15 @@ class Relational(Catalog, ABC):
             custom_progress(f"Query requires UNION")
             # We need to recursively do it one by one, so we only take the first implicit superclass
             superclass_name = implicit_class
-            superclass_phantom_name = self.get_phantom_of_edge_by_name(superclass_name)
-            # Double squared bracket in "loc" is used to preserve the dataframe structure, even when there is only one row (otherwise, you get a Series)
-            generalizations = self.get_outbound_generalization_superclasses().reset_index(level="edges", drop=False).loc[[superclass_phantom_name]]
-            generalizations = pd.merge(generalizations, self.get_generalizations(), left_on="edges", right_index=True, suffixes=("_incidence", "_node"), how="inner")
-            complete_generalizations = generalizations[generalizations["misc_properties_node"].apply(lambda r: r.get("Complete"))]
+            generalizations = self.get_outbound_generalization_by_superclasses_name(superclass_name)
+            complete_generalizations = generalizations[generalizations["Complete"]]
             # TODO: This takes the first complete generalization, but actually it should generate alternative executions with each of them
             if complete_generalizations.empty:
                 taken_generalization = generalizations.iloc[0]
             else:
                 taken_generalization = complete_generalizations.iloc[0]
-            subclasses = self.get_outbound_generalization_subclasses().loc[taken_generalization.edges]
             subqueries = []
-            for subclass_phantom_name in subclasses.index.get_level_values("nodes"):
+            for subclass_phantom_name in self.get_outbound_generalization_subclasses_by_gen_name(taken_generalization["name"]):
                 custom_progress(f"--Generating query for subclass {subclass_phantom_name}")
                 new_query = spec.copy()
                 # Replace the superclass by one of its subclasses in the query pattern
@@ -543,11 +557,11 @@ class Relational(Catalog, ABC):
                 new_query["project"] = project_attributes
                 subqueries.append(self.generate_query_statement(new_query, explicit_schema))
             # We need to combine it, because a query may be solved in many different ways
-            if taken_generalization.misc_properties_node.get("Disjoint", False) or complete_generalizations.empty:
+            if taken_generalization["Disjoint"] or complete_generalizations.empty:
                 union_clause = "\nUNION ALL\n"
             else:
                 union_clause = "\nUNION\n"
-            for combination in list(itertools.product(*drop_duplicates(subqueries))):
+            for combination in list(itertools.product(*drop_complex_duplicates(subqueries))):
                 sentences.append("(" + union_clause.join(combination) + ")")
         return sentences
 

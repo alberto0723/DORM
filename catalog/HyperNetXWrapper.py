@@ -1,19 +1,12 @@
-from typing import Self
 import logging
-import os
 import hypernetx as hnx
+import os
 import pickle
 from IPython.display import display
-import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 
 from .config import Config
-from .tools import drop_duplicates, df_difference
-
-# Libraries initialization
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 1000)
 
 matplotlib.use('Qt5Agg')  # This sets the backend to plot (default TkAgg does not work)
 
@@ -34,6 +27,7 @@ class HyperNetXWrapper:
             with open(file_path, "rb") as f:
                 self.H = pickle.load(f)
         else:
+            # In this case, the hypergraph will be filled with load_domain or load_design
             self.H = hnx.Hypergraph([])
 
     def save(self, file_path=None) -> None:
@@ -45,615 +39,289 @@ class HyperNetXWrapper:
             with open(file_path, "wb") as f:
                 pickle.dump(self.H, f)
 
-    def get_nodes(self) -> pd.DataFrame:
-        nodes = self.H.nodes.dataframe.rename_axis("nodes")
-        nodes["name"] = nodes.index
-        return nodes
+    def add_class(self, class_name, properties, att_list) -> None:
+        """Besides the class name and the number of instances of the class, this method requires
+        a list of attributes, where each attribute is a dictionary with the keys 'name' and 'prop'.
+        The latter is another dictionary that can contain any key, but at least it should contain
+        'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
+        """
+        logger.info("Adding class "+class_name)
+        if self.is_attribute_in_H(class_name) or self.is_association_end_in_H(class_name) or self.is_edge_in_H(class_name):
+            raise ValueError(f"🚨 Some element called '{class_name}' already exists")
+        # First element in the pair is the name and the second its properties
+        properties["Kind"] = 'Class'
+        edges = [(class_name, properties)]
+        # This adds a special attribute to identify instances in the class
+        # First element in the pair is the node name and the second its properties
+        nodes = [(self.config.prepend_phantom+class_name, {'Kind': 'Phantom', 'Subkind': 'Class'})]
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(class_name, self.config.prepend_phantom+class_name, {'Kind': 'ClassIncidence', 'Direction': 'Inbound'})]
+        # Check if attribute names are repeated
+        unique_attr = set([att["name"] for att in att_list])
+        if len(unique_attr) < len(att_list):
+            raise ValueError(f"🚨 Some attribute in '{class_name}' is repeated")
+        for att in att_list:
+            if self.is_attribute_in_H(att['name']) or self.is_association_end_in_H(att['name']) or self.is_edge_in_H(att['name']):
+                raise ValueError(f"🚨 Some element end called '{att['name']}' already exists")
+            incidence_properties = {'Kind': 'ClassIncidence',
+                                    'Direction': 'Outbound',
+                                    'DistinctVals': att['prop'].pop('DistinctVals'),
+                                    'Identifier': att['prop'].pop('Identifier', False)}
+            incidences.append((class_name, att['name'], incidence_properties))
+            if att['name'] in self.get_nodes():
+                if att['prop']['DataType'] != self.H.get_properties(att['name'], level=1, prop_name="DataType"):
+                    raise ValueError(f"🚨 Some node called '{att['name']}' already exists, but its DataType does not coincide")
+                if att['prop']['Size'] != self.H.get_properties(att['name'], level=1, prop_name="Size"):
+                    raise ValueError(f"🚨 Some node called '{att['name']}' already exists, but its Size does not coincide")
+            else:
+                att['prop']['Kind'] = 'Attribute'
+                nodes.append((att['name'], att['prop']))
+        self.H.add_nodes_from(nodes)
+        self.H.add_edges_from(edges)
+        self.H.add_incidences_from(incidences)
 
-    def get_edges(self) -> pd.DataFrame:
-        edges = self.H.edges.dataframe.rename_axis("edges")
-        edges["name"] = edges.index
-        return edges
+    def add_association(self, association_name, ends_list) -> None:
+        """Besides the association name, this method requires
+        a list of ends (usually should be only two), where each end is a dictionary with the keys 'name' and 'multiplicity'.
+        The latter is another dictionary that contains
+        'DataType' (string), 'Size' (numeric), 'DistinctVals' (numeric).
+        """
+        logger.info("Adding association "+association_name)
+        if self.is_attribute_in_H(association_name) or self.is_association_end_in_H(association_name) or self.is_edge_in_H(association_name):
+            raise ValueError(f"🚨 The element '{association_name}' already exists")
+        if len(ends_list) != 2:
+            raise ValueError(f"🚨 The association '{association_name}' should have exactly two ends, but has {len(ends_list)}")
+        self.H.add_edge(association_name, Kind='Association')
+        # This adds a special phantom node required to represent different cases of inclusion in structs
+        self.H.add_node(self.config.prepend_phantom+association_name, Kind='Phantom', Subkind='Association')
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(association_name, self.config.prepend_phantom+association_name, {'Kind': 'AssociationIncidence', 'Direction': 'Inbound'})]
+        for end in ends_list:
+            if not self.is_class_in_H(end['class']):
+                raise ValueError(f"🚨 The class '{end['class']}' in '{association_name}' does not exists")
+            end_name = end['prop'].get('End_name', None)
+            if end_name is None:
+                raise ValueError(f"🚨 Association end '{association_name}' does not have a name for its end towards '{end['class']}'")
+            if self.is_attribute_in_H(end_name) or self.is_association_end_in_H(end_name) or self.is_edge_in_H(end_name):
+                raise ValueError(f"🚨 There is already an element called '{end_name}'")
+            if end['prop'].get('MultiplicityMax', None) is None or end['prop'].get('MultiplicityMin', None) is None:
+                raise ValueError(f"🚨 '{association_name}' does not have both min and max multiplicity for its end '{end_name}'")
+            end['prop']['Kind'] = 'AssociationIncidence'
+            end['prop']['Direction'] = 'Outbound'
+            incidences.append((association_name, self.get_phantom_of_edge_by_name_in_H(end['class']), end['prop']))
+        self.H.add_incidences_from(incidences)
 
-    def get_struct_names_inside_set_name(self, set_name) -> list[str]:
-        return pd.merge(self.get_outbound_set_by_name(set_name), self.get_inbound_structs().reset_index("edges", drop=False), on="nodes", how="inner")["edges"].to_list()
+    def add_generalization(self, generalization_name, properties, superclass, subclasses_list) -> None:
+        """ Besides the generalization name, this method requires some properties (expected to be two booleans) for
+        disjointness and completeness, the name of the superclass and a list of subclasses,
+        where each subclass is a dictionary with the keys 'name' and 'prop'.
+        The latter is another dictionary that contains at least one constraint predicate that discriminates the subclass.
+        """
+        logger.info("Adding generalization "+generalization_name)
+        if self.is_attribute_in_H(generalization_name) or self.is_association_end_in_H(generalization_name) or self.is_edge_in_H(generalization_name):
+            raise ValueError(f"🚨 The element called '{generalization_name}' already exists")
+        self.H.add_edge(generalization_name, Kind='Generalization', Disjoint=properties.get('Disjoint', False), Complete=properties.get('Complete', False))
+        # This adds a special phantom node required to represent different cases of inclusion in structs
+        self.H.add_node(self.config.prepend_phantom+generalization_name, Kind='Phantom', Subkind='Generalization')
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(generalization_name, self.config.prepend_phantom+generalization_name, {'Kind': 'GeneralizationIncidence', 'Direction': 'Inbound'})]
+        if not self.is_class_in_H(superclass):
+            raise ValueError(f"🚨 The superclass '{superclass}' in '{generalization_name}' does not exists")
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences.append((generalization_name,  self.get_phantom_of_edge_by_name_in_H(superclass), {'Kind': 'GeneralizationIncidence', 'Subkind': 'Superclass', 'Direction': 'Outbound'}))
+        if len(subclasses_list) < 1:
+            raise ValueError(f"🚨 The generalization '{generalization_name}' should have at least one subclass")
+        for sub in subclasses_list:
+            if superclass == sub['class']:
+                raise ValueError(f"🚨 The same class '{superclass}' cannot play super and sub roles in generalization '{generalization_name}'")
+            if not self.is_class_in_H(sub['class']):
+                raise ValueError(f"🚨 The subclass '{superclass}' in '{generalization_name}' does not exists")
+            sub['prop']['Kind'] = 'GeneralizationIncidence'
+            sub['prop']['Subkind'] = 'Subclass'
+            sub['prop']['Direction'] = 'Outbound'
+            incidences.append((generalization_name, self.get_phantom_of_edge_by_name_in_H(sub['class']), sub['prop']))
+        self.H.add_incidences_from(incidences)
 
-    def get_incidences(self) -> pd.DataFrame:
-        incidences = self.H.incidences.dataframe
-        return incidences
+    def add_struct(self, struct_name, anchor, elements) -> None:
+        logger.info("Adding struct "+struct_name)
+        if self.is_edge_in_H(struct_name):
+            raise ValueError(f"🚨 The hyperedge '{struct_name}' already exists")
+        if not anchor:
+            raise ValueError(f"🚨 Struct '{struct_name}' does not have any anchor")
+        for elem in anchor:
+            if not self.is_class_in_H(elem) and not self.is_association_in_H(elem):
+                raise ValueError(f"🚨 The anchor of '{struct_name}' (i.e., '{elem}') must be either a class or an association")
+        self.H.add_edge(struct_name, Kind='Struct')
+        # This adds a special phantom node required to represent different cases of inclusion in structs
+        self.H.add_node(self.config.prepend_phantom+struct_name, Kind='Phantom', Subkind="Struct")
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(struct_name, self.config.prepend_phantom+struct_name, {'Kind': 'StructIncidence', 'Direction': 'Inbound'})]
+        for elem in list(set(elements+anchor)):
+            if self.is_attribute_in_H(elem):
+                incidences.append((struct_name, elem, {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+            elif self.is_association_in_H(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+            elif self.is_class_in_H(elem):
+                # Add the class to the struct
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+                # Add the identifier to the struct
+                incidences.append((struct_name, self.get_class_id_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+                # We do need to have the generalizations in the struct to generate a restricted struct correctly including superclasses
+                for g in self.get_generalizations_by_class_name_in_H(elem, return_superclasses=False, visited=[]):
+                    incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(g), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': False}))
+            elif self.is_struct_in_H(elem) or self.is_set_in_H(elem):
+                incidences.append((struct_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'StructIncidence', 'Direction': 'Outbound', 'Anchor': (elem in anchor)}))
+            elif self.is_generalization_in_H(elem):
+                pass
+            else:
+                raise ValueError(f"🚨 Creating struct '{struct_name}' could not find '{elem}' to place it inside (check both domain and design)")
+        self.H.add_incidences_from(incidences)
 
-    def get_attributes(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        attributes = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Attribute')]
-        return attributes
+    def add_set(self, set_name, elements) -> None:
+        logger.info("Adding set "+set_name)
+        if set_name in self.get_edges():
+            raise ValueError(f"🚨 The hyperedge '{set_name}' already exists")
+        if len(elements) == 0:
+            raise ValueError(f"🚨 The set '{set_name}' should have some elements, but has {len(elements)}")
+        self.H.add_edge(set_name, Kind='Set')
+        # This adds a special phantom node required to represent different cases of inclusion in sets
+        self.H.add_node('Phantom_'+set_name, Kind='Phantom', Subkind="Set")
+        # First element in the pair of incidences is the edge name and the second the node
+        incidences = [(set_name, self.config.prepend_phantom+set_name, {'Kind': 'SetIncidence', 'Direction': 'Inbound'})]
+        for elem in elements:
+            if self.is_class_in_H(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            elif self.is_association_in_H(elem) or self.is_struct_in_H(elem):
+                incidences.append((set_name, self.get_phantom_of_edge_by_name_in_H(elem), {'Kind': 'SetIncidence', 'Direction': 'Outbound'}))
+            elif self.is_attribute_in_H(elem):
+                raise ValueError(f"🚨 Sets cannot contain attributes (adding '{elem}' into '{set_name}')")
+            elif self.is_set_in_H(elem):
+                raise ValueError(f"🚨 Sets cannot contain sets (adding '{elem}' into '{set_name}')")
+            else:
+                raise ValueError(f"🚨 Creating set '{set_name}' could not find the kind of '{elem}' to place it inside (the element may not exist in the domain)")
+        self.H.add_incidences_from(incidences)
 
-    def get_attribute_by_name(self, attr_name) -> pd.Series:
-        attribute = self.get_attributes().query('nodes == "' + attr_name + '"')
-        return attribute.iloc[0]
-
-    def get_association_ends(self) -> pd.DataFrame:
-        ends = self.get_outbound_associations()
-        if not ends.empty:
-            ends.reset_index(drop=False, inplace=True)
-            ends["name"] = ends.apply(lambda x: x["misc_properties"]["End_name"], axis=1)
-            ends.set_index('name', drop=False, inplace=True)
-            ends.drop(columns=['weight'], inplace=True)
-        return ends
-
-    def get_association_ends_by_name(self, association_name) -> pd.DataFrame:
-        ends = self.get_association_ends().query('edges == "' + association_name + '"')
-        return ends
-
-    def get_class_name_by_end_name(self, end_name) -> str:
-        association_end = self.get_association_ends()[self.get_association_ends()["misc_properties"].apply(lambda x: x["End_name"] == end_name)]
-        return self.get_edge_by_phantom_name(association_end.iloc[0].nodes)
-
-    def get_ids(self) -> pd.DataFrame:
-        outbounds = self.get_outbound_classes()
-        incidences = outbounds[outbounds["misc_properties"].apply(lambda x: x['Identifier'])].reset_index(level='edges', drop=True)
-        ids = self.get_attributes()[self.get_attributes()["name"].isin(incidences.index)]
-        return ids
-
-    def get_class_id_by_name(self, class_name) -> str:
-        superclasses = self.get_superclasses_by_class_name(class_name)
-        if not superclasses:
-            class_outbounds = self.get_outbound_class_by_name(class_name)
+    def is_attribute_in_H(self, attribute_name) -> bool:
+        if attribute_name in self.H.nodes.dataframe.index:
+            return self.H.nodes.dataframe.loc[attribute_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Attribute'
         else:
-            # The top of the hierarchy should be the first in the list
-            class_outbounds = self.get_outbound_class_by_name(superclasses[-1])
-        class_id = class_outbounds[class_outbounds["misc_properties"].apply(lambda x: x['Identifier'])]
-        assert not class_id.empty, f"Class {class_name} does not have an identifier"
-        return class_id.index[0][1]
+            return False
 
-    def get_class_by_attribute_name(self, attribute_name) -> str:
-        classes = self.get_outbound_classes().query('nodes == "' + attribute_name + '"').index.get_level_values("edges")
-        assert len(classes) == 1, f"Attribute {attribute_name} does not have exactly one class"
-        return classes[0]
+    def is_edge_in_H(self, edge_name) -> bool:
+        return edge_name in self.H.edges.dataframe.index
 
-    def get_phantoms(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom')]
-        return phantoms
+    def is_class_in_H(self, class_name) -> bool:
+        if class_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[class_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Class'
+        else:
+            return False
 
-    def get_phantom_classes(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Class')]
-        return phantoms
+    def is_association_in_H(self, association_name) -> bool:
+        if association_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[association_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Association'
+        else:
+            return False
 
-    def get_phantom_associations(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Association')]
-        return phantoms
+    def is_generalization_in_H(self, generalization_name) -> bool:
+        if generalization_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[generalization_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Generalization'
+        else:
+            return False
 
-    def get_phantom_generalizations(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Generalization')]
-        return phantoms
+    def is_struct_in_H(self, struct_name) -> bool:
+        if struct_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[struct_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Struct'
+        else:
+            return False
 
-    def get_phantom_structs(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Struct')]
-        return phantoms
+    def is_set_in_H(self, set_name) -> bool:
+        if set_name in self.H.edges.dataframe.index:
+            return self.H.edges.dataframe.loc[set_name].get("misc_properties", {}).get('Kind', "FakeValue") == 'Set'
+        else:
+            return False
 
-    def get_phantom_sets(self) -> pd.DataFrame:
-        nodes = self.get_nodes()
-        phantoms = nodes[nodes["misc_properties"].apply(lambda x: x['Kind'] == 'Phantom' and
-                                                                  x['Subkind'] == 'Set')]
-        return phantoms
+    def is_association_end_in_H(self, end_name) -> bool:
+        ends = self.H.incidences.dataframe[self.H.incidences.dataframe["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                             x['Kind'] == 'AssociationIncidence' and
+                                                                             x['End_name'] == end_name)]
+        return not ends.empty
 
-    def get_edge_by_phantom_name(self, phantom_name) -> str:
-        # return self.get_inbounds()[self.get_inbounds().index.get_level_values('nodes') == phantom_name].index[0][0]
-        incidences = self.get_incidences()
-        phantom_incidences = incidences.xs(phantom_name, level="nodes", drop_level=False)
+    def get_classes_in_H(self) -> list[str]:
+        edges = self.H.edges.dataframe
+        return edges[edges['misc_properties'].apply(lambda prop: prop['Kind'] == 'Class')].index.tolist()
+
+    def get_attribute_names_in_H(self, H: hnx.Hypergraph = None) -> list[str]:
+        if H is None:
+            nodes = self.H.nodes.dataframe
+        else:
+            nodes = H.nodes.dataframe
+        attribute_names = nodes[nodes["misc_properties"].apply(lambda prop: prop['Kind'] == 'Attribute')]
+        return attribute_names.index.values.tolist()
+
+    def get_association_end_class_phantoms_in_H(self, H: hnx.Hypergraph = None) -> list[str]:
+        if H is None:
+            incidences = self.H.incidences.dataframe
+        else:
+            incidences = H.incidences.dataframe
+        association_ends = incidences[incidences["misc_properties"].apply(lambda prop: prop['Direction'] == 'Outbound' and prop['Kind'] == 'AssociationIncidence')]
+        return association_ends.index.get_level_values("nodes").tolist()
+
+    def get_association_ends_in_H(self, H: hnx.Hypergraph = None) -> list[str]:
+        if H is None:
+            incidences = self.H.incidences.dataframe
+        else:
+            incidences = H.incidences.dataframe
+        association_ends = incidences[incidences["misc_properties"].apply(lambda prop: prop['Direction'] == 'Outbound' and prop['Kind'] == 'AssociationIncidence')]
+        return association_ends['misc_properties'].apply(lambda prop: prop['End_name']).values.tolist()
+
+    def get_edge_by_phantom_name_in_H(self, phantom_name) -> str:
+        phantom_incidences = self.H.incidences.dataframe.xs(phantom_name, level="nodes", drop_level=False)
         phantom_inbounds = phantom_incidences[phantom_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
         return phantom_inbounds.index[0][0]
 
-    def get_phantom_of_edge_by_name(self, edge_name) -> str:
-        # return self.get_inbounds().loc[edge_name].index[0]
-        incidences = self.get_incidences()
-        edge_incidences = incidences.xs(edge_name, level="edges", drop_level=False)
+    def get_phantom_of_edge_by_name_in_H(self, edge_name) -> str:
+        edge_incidences = self.H.incidences.dataframe.xs(edge_name, level="edges", drop_level=False)
         edge_inbounds = edge_incidences[edge_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
         return edge_inbounds.index[0][1]
 
-    def get_classes(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        classes = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Class')]
-        return classes
-
-    def get_associations(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        associations = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Association')]
-        return associations
-
-    def get_generalizations(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        associations = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Generalization')]
-        return associations
-
-    def get_structs(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        structs = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Struct')]
-        return structs
-
-    def get_sets(self) -> pd.DataFrame:
-        edges = self.get_edges()
-        sets = edges[edges["misc_properties"].apply(lambda x: x['Kind'] == 'Set')]
-        return sets
-
-    def get_inbounds(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound')]
-        return inbounds
-
-    def get_inbound_classes(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'ClassIncidence')]
-        return inbounds
-
-    def get_inbound_associations(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'AssociationIncidence')]
-        return inbounds
-
-    def get_inbound_generalizations(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'GeneralizationIncidence')]
-        return inbounds
-
-    def get_inbound_structs(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'StructIncidence')]
-        return inbounds
-
-    def get_inbound_sets(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        inbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Inbound' and
-                                                                            x['Kind'] == 'SetIncidence')]
-        return inbounds
-
-    def get_outbounds(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
+    def get_generalizations_by_class_name_in_H(self, class_name, return_superclasses: bool, visited: list[str] = None) -> list[str]:
+        if visited is None:
+            visited = []
+        phantom_name = self.get_phantom_of_edge_by_name_in_H(class_name)
+        incidences = self.H.incidences.dataframe
+        subclass_outbounds = incidences[(incidences.index.get_level_values("nodes") == phantom_name) &
+                                        (incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                             x['Kind'] == 'GeneralizationIncidence' and
+                                                                             x['Subkind'] == 'Subclass'))]
+        direct_superclass = incidences[(incidences.index.get_level_values("edges").isin(subclass_outbounds.index.get_level_values("edges"))) &
+                                       (incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                             x['Kind'] == 'GeneralizationIncidence' and
+                                                                             x['Subkind'] == 'Superclass'))]
+        if direct_superclass.empty:
+            return []
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound')]
-            return outbounds
+            # This means there is one superclass (multiple-inheritance is not allowed)
+            generalization = direct_superclass.index[0][0]
+            superclass = self.get_edge_by_phantom_name_in_H(direct_superclass.index[0][1])
+            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
+            if return_superclasses:
+                return [superclass]+self.get_generalizations_by_class_name_in_H(superclass, return_superclasses, visited + [class_name])
+            else:
+                return [generalization]+self.get_generalizations_by_class_name_in_H(superclass, return_superclasses, visited + [class_name])
 
-    def get_outbound_associations(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'AssociationIncidence')]
-            return outbounds
-
-    def get_outbound_generalization_superclasses(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'GeneralizationIncidence' and
-                                                                                 x['Subkind'] == 'Superclass')]
-            return outbounds
-
-    def get_outbound_generalization_subclasses(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'GeneralizationIncidence' and
-                                                                                 x['Subkind'] == 'Subclass')]
-            return outbounds
-
-    def get_outbound_structs(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'StructIncidence')]
-            return outbounds
-
-    def get_outbound_association_by_name(self, ass_name) -> pd.DataFrame:
-        # elements = self.get_outbound_associations().query('edges == "' + ass_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(ass_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'AssociationIncidence')]
-            return outbounds
-
-    def get_outbound_struct_by_name(self, struct_name) -> pd.DataFrame:
-        # elements = self.get_outbound_structs().query('edges == "' + struct_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(struct_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'StructIncidence')]
-            return outbounds
-
-    def get_outbound_set_by_name(self, set_name) -> pd.DataFrame:
-        # elements = self.get_outbound_sets().query('edges == "' + set_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            class_incidences = incidences.xs(set_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'SetIncidence')]
-            return outbounds
-
-    def get_outbound_class_by_name(self, class_name) -> pd.DataFrame:
-        # elements = self.get_outbound_classes().query('edges == "' + class_name + '"')
-        # return elements
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
+    def get_class_id_by_name_in_H(self, class_name) -> str:
+        superclasses = self.get_generalizations_by_class_name_in_H(class_name, return_superclasses=True)
+        incidences = self.H.incidences.dataframe
+        if not superclasses:
             class_incidences = incidences.xs(class_name, level="edges", drop_level=False)
-            outbounds = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                             x['Kind'] == 'ClassIncidence')]
-            return outbounds
-
-    def get_outbound_sets(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
         else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'SetIncidence')]
-            return outbounds
-
-    def get_outbound_classes(self) -> pd.DataFrame:
-        incidences = self.get_incidences()
-        if incidences.empty:
-            return incidences
-        else:
-            outbounds = incidences[incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
-                                                                                 x['Kind'] == 'ClassIncidence')]
-            return outbounds
-
-    def get_transitive_firstLevels(self, edge_list: list[str], visited: list[str] = None) -> list[str]:
-        """
-        Given some edges, returns the list of first levels containing them, following nested structs and sets.
-        :param edge_list: List of edges to find
-        :param visited: Visited edges to avoid potential recursion (which should not happen)
-        :return: List of first levels containing the given edges
-        """
-        if visited is None:
-            visited = edge_list
-        else:
-            visited = visited + edge_list
-        firstLevels = []
-        next_edge_list = []
-        hops = pd.merge(pd.concat([self.get_outbound_sets(), self.get_outbound_structs()]).reset_index(level="edges", drop=False), self.get_inbounds()[self.get_inbounds().index.get_level_values("edges").isin(edge_list)].reset_index(level="edges", drop=False), on='nodes', how='inner', suffixes=('_parent', '_child'))
-        for edge_name in edge_list:
-            parents = hops.query(f"edges_child == '{edge_name}'")["edges_parent"]
-            if parents.empty:
-                # It may happen that some classes are not actually present in the design (because of generalizations)
-                if self.is_set(edge_name):
-                    firstLevels.append(edge_name)
-            else:
-                next_edge_list.extend([edge for edge in parents.to_list() if edge not in visited])
-        if next_edge_list:
-            firstLevels.extend(self.get_transitive_firstLevels(next_edge_list, visited))
-        return firstLevels
-
-    def get_atoms_including_transitivity_by_edge_name(self, edge_name, visited: list[str] = None) -> list[str]:
-        if visited is None:
-            visited = [edge_name]
-        else:
-            visited.append(edge_name)
-        atom_names = []
-        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
-            if self.is_attribute(node_name) or self.is_class_phantom(node_name) or self.is_association_phantom(node_name):
-                atom_names.append(node_name)
-            elif self.is_generalization_phantom(node_name):
-                pass
-            # This should only be either a set or struct phantom
-            else:
-                assert self.is_phantom(node_name), f"Node '{node_name}' is expected to be a phantom"
-                next_edge = self.get_edge_by_phantom_name(node_name)
-                assert self.is_struct(next_edge) or self.is_set(next_edge), f"Edge '{next_edge}' is expected to be either a struct or a set"
-                assert next_edge not in visited, f"☠️ Cycle of edges detected: {next_edge} already in {visited}"
-                atom_names.extend(self.get_atoms_including_transitivity_by_edge_name(next_edge, visited))
-        visited.pop()
-        return atom_names
-
-    def get_inbound_firstLevel(self) -> pd.DataFrame:
-        firstLevel_phantoms = df_difference(pd.concat([self.get_phantom_structs(), self.get_phantom_sets()], ignore_index=False).reset_index()[["nodes"]],
-                                           self.get_outbounds().reset_index()[["nodes"]])
-        firstLevel_incidences = self.get_inbounds().join(firstLevel_phantoms.set_index("nodes"), on="nodes", how='inner')
-        return firstLevel_incidences
-
-    def get_anchor_associations_by_struct_name(self, struct_name) -> list[str]:
-        elements = self.get_outbound_struct_by_name(struct_name)
-        anchor_elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
-        inbounds = self.get_inbound_associations()
-        inbounds["edges"] = inbounds.index.get_level_values("edges")
-        anchor_associations = pd.merge(anchor_elements, inbounds, on="nodes", how="inner")["edges"].to_list()
-        return anchor_associations
-
-    def get_anchor_points_by_struct_name(self, struct_name) -> list[str]:
-        # This is not considering that an anchor of a struct can be in a nested struct (only at first level)
-        elements = self.get_outbound_struct_by_name(struct_name)
-        elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
-        inbounds = self.get_inbound_associations()
-        inbounds["edges"] = inbounds.index.get_level_values("edges")
-        associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
-        outbounds = self.get_outbound_associations()
-        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
-        loose_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)["nodes"].to_list()
-        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner').index.to_list()
-        anchor_points = drop_duplicates(loose_ends+classes)
-        return anchor_points
-
-    def get_anchor_end_names_by_struct_name(self, struct_name) -> list[str]:
-        elements = self.get_outbound_struct_by_name(struct_name)
-        elements = elements[elements["misc_properties"].apply(lambda x: x['Anchor'])]
-        inbounds = self.get_inbound_associations()
-        inbounds["edges"] = inbounds.index.get_level_values("edges")
-        associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
-        outbounds = self.get_outbound_associations()
-        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
-        association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
-        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
-        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index)]
-        if loose_ends.empty:
-            return classes.index.to_list()
-        else:
-            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).to_list()
-            return classes.index.to_list()+end_names
-
-    def get_loose_association_end_names_by_struct_name(self, struct_name) -> list[str]:
-        elements = self.get_outbound_struct_by_name(struct_name)
-        inbounds = self.get_inbound_associations()
-        inbounds["edges"] = inbounds.index.get_level_values("edges")
-        associations = pd.merge(elements, inbounds, on="nodes", suffixes=("_elements", "_inbounds"), how='inner')
-        outbounds = self.get_outbound_associations()
-        outbounds["nodes"] = outbounds.index.get_level_values("nodes")
-        association_ends = pd.merge(associations, outbounds, on="edges", suffixes=("_associations", "_outbounds"), how='inner').groupby("nodes").filter(lambda x: len(x) == 1)
-        classes = pd.merge(elements, self.get_inbound_classes(), on="nodes", suffixes=("_elements", "_classes"), how='inner')
-        tight_ends = []
-        for elem_phantom_name in elements.index.get_level_values("nodes"):
-            if self.is_struct_phantom(elem_phantom_name):
-                tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(elem_phantom_name)))
-            if self.is_set_phantom(elem_phantom_name):
-                hop_elem_phantom_name = self.get_outbound_set_by_name(self.get_edge_by_phantom_name(elem_phantom_name)).index.get_level_values("nodes").to_list()[0]
-                assert self.is_struct_phantom(hop_elem_phantom_name) or self.is_class_phantom(hop_elem_phantom_name), f"☠️ The set '{elem_phantom_name}' contains '{hop_elem_phantom_name}', which is neither a struct nor a class"
-                if self.is_struct_phantom(hop_elem_phantom_name):
-                    tight_ends.extend(self.get_anchor_points_by_struct_name(self.get_edge_by_phantom_name(hop_elem_phantom_name)))
-                else:
-                    tight_ends.append(hop_elem_phantom_name)
-        superclass_phantoms = []
-        for class_phantom_name in classes.index.to_list():
-            superclass_phantoms.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(class_phantom_name)))
-        superclasses = [self.get_phantom_of_edge_by_name(p) for p in superclass_phantoms]
-        loose_ends = association_ends[~association_ends["nodes"].isin(classes.index.to_list()+superclasses+tight_ends)]
-
-        if loose_ends.empty:
-            return []
-        else:
-            end_names = loose_ends.apply(lambda x: str(x.get("misc_properties").get("End_name")), axis=1).to_list()
-            return end_names
-
-    def get_restricted_struct_hypergraph(self, struct_name, only_anchor=False) -> Self:
-        anchor_points = self.get_anchor_points_by_struct_name(struct_name)
-        if only_anchor:
-            outbounds = [self.get_phantom_of_edge_by_name(ass) for ass in self.get_anchor_associations_by_struct_name(struct_name)]
-        else:
-            outbounds = self.get_outbound_struct_by_name(struct_name).index.get_level_values("nodes").to_list()
-        edge_names = []
-        for elem in drop_duplicates(outbounds + anchor_points):
-            if self.is_class_phantom(elem) or self.is_association_phantom(elem) or self.is_generalization_phantom(elem):
-                edge_names.append(self.get_edge_by_phantom_name(elem))
-                if self.is_class_phantom(elem) and elem in outbounds:
-                    edge_names.extend(self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(elem)))
-                    edge_names.extend(self.get_generalizations_by_class_name(self.get_edge_by_phantom_name(elem)))
-        # It takes all attributes in the classes, but we only want those in the outbounds, so we remove them one by one
-        result = HyperNetXWrapper(hypergraph=self.H.restrict_to_edges(edge_names))
-        to_be_removed = []
-        for attr_name in result.get_attributes().index:
-            if attr_name not in outbounds:
-                to_be_removed.append(attr_name)
-        result.H.remove_nodes(to_be_removed, inplace=True)
-        return result
-
-    def get_attribute_names_by_struct_name(self, struct_name) -> list[str]:
-        return pd.merge(self.get_outbound_struct_by_name(struct_name), self.get_attributes(), on="nodes", how="inner").index.to_list()
-
-    def get_subclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
-        """
-        Gives the names of the subclasses of a given class (the class itself is not included in the list)
-        :param class_name:
-        :param visited: This is necessary for recursion purposes. Initially, it should be just an empty list
-        :return: List of subclasses (no sorting can be assumed)
-        """
-        if visited is None:
-            visited = []
-        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
-            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
-            suffixes=("_superclass", "_subclass"), how="inner")
-        direct_subclasses = all_links[all_links["nodes_superclass"] == self.get_phantom_of_edge_by_name(class_name)]
-        if direct_subclasses.empty:
-            return []
-        else:
-            subclasses = []
-            for subclass_phantom in direct_subclasses["nodes_subclass"]:
-                subclass = self.get_edge_by_phantom_name(subclass_phantom)
-                assert subclass not in visited, f"☠️ Generalization cycle found for '{subclass}' in '{visited}'"
-                subclasses.extend([subclass]+self.get_subclasses_by_class_name(subclass, visited + [class_name]))
-            return subclasses
-
-    def get_superclasses_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
-        """
-        Gives the names of the superclasses of a given class (the class itself is not included in the list)
-        :param class_name:
-        :param visited: This is necessary for recursion purposes. Initially, it should be just an empty list
-        :return: List of superclasses sorted from the bottom top of the hierarchy to the top
-        """
-        if visited is None:
-            visited = []
-        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
-            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
-            suffixes=("_superclass", "_subclass"), how="inner")
-        direct_superclass = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
-        if direct_superclass.empty:
-            return []
-        else:
-            # This means there is one superclass (multiple-inheritance is not allowed)
-            superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
-            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
-            return [superclass]+self.get_superclasses_by_class_name(superclass, visited + [class_name])
-
-    def get_generalizations_by_class_name(self, class_name, visited: list[str] = None) -> list[str]:
-        if visited is None:
-            visited = []
-        all_links = self.get_outbound_generalization_superclasses().reset_index(level="nodes", drop=False).merge(
-            self.get_outbound_generalization_subclasses().reset_index(level="nodes", drop=False), on="edges",
-            suffixes=("_superclass", "_subclass"), how="inner")
-        direct_superclass = all_links[all_links["nodes_subclass"] == self.get_phantom_of_edge_by_name(class_name)]
-        if direct_superclass.empty:
-            return []
-        else:
-            # This means there is one superclass (multiple-inheritance is not allowed)
-            superclass = self.get_edge_by_phantom_name(direct_superclass.iloc[0]["nodes_superclass"])
-            generalization = direct_superclass.index[0]
-            assert superclass not in visited, f"☠️ Generalization cycle found for '{superclass}' in '{visited}'"
-            return [generalization]+self.get_generalizations_by_class_name(superclass, visited + [class_name])
-
-    def get_discriminant_by_class_name(self, class_name) -> str:
-        return self.get_outbound_generalization_subclasses().reset_index(level="edges", drop=True).loc[
-            self.get_phantom_of_edge_by_name(class_name)].misc_properties.get("Constraint", None)
-
-    def is_attribute(self, name) -> bool:
-        return name in self.get_attributes().index.to_list()
-
-    def is_association_end(self, name) -> bool:
-        return name in self.get_association_ends().index.to_list()
-
-    def is_id(self, name) -> bool:
-        return name in self.get_ids().index.to_list()
-
-    def is_class(self, name) -> bool:
-        return name in self.get_classes().index.to_list()
-
-    def is_phantom(self, name) -> bool:
-        return name in self.get_phantoms().index.to_list()
-
-    def is_class_phantom(self, name) -> bool:
-        return name in self.get_phantom_classes().index.to_list()
-
-    def is_association_phantom(self, name) -> bool:
-        return name in self.get_phantom_associations().index.to_list()
-
-    def is_generalization_phantom(self, name) -> bool:
-        return name in self.get_phantom_generalizations().index.to_list()
-
-    def is_struct_phantom(self, name) -> bool:
-        return name in self.get_phantom_structs().index.to_list()
-
-    def is_set_phantom(self, name) -> bool:
-        return name in self.get_phantom_sets().index.to_list()
-
-    def is_edge(self, name) -> bool:
-        return name in self.get_edges().index.to_list()
-
-    def is_association(self, name) -> bool:
-        return name in self.get_associations().index.to_list()
-
-    def is_generalization(self, name) -> bool:
-        return name in self.get_generalizations().index.to_list()
-
-    def is_struct(self, name) -> bool:
-        return name in self.get_structs().index.to_list()
-
-    def is_set(self, name) -> bool:
-        return name in self.get_sets().index.to_list()
-
-    def has_cycle(self, edge_name, visited: list[str] = None) -> bool:
-        if visited is None:
-            visited = [edge_name]
-        else:
-            visited.append(edge_name)
-        cyclic = False
-        for node_name in self.get_outbounds().query('edges == "' + edge_name + '"').index.get_level_values("nodes"):
-            if self.is_phantom(node_name):
-                next_edge = self.get_edge_by_phantom_name(node_name)
-                if self.is_struct(next_edge) or self.is_set(next_edge):
-                    if next_edge in visited:
-                        cyclic = True
-                    else:
-                        cyclic = cyclic or self.has_cycle(next_edge, visited)
-        visited.pop()
-        return cyclic
-
-    def check_multiplicities_to_one(self, path) -> (bool, bool):
-        """
-        This method checks if minimum multiplicities in the path are all at least to-one,
-        and if maximum multiplicities in the path are all at most to-one.
-        :param path: List of associations.
-        :return: Boolean indicating if the path is at least to-one.
-        :return: Boolean indicating if the path is at most to-one.
-        """
-        correct = (True, True)
-        for i, current in enumerate(path):
-            if self.is_association(current) or self.is_generalization(current):
-                assert i > 0, f"☠️ Path '{path}' cannot start with a relationship"
-                assert i < len(path)-1, f"☠️ Path '{path}' cannot end with a relationship"
-                assert self.is_phantom(path[i-1]) and self.is_phantom(path[i+1]), f"☠️ Path '{path}' must alternate relationships and phantoms"
-            if self.is_association(current):
-                ends_ahead = self.get_association_ends_by_name(current).query('nodes != "' + path[i-1] + '"')
-                assert ends_ahead.shape[0] == 1, f"☠️ Unexpected multiple association ends ahead in association '{current}' of path '{path}'"
-                properties = ends_ahead.iloc[0].misc_properties
-                assert "MultiplicityMin" in properties, f"☠️ MultiplicityMin not provided for association end '{ends_ahead.iloc[0].name}'"
-                assert "MultiplicityMax" in properties, f"☠️ MultiplicityMax not provided for association end '{ends_ahead.iloc[0].name}'"
-                correct = (correct[0] and (properties.get("MultiplicityMin") >= 1), correct[1] and (properties.get("MultiplicityMax") <= 1))
-            # If it is not an association it still can be a generalization
-            elif self.is_generalization(current):
-                # Max is always to-one independently of the direction
-                # Min is also to-one if it goes upward, but less than one if it goes downwards
-                correct = (correct[0] and (self.get_edge_by_phantom_name(path[i+1]) in self.get_superclasses_by_class_name(self.get_edge_by_phantom_name(path[i-1]))), correct[1])
-        return correct
-
-    def exists_more_generic_struct_in_set(self, struct_name, set_name) -> bool:
-        found = False
-        struct_anchor_classes = []
-        for key in self.get_anchor_end_names_by_struct_name(struct_name):
-            if self.is_class_phantom(key):
-                struct_anchor_classes.append(self.get_edge_by_phantom_name(key))
-        struct_phantom_list = pd.merge(self.get_outbound_set_by_name(set_name), self.get_phantom_structs(), on="nodes", how="inner").index
-        for current_struct_phantom in struct_phantom_list:
-            current_struct_name = self.get_edge_by_phantom_name(current_struct_phantom)
-            if current_struct_name != struct_name:
-                current_struct_anchor_classes = []
-                for key in self.get_anchor_end_names_by_struct_name(current_struct_name):
-                    if self.is_class_phantom(key):
-                        current_struct_anchor_classes.append(self.get_edge_by_phantom_name(key))
-                for anchor in struct_anchor_classes:
-                    for current_anchor in current_struct_anchor_classes:
-                        if anchor != current_anchor:
-                            superclasses = self.get_superclasses_by_class_name(anchor)
-                            found = found or (current_anchor in superclasses)
-        return found
+            # The top of the hierarchy should be the first in the list
+            class_incidences = incidences.xs(superclasses[-1], level="edges", drop_level=False)
+        class_id = class_incidences[class_incidences["misc_properties"].apply(lambda x: x['Direction'] == 'Outbound' and
+                                                                                         x['Kind'] == 'ClassIncidence' and
+                                                                                         x['Identifier'])]
+        assert not class_id.empty, f"Class {class_name} does not have an identifier"
+        return class_id.index[0][1]
 
     def show_textual(self) -> None:
         # Textual display

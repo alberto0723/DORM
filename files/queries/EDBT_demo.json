@@ -1,0 +1,9 @@
+{
+  "queries": [
+    {
+      "project": ["A_name", "B_title", "T_description"],
+      "pattern": ["Book", "Writes", "Author", "Touches", "Topic"],
+      "filter": "B_ID='1236'"
+    }
+  ]
+}
