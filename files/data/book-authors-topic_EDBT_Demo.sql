@@ -1,3 +1,5 @@
+SET search_path TO baseline;
+
 DELETE FROM writes_table;
 DELETE FROM touches_table;
 DELETE FROM authors_table;
@@ -53,7 +55,7 @@ DECLARE
 BEGIN
     SELECT d.description::JSONB INTO metadata
     FROM pg_namespace n JOIN pg_description d ON d.objoid = n.oid
-    WHERE n.nspname = 'source2';
+    WHERE n.nspname = 'baseline';
 
     EXECUTE format('COMMENT ON SCHEMA baseline IS %L', metadata || '{"has_data": true}');
 END $$
